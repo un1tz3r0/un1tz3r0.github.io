@@ -1,0 +1,758 @@
+/*
+*:hover {
+	box-shadow: #fca8;
+}
+*/
+
+/*
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed&family=IBM+Plex+Sans:wght@100;400;700&display=swap');
+*/
+@import url('../fonts/ibm-plex.css');
+
+* {
+	font-family: 'IBM Plex Sans', sans-serif;
+	/*font-family: 'IBM Plex Sans Condensed', sans-serif;*/
+	padding: 0;
+	margin: 0;
+	box-sizing: border-box;
+}
+
+*.loading {
+	transition: opacity 1s ease 0.5s;
+}
+
+*.loading > svg {
+  transition: transform 1s ease 0.5s;
+}
+
+*.loading.finished {
+	opacity: 0.0;
+}
+
+*.loading.finished > svg {
+	transform: scale(0.1, 0.1);
+}
+
+body {
+	display: grid;
+	place-items: center;
+	background: #333;
+	color: #888;
+	font-family: 'IBM Plex Sans', sans-serif;
+	width: 100vw;
+	height: 100vh;
+	overflow: hidden;
+}
+
+body > * {
+	grid-column: 1/2;
+	grid-row: 1/2;
+}
+
+main {
+	display: grid;
+	grid-template-columns: 250px 8px 1fr;
+	grid-template-rows: 50px 1fr 8px 100px;
+	width: 100vw;
+	height: 100vh;
+	place-items: center;
+	--grid-gap: 4px;
+	overflow: hidden;
+}
+
+main.sourcepanehidden {
+	grid-template-rows: 50px 1fr !important;
+};
+
+main > nav {
+	box-shadow: 0px -3px 20px #0008;
+	z-index: 10;
+}
+
+span.logo {
+	font-family: "IBM Plex Sans";
+	font-size: 40px;
+	color: #fff3;
+	font-weight: 900;
+	-webkit-text-stroke-color: #fff6;
+-webkit-text-stroke-width: .5px;
+}
+
+button:active {
+	outline: none;
+	background-color: #fdd5;
+	border: thin solid #fdd7;
+	opacity: 1.0;
+}
+
+button:focus {
+	outline: none;
+	box-shadow: inset 0 0 #fdd5 0px 2px;
+	opacity: 0.85;
+}
+
+main > nav {
+	/* font-family: "IBM Plex Sans Condensed"; */
+	display: grid;
+	grid-column: 1/-1;
+	grid-row: 1/2;
+	box-sizing: border-box;
+	border-bottom: 1px solid #fff5;
+	background-color: #222;
+	height: 50px;
+	width: 100%;
+	grid-template-columns: min-content auto;
+	white-space: nowrap;
+}
+
+main > nav > section.actions {
+	place-items: end;
+	place-content: end;
+	place-self: end;
+}
+
+main > nav > span.logo {
+	font-size: 50px;
+	text-shadow: 0px 0px -3px black 0px outset;
+}
+
+main > aside.settings {
+	display: grid;
+	grid-column: 1/2;
+	grid-row: 2/3;
+	place-self: start;
+	overflow-y: scroll;
+	height: 100%;
+	width: 100%;
+	border-right: thin solid #fff5;
+	border-bottom: thin solid #fff5;
+}
+
+main > section.graphics {
+	grid-column: 3 / 4;
+	grid-row: 2/3;
+	border-left: thin solid #fff5;
+	border-bottom: thin solid #fff5;	
+}
+
+main > .colgutter {
+	grid-row: 2 / 3;
+	grid-column: 2 / 3;
+	width: 8px;
+	background-color: #222;
+	--border-left: thin solid #fff8;
+	--border-right: thin solid #0008;
+	height: 100%;
+	box-sizing: border-box;
+	transition: all 1s ease;
+	display: grid;
+	place-items: center;
+}
+
+main > .rowgutter {
+	grid-row: 3 / 4;
+	grid-column: 1 / -1;
+	height: 8px;
+	background-color: #222;
+	--border-top: thin solid #fff8;
+	--border-bottom: thin solid #0008;
+	width: 100%;
+	box-sizing: border-box;
+	transition: all 1s ease;
+	display: grid;
+	place-items: center;
+}
+/*
+.rowgutter > svg {
+	height: 100%;
+}
+
+.colgutter > svg {
+	width: 100%;
+}
+*/
+
+.rowgutter:hover, .colgutter:hover {
+	cursor: resize;
+	background-color: #f883;
+	--border-color: #f889;
+	transition: all 0s ease;
+}
+
+/*
+.rowgutter:hover {
+	--height: 12px;
+}
+
+.colgutter:hover {
+	--width: 12px;
+}
+*/
+
+#svgviewcontainer {
+	width: 100%;
+	height: 100%;
+	overflow: auto;
+}
+
+#svgviewcontainer > * {
+	grid-column: 1/2;
+	grid-row: 1/2;
+	width: 100%;
+	height: 100%;
+	/* z-index: -10; */
+}
+
+#svgviewcontainer svg#drawing {
+	height: 100%;
+	width: 100%;
+}
+
+aside {
+	display: grid;
+	--border: thin solid #fff4;
+	background-color: #ffffff18;
+	--border-radius: 0.2em;
+	box-sizing: border-box;
+	grid-gap: 0.5em;
+	grid-template-columns: auto;
+	grid-template-rows: 1fr auto;
+	grid-auto-rows: auto;
+	grid-auto-flow: row;
+	place-items: start center;
+	width: auto;
+	height: min-content;
+	--padding: 0.5em;
+}
+
+aside > form {
+	place-self: start;
+	width: 100%;
+	height: content;
+	min-height: auto;
+	display: grid;
+	grid-template-columns: max-content auto min-content min-content;
+	grid-auto-rows: auto;
+	padding: 6px;
+	grid-gap: 4px;
+	font-size: 12px;
+}
+
+div.svgoutcontainer {
+	box-sizing: border-box;
+	place-self: stretch;
+	border: thin solid #fff4;
+	background-color: #ffffff08;
+	border-radius: 0.2em;
+	width: 100%;
+	display: grid;
+	grid-column: 1 / -1;
+	grid-row: 4 / 5;
+	overflow: scroll;
+}
+
+pre {
+	margin: 0px;
+	background-color: #00000018;
+	font-family: monospace;
+	width: 100%;
+	height: 100%;
+	place-self: stretch;
+}
+
+/*
+fieldset {
+	padding: 6px;
+	display: grid;
+	grid-template-columns: auto auto auto;
+	grid-auto-rows: auto;
+	place-items: stretch;
+	grid-gap: 6px;
+	grid-auto-flow: row;
+}
+*/
+
+button.clearbutton {
+	
+}
+
+form label {
+	grid-column: 1/2;
+	grid-column-end: 1;
+}
+
+form section {
+	grid-column: 1/-1;
+	display: grid;
+	grid-template-columns: min-content auto min-content min-content;
+}
+
+form heading {
+	width: auto;
+	grid-column: 1/-1;
+	/*position: relative;
+	height: 1em;*/
+	margin-top: 0.5em;
+	/*margin-bottom: 0.5em;
+	transform: translatey(0.5em);*/
+	/*border-bottom-style: none;*/
+	border-bottom: 1px solid 0xfff8;
+	box-sizing: border-box;
+	/*background-color: #444;*/
+	grid-column: 1/-1;
+	font-size: 125%;
+}
+
+form heading::first-child {
+	margin-top: 0em;
+}
+
+form heading.expanded:before {
+	
+}
+
+form button.clearbutton {
+	appearance: none;
+	display: grid;
+	box-sizing: border-box;
+	font-size: calc(small * 0.7);
+	padding: 0.1212em;
+	place-self: center;
+	border-radius: 2px;
+	grid-column: 3/4;
+	border: thin solid #8882;
+	color: #8886;
+	background-color: #0002;
+	opacity: 0.1;
+}
+
+form button.clearbutton.enabled {
+	/*
+	background-image: none;
+	background-size: 1ex 1ex;
+	background-position: center;
+	background-repeat: no-repeat;
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 6 6'%3E%3Cpath d='M1 1L5 5M1 5L5 1' stroke='$f886' strokeWidth='1' fill='none'/%3E%3C/svg%3E");*/
+	opacity: 0.7;
+	border: thin solid #fff2;
+	color: #fff6;
+	background-color: #0002;
+};
+
+form button.clearbutton:focus {
+}
+
+form label {
+	display: grid;
+	/* grid-column: 1 / -1; */
+	place-self: center start;
+	white-space: nowrap;
+	align-content: center;
+	/* grid-column: revert; */
+	position:  relative;
+	width: 100%;
+} 
+
+form input {
+	grid-column: 2 / 3;
+	place-self: center stretch;
+}
+
+form output {
+    --border: thin solid #fff2;
+    color: #fff6;
+    background-color: #0002;
+    padding: 0.1212em;
+    width: 3.333em;
+    place-self: center end;
+		place-contents: center end;
+    grid-column: 4/5;
+    border-radius: 2px;
+		box-sizing: border-box;
+}
+
+/* ------------------------- form controls ---------- */
+
+fieldset {
+	appearance: none;
+	border: none;
+	padding: 0;
+	margin: 0;
+	display: grid;
+	
+	grid-auto-flow: column;
+}
+
+/* - - - - - button - - - - - */
+
+nav {
+	display: grid;
+	grid-auto-flow: column;
+	grid-template-rows: min-content;
+
+}
+
+nav > * {
+	display: grid;
+}
+
+section.actions {
+	display: grid;
+	grid-template-rows: min-content;
+	grid-template-columns: auto auto 1fr;
+	grid-auto-flow: column;
+	place-items: start start;
+	grid-gap: 0.66em;
+	/* height: auto; */
+	/* width: 100%; */
+	padding:  0.66em;
+	z-index: 10;
+}
+
+button.clearbuttonold {
+  -webkit-appearance: none;
+	width: 1em;
+	height: 1em;
+	border-radius: 2.5px;  
+  background-color: #8f83;
+	border: thin solid #8f86;
+  outline: none;
+  -webkit-transition: .2s;
+  transition: opacity .2s;
+	box-shadow: outset black 0px 3px 5px;
+	color: #8fca;
+}
+
+button.downloadbutton {
+	display: grid;
+	place-items: center start;
+	grid-template-columns: 1.5em 1fr;
+	grid-auto-flow: column;
+	width: fit-content;
+	height: auto;
+	/* padding: 0.33em; */
+	border-radius: 0.33em;
+	/* margin: 1em; */
+	padding: 0.333em;
+	grid-gap: 0.333em;
+	-webkit-appearance: none;
+	appearance: none;
+	color: #fff6;
+	border: none;
+	background-color: transparent;
+}
+
+button.downloadbutton * {
+	white-space: nowrap;
+}
+
+button.linkbutton {
+	display: grid;
+	place-items: center start;
+	grid-template-columns: 1.5em 1fr;
+	grid-auto-flow: column;
+	width: content;
+	height: auto;
+	place-self: space-around;
+	/* grid-gap: 0.5em; */
+	/* padding: 0px; */
+	border-radius: 0.33em;
+	/* margin: 1em; */
+	padding: 0.333em;
+	grid-gap: 0.333em;
+	white-space: nowrap;
+}
+
+button.linkbutton * {
+	white-space: nowrap;
+}
+
+button.linkbutton > #copylinkbuttonicon, button.linkbutton > #copylinkbuttontext {
+	display: none;
+}
+
+button.linkbutton > #copiedlinkbuttonicon, button.linkbutton > #copiedlinkbuttontext {
+	display: none;
+}
+/*
+
+button.linkbutton.linkshown > #copylinkbuttonicon, 
+button.linkbutton.linkshown > #copylinkbuttontext {
+	display: initial !important;
+}
+
+button.linkbutton.linkcopied > #copiedlinkbuttonicon, 
+button.linkbutton.linkcopied > #copiedlinkbuttontext {
+	display: initial !important;
+}
+
+button.linkbutton.linkshown > #showlinkbuttonicon, 
+button.linkbutton.linkshown > #showlinkbuttontext,
+button.linkbutton.linkcopied > #showlinkbuttonicon, 
+button.linkbutton.linkcopied > #showlinkbuttontext {
+	display: none !important;
+}
+
+.linkurlbox {
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	overflow: hidden;
+	display: inline;
+}
+
+.linkrevealcontainer {
+  transform: translateX(-0.66em);
+  text-overflow: ellipsis;
+  overflow: hidden;
+  display: grid;
+  grid-auto-columns: auto;
+  grid-auto-flow: column;
+  white-space: nowrap;
+  width: 100%;
+  height:  100%;
+}
+
+.linkreveal.visible {
+	transform: translateX(0%) !important;
+}
+
+.linkreveal {
+	transition: all 0.5s ease;
+	transform: translateX(-100%);
+	overflow: hidden;
+	display: grid;
+	grid-auto-flow:  column;
+	place-content: stretch;
+	place-items: center stretch;
+	height: 100%;
+	width: auto;
+	white-space: nowrap;
+	-webkit-appearance: none;
+	color: #fff5;
+	border: thin solid #fff3;
+	background-color: #0003;
+	text-overflow: ellipsis;
+	border-radius: 0.33em;
+}
+
+button.copybutton {
+	display: inline-grid;
+	place-items: center start ;
+	grid-template-columns: 1.5em min-content;
+	grid-auto-flow: column;
+	width: content;
+	height: auto;
+	place-self: end;
+	border-radius: 0.33em;
+	// margin: 1em;
+	padding: 0.333em;
+	grid-gap: 0.333em;
+	border-radius: 0.33em;
+	margin: 0px;
+	white-space: nowrap;
+	-webkit-appearance: none;
+	appearance: none;
+	color: #fff6;
+	border: none;
+	background-color: transparent;
+}
+*/
+
+button {
+	font-family: "IBM Plex Sans Condensed";
+	font-weight: 900;
+	white-space: nowrap;
+	box-sizing: border-box;
+	border: thin solid transparent;
+	appearance: none;
+	-webkit-appearance: none;
+	background-color: transparent;
+	color: #fff5;
+}
+
+button:focus {
+	color: #fff8;                                                                              
+	border: thin solid #fff2;
+}
+
+button:hover {            
+	color: #faaa;
+}
+
+button:active {
+	color: #faa;
+	background-color: #faa8;
+}
+
+button.togglesourcebutton {
+    display: inline-grid;
+	place-items: center start ;
+	grid-template-columns: 1.5em min-content;
+	grid-auto-flow: column;
+	width: content;
+	height: auto;
+	place-self: end;
+	border-radius: 0.33em;
+	/* margin: 1em; */
+	padding: 0.333em;
+	grid-gap: 0.333em;
+    margin: 0px;
+}
+
+button.togglesourcebutton.visible  #showsourcebuttonicon, 
+button.togglesourcebutton.visible  #showsourcebuttontext {
+	display: none;
+}
+
+button.togglesourcebutton.hidden  #hidesourcebuttonicon, 
+button.togglesourcebutton.hidden  #hidesourcebuttontext {
+	display: none;
+}
+
+
+button.togglesourcebutton.visible  #hidesourcebuttonicon, 
+button.togglesourcebutton.visible  #hidesourcebuttontext {
+	display: initial;
+}
+
+
+button.togglesourcebutton.hidden  #showsourcebuttonicon, 
+button.togglesourcebutton.hidden  #showsourcebuttontext {
+	display: initial !important;
+}
+
+#sourcepanecontainer.visible,
+#sourcepanegutter.visible {
+	display: initial !important;
+}
+
+#sourcepanecontainer.hidden,
+#sourcepanegutter.hidden {
+	display: none !important;
+}
+
+/* definiteion of this is above near top after main {...}  */
+/*
+body > main.sourcepanehidden {
+  // override the grid-template-rows when source pane is hidden ...
+}
+*/
+
+/* - - - - - slider - - - - - */
+
+.slider {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 2px;
+	margin-top: calc(0.5em - 2px);
+	margin-bottom: calc(0.5em - 2px);
+  border-radius: 2.5px;  
+  background: #aaa6;
+	--border: thin solid #aaa6;
+  outline: none;
+  opacity: 0.7;
+  -webkit-transition: .2s;
+  transition: opacity .2s;
+}
+
+input[type="range"]:focus::-webkit-slider-container,
+input[type="range"]:active::-webkit-slider-container
+{
+	background-color: #faa8;
+	border: thin solid #faa8;
+	opacity: 1.0;
+}
+
+input[type="range"]:active::-webkit-slider-thumb, 
+input[type="range"]:focus::-webkit-slider-thumb
+{ 
+	background-color: #f668;
+	border: thin solid #f66a;
+	box-shadow: 0 0 3 3 #faab;
+	opacity: 1.0;
+}
+
+input[type="range"]:hover::-webkit-slider-container,
+input[type="range"]:hover::-webkit-slider-thumb {
+  	background-color: #fdd8;
+	border: thin solid #fdda;
+	/*box-shadow: 0 0 3 3 #faab;*/
+	opacity: 1.0;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 5px;
+  height: 18px;
+  border-radius: 3.5px;
+	--border: thin solid #aaac;
+  background: #888c;
+  cursor: pointer;
+}
+
+
+.slider::-moz-range-thumb {
+  width: 25px;
+  height: 25px;
+  border-radius: 50%;
+  background: #4CAF50;
+  cursor: pointer;
+}
+
+/* ------------------------------------------
+scrollbars
+------------------------------------------ */
+
+/* The emerging W3C standard
+   that is currently Firefox-only */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: blue orange;
+}
+
+/* Works on Chrome/Edge/Safari */
+*::-webkit-scrollbar {
+  width: 10px;
+	height: 10px;
+	border: 3px solid #fff0;
+}
+
+*::-webkit-scrollbar-track {
+  background: #0003;
+	--border-radius: 2.5px;
+	border: 3px solid #0000;
+}
+
+*::-webkit-scrollbar-thumb {
+	border: 3px solid #fff0;
+	background: #fff3;
+	border-radius: 6px;
+	--padding: 2px;
+	--margin: 2px;
+}
+
+/* ------------------------------------------
+tooltips
+------------------------------------------ */
+
+@import url('svg-arrow.css');
+
+.tippy-box[data-theme~='inverse'] {
+  background-color: #222;
+  color: #aaa;
+  border-color: #666;
+}
+
+.tippy-box[data-theme~='inverse'][data-placement^='top'] > .tippy-arrow::before {
+  border-top-color: #222;
+}
+.tippy-box[data-theme~='inverse'][data-placement^='bottom'] > .tippy-arrow::before {
+  border-bottom-color: #222;
+}
+.tippy-box[data-theme~='inverse'][data-placement^='left'] > .tippy-arrow::before {
+  border-left-color:  #222;
+}
+.tippy-box[data-theme~='inverse'][data-placement^='right'] > .tippy-arrow::before {
+  border-right-color:  #222;
+}
