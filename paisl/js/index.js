@@ -2044,7 +2044,7 @@ function getSaveParamString(sep="+") {
 function loadParameterString(s, sep="+") {
   var words = s.split(sep).map(x=>decodeURIComponent(x)).map(x=>parseInt(x));
   var version = words[0];
-  var values = words.splice(1);
+  //var values = words.splice(1, words.length);
   console.info("loading parameters from string, words are", words); 
   if(saveParamsByVersion[version]==undefined)
   {
@@ -2058,7 +2058,7 @@ function loadParameterString(s, sep="+") {
     if(!params.has(name)) {
       console.warn("no parameter named '", name, "' in loadParameterString");
     } else if(idx+1>=words.length) {
-      console.warn("no value for parameter '",name,"' in loadParameterString")
+      console.warn("no value for parameter number ",idx,", '",name,"' in loadParameterString")
     } else {
       var inputel = params.get(name);
       inputel.value = words[idx+1];
