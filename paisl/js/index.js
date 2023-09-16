@@ -1333,7 +1333,7 @@ function refresh(onlycolor = false)
 		// generate stroke color from hsv
 		var strokecolor = rgbtohex(hsvtorgb(edgehue, edgesat, edgeval), edgealpha);
 		var fillcolor = rgbtohex(hsvtorgb(fillh, fills, fillv),filla);
-		/*if(strokecolor != null) {
+		if(strokecolor != null) {
 			el.setAttribute("stroke", strokecolor);
 		}
 		el.setAttribute("fill-opacity", filla);
@@ -1341,8 +1341,8 @@ function refresh(onlycolor = false)
 			el.setAttribute("fill", fillcolor);
 		} else {
 			el.setAttribute("fill", "none");
-		}*/
-		el.setAttribute("style", `fill:${fillcolor}; stroke:${strokecolor};`)
+		}
+		el.setAttribute("style", "fill:"+fillcolor+"; stroke:"+strokecolor+";");
 	}
 
 	curupdatecolor = updatecolor;
