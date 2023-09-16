@@ -2075,7 +2075,7 @@ function loadParamsFromURL()
     if(urlParams.has("p"))*/
 	if(document.location.hash != "")
     {
-    	loadParameterString(document.location.hash, "_");
+    	loadParameterString(String(document.location.hash).slice(1), "_");
         storeinputs();
 		refresh();
         //var url = RegExp("^(.*?)(#.*?)?$").exec(document.location.toString())[0];
