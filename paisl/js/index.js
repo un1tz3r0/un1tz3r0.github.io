@@ -1333,7 +1333,7 @@ function refresh(onlycolor = false)
 		// generate stroke color from hsv
 		var strokecolor = rgbtohex(hsvtorgb(edgehue, edgesat, edgeval), edgealpha);
 		var fillcolor = rgbtohex(hsvtorgb(fillh, fills, fillv),filla);
-		if(strokecolor != null) {
+		/*if(strokecolor != null) {
 			el.setAttribute("stroke", strokecolor);
 		}
 		el.setAttribute("fill-opacity", filla);
@@ -1341,7 +1341,8 @@ function refresh(onlycolor = false)
 			el.setAttribute("fill", fillcolor);
 		} else {
 			el.setAttribute("fill", "none");
-		}
+		}*/
+		el.setAttribute("style", `fill:$(fillcolor); stroke:$(strokecolor);`)
 	}
 
 	curupdatecolor = updatecolor;
@@ -2026,7 +2027,7 @@ const saveParamsByVersion = {
 };
 
 function getSaveParamString() {
-  var params = new Map(); Array.from(document.querySelectorAll("input[name][data-persisted]")).forEach(el=>{params.set(el.name, el.value);});
+  var params = new Map(); Array.from(document.querySelectorAll("input[name][data-persisted]")).forEach(el=>{params.set(String(el.name).trim(), el.value);});
   var values = [currentSaveVersion];
   for(let name of saveParamsByVersion[currentSaveVersion]) {
     if(!params.has(name))
@@ -2050,7 +2051,7 @@ function loadParameterString(s) {
   	return false;
   }
   var names = saveParamsByVersion[version];
-  var params = new Map(); Array.from(document.querySelectorAll("input[name][data-persisted]")).forEach(el=>{params.set(el.name, el);});
+  var params = new Map(); Array.from(document.querySelectorAll("input[name][data-persisted]")).forEach(el=>{params.set(String(el.name).trim(), el);});
   for(let [idx, name] of names.entries())
   {
     if(!params.has(name)) {
@@ -2087,7 +2088,7 @@ function getSaveParamsURL() {
 
 function getSaveParameterOrder()
 {
-  var paramNames = Array.from(document.querySelectorAll("input[name][data-persisted]")).map(el=>el.name);
+  var paramNames = Array.from(document.querySelectorAll("input[name][data-persisted]")).map(el=>String(el.name).trim());
   return JSON.stringify(paramNames);
 }
 
