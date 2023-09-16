@@ -2045,7 +2045,7 @@ function loadParameterString(s, sep="+") {
   var words = s.split(sep).map(x=>decodeURIComponent(x)).map(x=>parseInt(x));
   var version = words[0];
   var values = words.splice(1);
-  console.info("loading parameters from string, words are", words);
+  console.info("loading parameters from string, words are", words); 
   if(saveParamsByVersion[version]==undefined)
   {
   	console.warn("Error unknown parameter set version '"+String(version)+"' in loadParameterString");
