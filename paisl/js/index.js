@@ -2056,11 +2056,11 @@ function loadParameterString(s) {
   {
     if(!params.has(name)) {
       console.warn("no parameter named '", name, "' in loadParameterString");
-    } else if(idx>=values.length) {
+    } else if(idx+1>=words.length) {
       console.warn("no value for parameter '",name,"' in loadParameterString")
     } else {
       var inputel = params.get(name);
-      inputel.value = values[idx];
+      inputel.value = words[idx+1];
     }
   }
 
