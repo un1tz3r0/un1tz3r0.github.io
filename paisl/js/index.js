@@ -2027,7 +2027,7 @@ const saveParamsByVersion = {
 };
 
 function getSaveParamString() {
-  var params = new Map(); Array.from(document.querySelectorAll("input[name][data-persisted]")).forEach(el=>{params.set(String(el.name).trim(), el.value);});
+  var params = new Map(); Array.from(document.querySelectorAll("input[name][data-persisted]")).forEach(el=>{params.set(el.getAttribute("name").trim(), el.value);});
   var values = [currentSaveVersion];
   for(let name of saveParamsByVersion[currentSaveVersion]) {
     if(!params.has(name))
@@ -2047,7 +2047,7 @@ function loadParameterString(s) {
   var values = words.splice(1);
   if(saveParamsByVersion[version]==undefined)
   {
-  	console.warn("Error unknown parameter set version in loadSaveParameterString");
+  	console.warn("Error unknown parameter set version in loadParameterString");
   	return false;
   }
   var names = saveParamsByVersion[version];
@@ -2055,9 +2055,9 @@ function loadParameterString(s) {
   for(let [idx, name] of names.entries())
   {
     if(!params.has(name)) {
-      console.warn("no parameter named '", name, "' in loadSaveParameterString");
+      console.warn("no parameter named '", name, "' in loadParameterString");
     } else if(idx>=values.length) {
-      console.warn("no value for parameter '",name,"' in loadSaveParameterString")
+      console.warn("no value for parameter '",name,"' in loadParameterString")
     } else {
       var inputel = params.get(name);
       inputel.value = values[idx];
