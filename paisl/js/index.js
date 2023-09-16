@@ -1342,7 +1342,7 @@ function refresh(onlycolor = false)
 		} else {
 			el.setAttribute("fill", "none");
 		}*/
-		el.setAttribute("style", `fill:$(fillcolor); stroke:$(strokecolor);`)
+		el.setAttribute("style", `fill:${fillcolor}; stroke:${strokecolor};`)
 	}
 
 	curupdatecolor = updatecolor;
