@@ -2026,7 +2026,7 @@ const saveParamsByVersion = {
   100: ["ratioslider","angleslider","symmetryslider","symmetryminslider","symmetrymaxslider","basehueslider","huerangeminslider","huerangemaxslider","strokealphaslider","strokelumslider","strokesatslider","strokewidthslider","fillalphaslider","filllumslider","fillsatslider","minsizeslider","maxdepthslider","huegenshiftslider","lumgenshiftslider","symmetrygenshiftslider","minrecsizeslider","maxrecdepthslider","huerecshiftslider","lumrecshiftslider","symmetryrecshiftslider","sizehueslider","sizelumslider","sizesymslider","recipsizehueslider","recipsizelumslider","recipsizesymslider"],
 };
 
-function getSaveParamString() {
+function getSaveParamString(sep="+") {
   var params = new Map(); Array.from(document.querySelectorAll("input[name][data-persisted]")).forEach(el=>{params.set(el.getAttribute("name").trim(), el.value);});
   var values = [currentSaveVersion];
   for(let name of saveParamsByVersion[currentSaveVersion]) {
@@ -2038,11 +2038,11 @@ function getSaveParamString() {
     else
       values.push(params.get(name))
   }
-  return values.map(v=>encodeURIComponent(String(v))).join("+");
+  return values.map(v=>encodeURIComponent(String(v))).join(sep);
 }
 
-function loadParameterString(s) {
-  var words = s.split("+").map(x=>decodeURIComponent(x)).map(x=>parseInt(x));
+function loadParameterString(s, sep="+") {
+  var words = s.split(sep).map(x=>decodeURIComponent(x)).map(x=>parseInt(x));
   var version = words[0];
   var values = words.splice(1);
   if(saveParamsByVersion[version]==undefined)
@@ -2070,20 +2070,24 @@ function loadParameterString(s) {
 
 function loadParamsFromURL()
 {
-	var urlParams = new URLSearchParams(window.location.search);
-    if(urlParams.has("p"))
+	/*var urlParams = new URLSearchParams(window.location.search);
+    if(urlParams.has("p"))*/
+	if(document.location.hash != "")
     {
-    	loadParameterString(urlParams.get("p"));
+    	loadParameterString(document.location.hash, "_");
         storeinputs();
-        var url = RegExp("^(.*?)(\\?.*?)?$").exec(document.location.toString())[1];
-        document.location.href = url;
+        //var url = RegExp("^(.*?)(#.*?)?$").exec(document.location.toString())[0];
+        //document.location.href = url;
     }
 }
 
 function getSaveParamsURL() {
-  var queryString = "p=" + getSaveParamString();
-  var url = RegExp("^(.*?)(\\?.*?)?$").exec(document.location.toString())[1];
-  return url + "?" + queryString;
+	/*var queryString = "p=" + getSaveParamString();
+	var url = RegExp("^(.*?)(\\?.*?)?$").exec(document.location.toString())[1];
+	return url + "?" + queryString;*/
+	var queryString = getSaveParamString("_");
+	var url = RegExp("^(.*?)(#.*?)?$").exec(document.location.toString())[1];
+	return url + "#" + queryString;
 }
 
 function getSaveParameterOrder()
