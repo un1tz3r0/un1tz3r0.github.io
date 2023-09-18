@@ -743,18 +743,23 @@ function createSVGArrow(svg, x1, y1, x2, y2, options)
 		el.setAttribute("cx", String(roundToStr(circle.x*100.0)));
 		el.setAttribute("cy", String(roundToStr(circle.y*100.0)));
 		el.setAttribute("r", String(roundToStr(Math.max(0, Math.abs(circle.r*100.0)-width/2))));
-		if(width != null) {
-			el.setAttribute("stroke-width", String(roundToStr(width, -3)));
-		}
 		// generate stroke color from hsv
 		var strokecolor = rgbtohex(hsvtorgb(edgehue, edgesat, edgeval), edgealpha);
 		var fillcolor = rgbtohex(hsvtorgb(fillhue, fillsat, fillval),fillalpha);
+		if(style != null)
+			el.setAttribute("style", style);
+		// set optional attributes
+		if(width != null) {
+			el.setAttribute("stroke-width", String(roundTo(width, -3)));
+			el.style.strokeWidth = roundTo(width, -3);
+		}
 		if(strokecolor != null) {
 			el.setAttribute("stroke", strokecolor);
+			el.style.stroke = strokecolor;
 		}
-		//el.setAttribute("fill-opacity", fillalpha);
-		if(fillcolor != null) {
+		if(filled) {
 			el.setAttribute("fill", fillcolor);
+			el.style.fill = fillcolor;
 		} else {
 			el.setAttribute("fill", "none");
 		}
@@ -764,8 +769,6 @@ function createSVGArrow(svg, x1, y1, x2, y2, options)
 		if(info != null) {
 			el.setAttribute("data-info", JSON.stringify(info));
 		}
-		if(style != null)
-			el.setAttribute("style", style);
 		if(className != null)
 			el.classList.add(className);
 	    // set additional js properties on the element object...
@@ -836,23 +839,26 @@ function createSVGArrow(svg, x1, y1, x2, y2, options)
 		// create element and set attributes based on passed values
 		let el = document.createElementNS("http://www.w3.org/2000/svg", "path");
 		el.setAttribute("d", pathdata);
+		if(style != null)
+			el.setAttribute("style", style);
 		// set optional attributes
 		if(width != null) {
 			el.setAttribute("stroke-width", String(roundTo(width, -3)));
+			el.style.strokeWidth = roundTo(width, -3);
 		}
 		if(strokecolor != null) {
 			el.setAttribute("stroke", strokecolor);
+			el.style.stroke = strokecolor;
 		}
 		if(filled) {
 			el.setAttribute("fill", fillcolor);
+			el.style.fill = fillcolor;
 		} else {
 			el.setAttribute("fill", "none");
 		}
 		if(info != null) {
 			el.setAttribute("data-info", JSON.stringify(info));
 		}
-		if(style != null)
-			el.setAttribute("style", style);
 		if(className != null)
 			el.classList.add(className);
 		svg.insertAdjacentElement('afterbegin', el);
@@ -1367,13 +1373,13 @@ function refresh(onlycolor = false)
 		// elements above, calling the same function to update their colors using
 		// the cached properties
 
-        requestAnimationFrame((frametime)=>{
-        	for(let el of lastelements)
-        	{
-        	  	curupdatecolor(el);
-          }
-          updatesourcepane();
-        });
+		requestAnimationFrame((frametime)=>{
+			for(let el of lastelements)
+			{
+					curupdatecolor(el);
+			}
+			updatesourcepane();
+		});
 		return;
 	}
 
@@ -2045,7 +2051,7 @@ function loadParameterString(s, sep="+") {
   var words = s.split(sep).map(x=>decodeURIComponent(x)).map(x=>parseInt(x));
   var version = words[0];
   //var values = words.splice(1, words.length);
-  console.info("loading parameters from string, words are", words); 
+  console.info("loading parameters from string, words are", words);
   if(saveParamsByVersion[version]==undefined)
   {
   	console.warn("Error unknown parameter set version '"+String(version)+"' in loadParameterString");
