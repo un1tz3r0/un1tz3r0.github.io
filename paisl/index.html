@@ -1,6 +1,6 @@
 <html>
 	<head>
-		<title>Paisl Generator - paisl.cor3.app</title>
+		<title>Procedural Paisley</title>
 		<script src="js/index.js" async="true"></script>
 		<link rel="stylesheet" href="css/index.css"/>
 		<style>
@@ -31,7 +31,7 @@
 	<nav>
 		<span class="maintitle">
 			<span class="logo">
-				Paisl Generator
+				Procedural Paisley
 			</span>
 		</span>
 
@@ -169,6 +169,16 @@
 			<input data-persisted="true" data-refresh="onlycolor" type="range" class="slider" min="-400" max="400" value="0" data-scaled-min="-4.0" data-scaled-max="4.0" name="recipsizelumslider" data-insert-output="true" data-insert-label="1/size to luma">
 
 			<input data-persisted="true" type="range" class="slider" min="-200" max="200" value="0" data-scaled-min="-100.0" data-scaled-max="100.0" name="recipsizesymslider" data-insert-output="true" data-insert-label="1/size to sym">
+
+			<heading><b>Angle Influence</b></heading>
+
+			<input data-persisted="true" type="range" class="slider" min="1" max="360" value="10" data-scaled-min="0.1" data-scaled-max="36.0" name="anglesymrepslider" data-insert-output="true" data-insert-label="angle to sym repeat count">
+			<input data-persisted="true" data-refresh="onlycolor" type="range" class="slider" min="1" max="360" value="10" data-scaled-min="0.1" data-scaled-max="36.0" name="anglehuerepslider" data-insert-output="true" data-insert-label="angle to hue repeat count">
+			<input data-persisted="true" data-refresh="onlycolor" type="range" class="slider" min="1" max="360" value="10" data-scaled-min="0.1" data-scaled-max="36.0" name="anglelumrepslider" data-insert-output="true" data-insert-label="angle to lum repeat count">
+			<input data-persisted="true" type="range" class="slider" min="-400" max="400" value="0" data-scaled-min="-40.0" data-scaled-max="40.0" name="anglesymamtslider" data-insert-output="true" data-insert-label="angle to sym amount">
+			<input data-persisted="true" data-refresh="onlycolor" type="range" class="slider" min="-400" max="400" value="0" data-scaled-min="-4.0" data-scaled-max="4.0" name="anglehueamtslider" data-insert-output="true" data-insert-label="angle to hue amount">
+			<input data-persisted="true" data-refresh="onlycolor" type="range" class="slider" min="-400" max="400" value="0" data-scaled-min="-4.0" data-scaled-max="4.0" name="anglelumamtslider" data-insert-output="true" data-insert-label="angle to lum amount">
+
 
 		</form>
 	</aside>

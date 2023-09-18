@@ -1297,23 +1297,32 @@ function refresh(onlycolor = false)
 				showdebugcircles = inputs["showdebugcirclescheckbox"],
 				ringalpha = inputs["ringalphaslider"],
 				ringminsize = inputs["ringminsizeslider"],
-				ringpropsize = inputs["ringpropsizeslider"];//,
+				ringpropsize = inputs["ringpropsizeslider"],
+				anglediv = inputs["angledivslider"],
+				anglelum = inputs["anglelumslider"],
+				anglehue = inputs["anglehueslider"],
+				anglesym = inputs["anglesymslider"];
 				//tailratio = inputs["tailratioslider"],
 				//tailangle = inputs["tailangleslider"];
 
+	function getangleamount(circle)
+	{
+		return Math.abs((circle.i[0]/circle.i[1])*2-1);
+	}
+
 	function calcsymm(circle, gapdepth, recdepth)
 	{
-		return Math.round(fwrap(subdivs + sizetosym * circle.r + recipsizetosym * 1/circle.r + symrecshift * (maxrecdepth - recdepth) + symgenshift * (maxdepth - gapdepth), symmin, symmax));
+		return Math.round(fwrap(subdivs + sizetosym * circle.r + recipsizetosym * 1/circle.r + symrecshift * (maxrecdepth - recdepth) + symgenshift * (maxdepth - gapdepth) + ffold(getangleamount(circle)*anglesymreps)*anglesymamt, symmin, symmax));
 	}
 
 	function calcluma(circle, gapdepth, recdepth)
 	{
-		return ffold(0.5 + sizetolum * circle.r + recipsizetolum * 1/circle.r + lumrecshift*(maxrecdepth-recdepth)+lumgenshift*(maxdepth-gapdepth));
+		return ffold(0.5 + sizetolum * circle.r + recipsizetolum * 1/circle.r + lumrecshift*(maxrecdepth-recdepth)+lumgenshift*(maxdepth-gapdepth) + ffold(getangleamount(circle)*anglelumreps)*anglelumamt);
 	}
 
 	function calchue(circle, gapdepth, recdepth)
 	{
-		return fwrap(basehue+huegenshift*(maxdepth-gapdepth)+huerecshift*(maxrecdepth-recdepth)+sizetohue*circle.r + recipsizetohue * 1/circle.r, huerangemin, huerangemax);
+		return fwrap(basehue+huegenshift*(maxdepth-gapdepth)+huerecshift*(maxrecdepth-recdepth)+sizetohue*circle.r + recipsizetohue * 1/circle.r + ffold(getangleamount(circle)*anglehuereps)*anglehueamt, huerangemin, huerangemax);
 	}
 
   curcalchue = calchue;
@@ -1341,14 +1350,16 @@ function refresh(onlycolor = false)
 		var fillcolor = rgbtohex(hsvtorgb(fillh, fills, fillv),filla);
 		if(strokecolor != null) {
 			el.setAttribute("stroke", strokecolor);
+			el.style.stroke = strokecolor;
 		}
 		el.setAttribute("fill-opacity", filla);
+		el.style.fillOpacity = filla;
 		if(fillcolor != null) {
 			el.setAttribute("fill", fillcolor);
+			el.style.fill = fillcolor;
 		} else {
 			el.setAttribute("fill", "none");
 		}
-		el.setAttribute("style", "fill:"+fillcolor+"; stroke:"+strokecolor+";");
 	}
 
 	curupdatecolor = updatecolor;
@@ -1902,7 +1913,7 @@ function refresh(onlycolor = false)
 				var settingsJSON = JSON.stringify(inputs);
 				newgrp.setAttribute("data-paisl", settingsJSON);
 
-                updatesourcepane();
+        updatesourcepane();
 			});
 		}
 	});
@@ -2029,7 +2040,7 @@ this paisl" button)
 
 const currentSaveVersion = 100;
 const saveParamsByVersion = {
-  100: ["ratioslider","angleslider","symmetryslider","symmetryminslider","symmetrymaxslider","basehueslider","huerangeminslider","huerangemaxslider","strokealphaslider","strokelumslider","strokesatslider","strokewidthslider","fillalphaslider","filllumslider","fillsatslider","minsizeslider","maxdepthslider","huegenshiftslider","lumgenshiftslider","symmetrygenshiftslider","minrecsizeslider","maxrecdepthslider","huerecshiftslider","lumrecshiftslider","symmetryrecshiftslider","sizehueslider","sizelumslider","sizesymslider","recipsizehueslider","recipsizelumslider","recipsizesymslider"],
+  100: ["ratioslider","angleslider","symmetryslider","symmetryminslider","symmetrymaxslider","basehueslider","huerangeminslider","huerangemaxslider","strokealphaslider","strokelumslider","strokesatslider","strokewidthslider","fillalphaslider","filllumslider","fillsatslider","minsizeslider","maxdepthslider","huegenshiftslider","lumgenshiftslider","symmetrygenshiftslider","minrecsizeslider","maxrecdepthslider","huerecshiftslider","lumrecshiftslider","symmetryrecshiftslider","sizehueslider","sizelumslider","sizesymslider","recipsizehueslider","recipsizelumslider","recipsizesymslider","anglesymrepslider", "anglesymamtslider","anglehuerepslider", "anglehueamtslider", "anglelumrepslider", "anglelumamtslider"],
 };
 
 function getSaveParamString(sep="+") {
