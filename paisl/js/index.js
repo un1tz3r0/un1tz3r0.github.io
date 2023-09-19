@@ -393,7 +393,7 @@ function circleCircleIntersectionPoints(c1, c2) {
 				for(let subi = 0; subi < num; subi++)
 				{
 					//var cursubc = new Circle(this.x, this.y - (this.r - subr), subr, this.a + (subi * subt) * (180.0/Math.PI), this.g + 1, this, [subi, num],  [this, centc]);
-					var cursubc = new Circle(this.x + Math.cos(subt * subi) * (this.r - subr), this.y + Math.sin(subt * subi) * (this.r - subr), subr, this.a + (subi * subt) * (180.0/Math.PI), this.g + 1, this, [subi, num],  [this, centc]);
+					var cursubc = new Circle(this.x + Math.cos(subt * subi) * (this.r - subr), this.y + Math.sin(subt * subi) * (this.r - subr), subr, -this.a + (subi * subt) * (180.0/Math.PI), this.g + 1, this, [subi, num],  [this, centc]);
 					if(lastsubc != null) {
 						cursubc.addtouching(lastsubc);
 						lastsubc.addtouching(cursubc);
