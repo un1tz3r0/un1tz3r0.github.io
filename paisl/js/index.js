@@ -1298,10 +1298,12 @@ function refresh(onlycolor = false)
 				ringalpha = inputs["ringalphaslider"],
 				ringminsize = inputs["ringminsizeslider"],
 				ringpropsize = inputs["ringpropsizeslider"],
-				anglediv = inputs["angledivslider"],
-				anglelum = inputs["anglelumslider"],
-				anglehue = inputs["anglehueslider"],
-				anglesym = inputs["anglesymslider"];
+				anglesymreps = inputs["anglesymrepslider"],
+				anglelumreps = inputs["anglelumrepslider"],
+				anglehuereps = inputs["anglehuerepslider"],
+				anglesymamt = inputs["anglesymamtslider"],
+				anglelumamt = inputs["anglelumamtslider"],
+				anglehueamt = inputs["anglehueamtslider"];
 				//tailratio = inputs["tailratioslider"],
 				//tailangle = inputs["tailangleslider"];
 
