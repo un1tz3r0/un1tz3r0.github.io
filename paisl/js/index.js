@@ -553,8 +553,8 @@ function radius(x1, y1, x2, y2) {
 	return Math.sqrt((y2 - y1)*(y2 - y1) + (x2 - x1)*(x2 - x1));
 }
 
-function heading(x, y, a, d) {
-	return {x: Math.cos(a) * d + x, y: Math.sin(a) * d + y};
+function heading(ox, oy, a, d) {
+	return {x: Math.cos(a) * d + ox, y: Math.sin(a) * d + oy};
 }
 
 // cartesian coordinate operations based on the above primitive conversions,
@@ -565,7 +565,7 @@ function rotate(x, y, a, xorigin=0.0, yorigin=0.0)
 	var ox, oy, oa, od;
 	od = radius(xorigin, yorigin, x, y);
 	oa = angle(xorigin, yorigin, x, y);
-	var ret = heading(xorigin, yorigin, oa + (a / 180)*Math.PI, od);
+	var ret = heading(xorigin, yorigin, oa + (a / 180.0)*Math.PI, od);
 	return ret;
 }
 
@@ -1043,7 +1043,12 @@ class PrioQueue {
 
 
 /* ---------------------------------------------------------------------
-WorkQueue - cooperative background rendering task management
+WorkQueue - cooperative background rendering task management.
+keeps track of geometry generation calls invoked (recursively) during the
+rendering process, running the pending operations during idleCallbacks.
+this allows us to schedule (recursive) generation without blocking the
+main thread, and also to cancel rendering when the parameters are updated
+before the current frame is completely rendered.
 ------------------------------------------------------------------------ */
 
 class WorkQueue
@@ -1312,7 +1317,7 @@ function refresh(onlycolor = false)
 		try {
 			return Math.abs((circle.i[0]/circle.i[1])*2-1);
 		} catch {
-			return 1.0;
+			return 0.0;
 		}
 	}
 
@@ -1509,9 +1514,9 @@ function refresh(onlycolor = false)
 					var transform = svg.createSVGTransform();
 					transform.setTranslate((circle.x - parent.x)*100.0, (circle.y - parent.y) * 100.0);
 					var transform2 = svg.createSVGTransform();
-					transform2.setRotate(circle.a, 0, 0);//-(circle.x - parent.x)*100.0, -(circle.y - parent.y) * 100.0);
-					newgroup.transform.baseVal.appendItem(transform2);
+					transform2.setRotate((circle.a/360.0)*Math.PI*2.0, (circle.x-parent.x)*100.0, (circle.y-parent.y)*100.0);//-(circle.x - parent.x)*100.0, -(circle.y - parent.y) * 100.0);
 					newgroup.transform.baseVal.appendItem(transform);
+					newgroup.transform.baseVal.appendItem(transform2);
 
 					// call it's subdivide method with our callbacks created above
 
