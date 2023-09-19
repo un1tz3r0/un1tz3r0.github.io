@@ -764,7 +764,7 @@ function createSVGArrow(svg, x1, y1, x2, y2, options)
 			el.setAttribute("fill", "none");
 		}
 		if(circle.a != 0) {
-			el.setAttribute("transform", `rotate(${roundToStr(circle.a)},${roundToStr(circle.x*100)},${roundToStr(circle.y*100)})`);
+			//el.setAttribute("transform", `rotate(${roundToStr(circle.a)},${roundToStr(circle.x*100)},${roundToStr(circle.y*100)})`);
 		}
 		if(info != null) {
 			el.setAttribute("data-info", JSON.stringify(info));
