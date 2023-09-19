@@ -386,7 +386,7 @@ function circleCircleIntersectionPoints(c1, c2) {
 			if((filfn == undefined) || filfn(this))
 			{
 				var subr = (this.r * Math.sin(Math.PI/num)) / (1.0 + Math.sin(Math.PI/num));
-				var subt = Math.PI/num;
+				var subt = (Math.PI*2.0)/num;
 				var centc = new Circle(this.x, this.y, (this.r - subr * 2) * this.s, this.a, this.g + 1, this, null, null);
 				var subcs = [];
 				var lastsubc = null;
@@ -466,7 +466,6 @@ function circleCircleIntersectionPoints(c1, c2) {
 		if(c1.s <= 0 && c2.s <= 0)
 		{
 			if(dcc > sumrr) {
-				return (dcc-sumrr)/dcc;
 			}
 			return 0;
 		}
