@@ -1309,7 +1309,11 @@ function refresh(onlycolor = false)
 
 	function getangleamount(circle)
 	{
-		return Math.abs((circle.i[0]/circle.i[1])*2-1);
+		try {
+			return Math.abs((circle.i[0]/circle.i[1])*2-1);
+		} catch {
+			return 1.0;
+		}
 	}
 
 	function calcsymm(circle, gapdepth, recdepth)
@@ -1504,8 +1508,10 @@ function refresh(onlycolor = false)
 					var newgroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
 					var transform = svg.createSVGTransform();
 					transform.setTranslate((circle.x - parent.x)*100.0, (circle.y - parent.y) * 100.0);
-					//transform.setRotate(parent.a);
+					var transform2 = svg.createSVGTransform();
+					transform2.setRotate(circle.a, (circle.x - parent.x)*100.0, (circle.y - parent.y) * 100.0);
 					newgroup.transform.baseVal.appendItem(transform);
+					newgroup.transform.baseVal.appendItem(transform2);
 
 					// call it's subdivide method with our callbacks created above
 
@@ -2040,7 +2046,7 @@ support for generating and loading urls which contain settings (as in, "link to
 this paisl" button)
 ---------------------------------------------------------------------------- */
 
-const currentSaveVersion = 100;
+const currentSaveVersion = 101;
 const saveParamsByVersion = {
   100: ["ratioslider","angleslider","symmetryslider","symmetryminslider","symmetrymaxslider","basehueslider","huerangeminslider","huerangemaxslider","strokealphaslider","strokelumslider","strokesatslider","strokewidthslider","fillalphaslider","filllumslider","fillsatslider","minsizeslider","maxdepthslider","huegenshiftslider","lumgenshiftslider","symmetrygenshiftslider","minrecsizeslider","maxrecdepthslider","huerecshiftslider","lumrecshiftslider","symmetryrecshiftslider","sizehueslider","sizelumslider","sizesymslider","recipsizehueslider","recipsizelumslider","recipsizesymslider","anglesymrepslider", "anglesymamtslider","anglehuerepslider", "anglehueamtslider", "anglelumrepslider", "anglelumamtslider"],
 };
