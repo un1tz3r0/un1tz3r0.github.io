@@ -1309,11 +1309,7 @@ function refresh(onlycolor = false)
 
 	function getangleamount(circle)
 	{
-		try {
-			return Math.abs((circle.i[0]/circle.i[1])*2-1);
-		} catch {
-			return 1.0;
-		}
+		return Math.abs((circle.i[0]/circle.i[1])*2-1);
 	}
 
 	function calcsymm(circle, gapdepth, recdepth)
@@ -2044,7 +2040,7 @@ support for generating and loading urls which contain settings (as in, "link to
 this paisl" button)
 ---------------------------------------------------------------------------- */
 
-const currentSaveVersion = 101;
+const currentSaveVersion = 100;
 const saveParamsByVersion = {
   100: ["ratioslider","angleslider","symmetryslider","symmetryminslider","symmetrymaxslider","basehueslider","huerangeminslider","huerangemaxslider","strokealphaslider","strokelumslider","strokesatslider","strokewidthslider","fillalphaslider","filllumslider","fillsatslider","minsizeslider","maxdepthslider","huegenshiftslider","lumgenshiftslider","symmetrygenshiftslider","minrecsizeslider","maxrecdepthslider","huerecshiftslider","lumrecshiftslider","symmetryrecshiftslider","sizehueslider","sizelumslider","sizesymslider","recipsizehueslider","recipsizelumslider","recipsizesymslider","anglesymrepslider", "anglesymamtslider","anglehuerepslider", "anglehueamtslider", "anglelumrepslider", "anglelumamtslider"],
 };
