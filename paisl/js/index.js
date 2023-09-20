@@ -1511,12 +1511,19 @@ function refresh(onlycolor = false)
 
 					var newparent = circle;
 					var newgroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
-					var transform = svg.createSVGTransform();
-					transform.setTranslate((circle.x - parent.x)*100.0, (circle.y - parent.y) * 100.0);
 					var transform2 = svg.createSVGTransform();
-					transform2.setRotate((circle.a/360.0)*Math.PI*2.0, (circle.x-parent.x)*100.0, (circle.y-parent.y)*100.0);//-(circle.x - parent.x)*100.0, -(circle.y - parent.y) * 100.0);
-					newgroup.transform.baseVal.appendItem(transform);
-					newgroup.transform.baseVal.appendItem(transform2);
+					transform2.setRotate(circle.a, 0, 0);//-(circle.x - parent.x)*100.0, -(circle.y - parent.y) * 100.0);
+					var transform = svg.createSVGTransform();
+					var tdist = distance(circle.x, circle.y, parent.x, parent.y);
+					var tang = angle(circle.x, circle.y, parent.x, parent.y);
+					//transform.setTranslate((circle.x - parent.x)*100.0, (circle.y - parent.y) * 100.0);
+					var transform3 = svg.createSVGTransform();
+					transform3.setTranslate(tdist, 0);
+					var transform4 = svg.createSVGTransform();
+					transform4.setRotate(tang, 0, 0);
+
+					newgroup.transform.baseVal.appendItem(transform3);
+					newgroup.transform.baseVal.appendItem(transform4);
 
 					// call it's subdivide method with our callbacks created above
 
