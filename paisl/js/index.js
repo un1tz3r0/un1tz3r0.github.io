@@ -386,14 +386,13 @@ function circleCircleIntersectionPoints(c1, c2) {
 			if((filfn == undefined) || filfn(this))
 			{
 				var subr = (this.r * Math.sin(Math.PI/num)) / (1.0 + Math.sin(Math.PI/num));
-				var subt = (Math.PI)/num;
+				var subt = (2*Math.PI)/num;
 				var centc = new Circle(this.x, this.y, (this.r - subr * 2) * this.s, this.a, this.g + 1, this, null, null);
 				var subcs = [];
 				var lastsubc = null;
 				for(let subi = 0; subi < num; subi++)
 				{
-					//var cursubc = new Circle(this.x, this.y - (this.r - subr), subr, this.a + (subi * subt) * (180.0/Math.PI), this.g + 1, this, [subi, num],  [this, centc]);
-					var cursubc = new Circle(this.x + Math.cos(subt * subi) * (this.r - subr), this.y + Math.sin(subt * subi) * (this.r - subr), subr, this.a + (subi * subt), this.g + 1, this, [subi, num],  [this, centc]);
+					var cursubc = new Circle(this.x + Math.cos(subt * subi) * (this.r - subr), this.y + Math.sin(subt * subi) * (this.r - subr), subr, this.a + subt * subi * (180.0/Math.PI), this.g + 1, this, [subi, num],  [this, centc]);
 					if(lastsubc != null) {
 						cursubc.addtouching(lastsubc);
 						lastsubc.addtouching(cursubc);
@@ -466,6 +465,7 @@ function circleCircleIntersectionPoints(c1, c2) {
 		if(c1.s <= 0 && c2.s <= 0)
 		{
 			if(dcc > sumrr) {
+				return (dcc-sumrr)/dcc;
 			}
 			return 0;
 		}
@@ -553,8 +553,8 @@ function radius(x1, y1, x2, y2) {
 	return Math.sqrt((y2 - y1)*(y2 - y1) + (x2 - x1)*(x2 - x1));
 }
 
-function heading(ox, oy, a, d) {
-	return {x: Math.cos(a) * d + ox, y: Math.sin(a) * d + oy};
+function heading(x, y, a, d) {
+	return {x: Math.cos(a) * d + x, y: Math.sin(a) * d + y};
 }
 
 // cartesian coordinate operations based on the above primitive conversions,
@@ -565,7 +565,7 @@ function rotate(x, y, a, xorigin=0.0, yorigin=0.0)
 	var ox, oy, oa, od;
 	od = radius(xorigin, yorigin, x, y);
 	oa = angle(xorigin, yorigin, x, y);
-	var ret = heading(xorigin, yorigin, oa + (a / 180.0)*Math.PI, od);
+	var ret = heading(xorigin, yorigin, oa + (a / 180)*Math.PI, od);
 	return ret;
 }
 
@@ -764,7 +764,7 @@ function createSVGArrow(svg, x1, y1, x2, y2, options)
 			el.setAttribute("fill", "none");
 		}
 		if(circle.a != 0) {
-			//el.setAttribute("transform", `rotate(${roundToStr(circle.a)},${roundToStr(circle.x*100)},${roundToStr(circle.y*100)})`);
+			el.setAttribute("transform", `rotate(${roundToStr(circle.a)},${roundToStr(circle.x*100)},${roundToStr(circle.y*100)})`);
 		}
 		if(info != null) {
 			el.setAttribute("data-info", JSON.stringify(info));
@@ -1043,12 +1043,7 @@ class PrioQueue {
 
 
 /* ---------------------------------------------------------------------
-WorkQueue - cooperative background rendering task management.
-keeps track of geometry generation calls invoked (recursively) during the
-rendering process, running the pending operations during idleCallbacks.
-this allows us to schedule (recursive) generation without blocking the
-main thread, and also to cancel rendering when the parameters are updated
-before the current frame is completely rendered.
+WorkQueue - cooperative background rendering task management
 ------------------------------------------------------------------------ */
 
 class WorkQueue
@@ -1317,7 +1312,7 @@ function refresh(onlycolor = false)
 		try {
 			return Math.abs((circle.i[0]/circle.i[1])*2-1);
 		} catch {
-			return 0.0;
+			return 1.0;
 		}
 	}
 
@@ -1512,19 +1507,9 @@ function refresh(onlycolor = false)
 					var newparent = circle;
 					var newgroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
 					var transform = svg.createSVGTransform();
-					var tdist = distance(circle.x, circle.y, parent.x, parent.y);
-					var tang = angle(circle.x, circle.y, parent.x, parent.y)*2.0;
 					transform.setTranslate((circle.x - parent.x)*100.0, (circle.y - parent.y) * 100.0);
-					var transform2 = svg.createSVGTransform();
-					transform2.setRotate(circle.a, 0, 0);//-(circle.x - parent.x)*100.0, -(circle.y - parent.y) * 100.0);
-					var transform3 = svg.createSVGTransform();
-					transform3.setTranslate(tdist*100.0, 0);
-					var transform4 = svg.createSVGTransform();
-					transform4.setRotate(tang, -tdist*100.0, 0);
-
+					//transform.setRotate(parent.a);
 					newgroup.transform.baseVal.appendItem(transform);
-					//newgroup.transform.baseVal.appendItem(transform3);
-					//newgroup.transform.baseVal.appendItem(transform4);
 
 					// call it's subdivide method with our callbacks created above
 
@@ -1561,7 +1546,7 @@ function refresh(onlycolor = false)
 					ringpropsize = inputs["ringpropsizeslider"], */
 
 						curupdate.schedule(()=>{
-							var el = createSVGCircle(newgroup, new Circle(circle.x, circle.y, circle.r, circle.a),
+							var el = createSVGCircle(newgroup, new Circle(0, 0, circle.r, circle.a),
 								{
 									width: strokewidth, /*
 									edgehue: curcalchue(circle, gapdepth, recdepth),
