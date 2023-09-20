@@ -1508,8 +1508,8 @@ function refresh(onlycolor = false)
 					var newgroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
 					var transform = svg.createSVGTransform();
 					transform.setTranslate((circle.x - parent.x)*100.0, (circle.y - parent.y) * 100.0);
-					var transform2 = svg.createSVGTransform();
-					transform2.setRotate(circle.a, (circle.x - parent.x)*100.0, (circle.y - parent.y) * 100.0);
+					//var transform2 = svg.createSVGTransform();
+					//transform2.setRotate(circle.a, (circle.x - parent.x)*100.0, (circle.y - parent.y) * 100.0);
 					newgroup.transform.baseVal.appendItem(transform);
 					//newgroup.transform.baseVal.appendItem(transform2);
 
