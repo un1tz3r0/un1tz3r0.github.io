@@ -1523,7 +1523,7 @@ function refresh(onlycolor = false)
 					transform4.setRotate(tang, -tdist*100.0, 0);
 
 					newgroup.transform.baseVal.appendItem(transform);
-					newgroup.transform.baseVal.appendItem(transform3);
+					//newgroup.transform.baseVal.appendItem(transform3);
 					//newgroup.transform.baseVal.appendItem(transform4);
 
 					// call it's subdivide method with our callbacks created above
