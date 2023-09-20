@@ -1522,9 +1522,9 @@ function refresh(onlycolor = false)
 					var transform4 = svg.createSVGTransform();
 					transform4.setRotate(tang, -tdist*100.0, 0);
 
-					newgroup.transform.baseVal.appendItem(transform2);
+					newgroup.transform.baseVal.appendItem(transform);
 					newgroup.transform.baseVal.appendItem(transform3);
-					newgroup.transform.baseVal.appendItem(transform4);
+					//newgroup.transform.baseVal.appendItem(transform4);
 
 					// call it's subdivide method with our callbacks created above
 
