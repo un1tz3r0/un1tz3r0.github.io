@@ -1560,7 +1560,7 @@ function refresh(onlycolor = false)
 					ringpropsize = inputs["ringpropsizeslider"], */
 
 						curupdate.schedule(()=>{
-							var el = createSVGCircle(newgroup, new Circle(0, 0, circle.r, circle.a),
+							var el = createSVGCircle(newgroup, new Circle(circle.x, circle.y, circle.r, circle.a),
 								{
 									width: strokewidth, /*
 									edgehue: curcalchue(circle, gapdepth, recdepth),
