@@ -1302,7 +1302,8 @@ function refresh(onlycolor = false)
 				anglehuereps = inputs["anglehuerepslider"],
 				anglesymamt = inputs["anglesymamtslider"],
 				anglelumamt = inputs["anglelumamtslider"],
-				anglehueamt = inputs["anglehueamtslider"];
+				anglehueamt = inputs["anglehueamtslider"],
+				backgroundlum = inputs["backgroundlumslider"];
 				//tailratio = inputs["tailratioslider"],
 				//tailangle = inputs["tailangleslider"];
 
@@ -1914,6 +1915,16 @@ function refresh(onlycolor = false)
 	var bbox = outlineel.getBBox();
 	svg.setAttribute("viewBox", `${bbox.x-20} ${bbox.y-20} ${bbox.width+40} ${bbox.height+40}`);
 
+	// add background fill
+	var rectel = svg.createElementNS("http://www.w3.org/2000/svg", "rect");
+	rectel.setAttribute("width", bbox.width+40);
+	rectel.setAttribute("height", bbox.height+40);
+	rectel.setAttribute("x", bbox.x-20);
+	rectel.setAttribute("y", bbox.y-20);
+	rectel.setAttribute("fill", rgbtohex(hsvToRgb(0, 0.0, backgroundlum)));
+	svg.insertBefore(rectel, svg.firstChild);
+	svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+
 	currefresh.after((canceled)=>{
 		if(!canceled) {
 			curupdate.after(()=>{
@@ -2045,9 +2056,10 @@ support for generating and loading urls which contain settings (as in, "link to
 this paisl" button)
 ---------------------------------------------------------------------------- */
 
-const currentSaveVersion = 101;
+const currentSaveVersion = 102;
 const saveParamsByVersion = {
   100: ["ratioslider","angleslider","symmetryslider","symmetryminslider","symmetrymaxslider","basehueslider","huerangeminslider","huerangemaxslider","strokealphaslider","strokelumslider","strokesatslider","strokewidthslider","fillalphaslider","filllumslider","fillsatslider","minsizeslider","maxdepthslider","huegenshiftslider","lumgenshiftslider","symmetrygenshiftslider","minrecsizeslider","maxrecdepthslider","huerecshiftslider","lumrecshiftslider","symmetryrecshiftslider","sizehueslider","sizelumslider","sizesymslider","recipsizehueslider","recipsizelumslider","recipsizesymslider","anglesymrepslider", "anglesymamtslider","anglehuerepslider", "anglehueamtslider", "anglelumrepslider", "anglelumamtslider"],
+	102: ["ratioslider","angleslider","symmetryslider","symmetryminslider","symmetrymaxslider","basehueslider","huerangeminslider","huerangemaxslider","strokealphaslider","strokelumslider","strokesatslider","strokewidthslider","fillalphaslider","filllumslider","fillsatslider","minsizeslider","maxdepthslider","huegenshiftslider","lumgenshiftslider","symmetrygenshiftslider","minrecsizeslider","maxrecdepthslider","huerecshiftslider","lumrecshiftslider","symmetryrecshiftslider","sizehueslider","sizelumslider","sizesymslider","recipsizehueslider","recipsizelumslider","recipsizesymslider","anglesymrepslider", "anglesymamtslider","anglehuerepslider", "anglehueamtslider", "anglelumrepslider", "anglelumamtslider", "backgroundlumslider"]
 };
 
 function getSaveParamString(sep="+") {
