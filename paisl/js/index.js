@@ -1916,14 +1916,14 @@ function refresh(onlycolor = false)
 	svg.setAttribute("viewBox", `${bbox.x-20} ${bbox.y-20} ${bbox.width+40} ${bbox.height+40}`);
 
 	// add background fill
-	var rectel = svg.createElementNS("http://www.w3.org/2000/svg", "rect");
+	var rectel = document.createElementNS("http://www.w3.org/2000/svg", "rect");
 	rectel.setAttribute("width", bbox.width+40);
 	rectel.setAttribute("height", bbox.height+40);
 	rectel.setAttribute("x", bbox.x-20);
 	rectel.setAttribute("y", bbox.y-20);
 	rectel.setAttribute("fill", rgbtohex(hsvToRgb(0, 0.0, backgroundlum)));
 	svg.insertBefore(rectel, svg.firstChild);
-	svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+	//svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
 
 	currefresh.after((canceled)=>{
 		if(!canceled) {
