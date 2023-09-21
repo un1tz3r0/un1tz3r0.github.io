@@ -713,9 +713,9 @@ function createSVGArrow(svg, x1, y1, x2, y2, options)
 	function createSVGCircle(svg, circle, options={})
 	{
 		function option(name, def=null) { if(options[name] != undefined) { return options[name]; } else { return def; } }
-	// keys and defau
-	var
-	className=option("className"),
+		// keys and default
+		var
+			className=option("className"),
 			style=option("style"),
 			extra=option("extra"), // properties to add to element object
 			info=option("info"),
@@ -730,8 +730,7 @@ function createSVGArrow(svg, x1, y1, x2, y2, options)
 			edgehue=option("edgehue", hue),
 			edgesat=option("edgesat", sat != null ? sat : option("edgehue") != null ? 1 : 0),
 			edgeval=option("edgeval", val != null ? val : option("edgehue") != null ? 1 : 0),
-						edgealpha=option("edgealpha", 1.0),
-
+			edgealpha=option("edgealpha", 1.0),
 			fillhue=option("fillhue", hue),
 			fillsat=option("fillsat", sat != null ? sat : option("fillhue") != null ? 1 : 0),
 			fillval=option("fillval", val != null ? val : option("fillhue") != null ? 1 : 0),
@@ -815,9 +814,9 @@ function createSVGArrow(svg, x1, y1, x2, y2, options)
 			else
 					return def;
 		}
-	// parse options
-	var
-	className=option("className"),
+		// parse options
+		var
+			className=option("className"),
 			style=option("style"),
 			info=option("info"),
 			hue=option("hue", null),
@@ -1508,10 +1507,10 @@ function refresh(onlycolor = false)
 					var newgroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
 					var transform = svg.createSVGTransform();
 					transform.setTranslate((circle.x - parent.x)*100.0, (circle.y - parent.y) * 100.0);
-					//var transform2 = svg.createSVGTransform();
-					//transform2.setRotate(circle.a, (circle.x - parent.x)*100.0, (circle.y - parent.y) * 100.0);
+					var transform2 = svg.createSVGTransform();
+					transform2.setRotate(parent.a, 0,0); //(circle.x - parent.x)*100.0, (circle.y - parent.y) * 100.0);
+					newgroup.transform.baseVal.appendItem(transform2);
 					newgroup.transform.baseVal.appendItem(transform);
-					//newgroup.transform.baseVal.appendItem(transform2);
 
 					// call it's subdivide method with our callbacks created above
 
