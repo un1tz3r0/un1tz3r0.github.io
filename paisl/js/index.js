@@ -1921,8 +1921,8 @@ function refresh(onlycolor = false)
 	rectel.setAttribute("height", bbox.height+40);
 	rectel.setAttribute("x", bbox.x-20);
 	rectel.setAttribute("y", bbox.y-20);
-	rectel.setAttribute("fill", rgbtohex(hsvToRgb(0, 0.0, backgroundlum)));
-	svg.insertBefore(rectel, svg.firstChild);
+	rectel.setAttribute("fill", rgbtohex(hsvtorgb(0, 0.0, backgroundlum), 1.0));
+	bggrp.insertBefore(rectel, bggrp.firstChild);
 	//svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
 
 	currefresh.after((canceled)=>{
