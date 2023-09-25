@@ -89,89 +89,56 @@
 		<form onsubmit="return false;" data-clear="initial">
 
 			<heading><b>Geometry</b></heading>
-
 			<input data-clear="initial" data-insert-label="paisl ratio" data-tip="controls the width of the first circle of the tail" data-insert-output="true" data-persisted="true" type="range" class="slider" min="0" max="200" value="100" data-scaled-min="0.0" data-scaled-max="1.0" name="ratioslider">
-
 			<input data-clear="initial" data-tip="controls the position and curvature of the tail" data-persisted="true" type="range" class="slider" min="0" max="360" value="60" data-scaled-min="0.0" data-scaled-max="360.0" data-precision="0" name="angleslider" data-insert-output="true" data-insert-label="paisl angle">
 
 			<heading><b>Symmetry</b></heading>
-
 			<input data-clear="initial" data-tip="controls the number of smaller circles are placed inside each circle upon recursion" data-persisted="true" type="range" class="slider" min="3" max="27" value="3" name="symmetryslider" data-insert-output="true" data-insert-label="symmetry">
-
 			<input data-clear="initial" data-tip="lower bound for adjustments to symmetry" data-persisted="true" type="range" class="slider" min="3" max="27" value="3" name="symmetryminslider" data-insert-output="true" data-insert-label="sym min">
-
 			<input data-persisted="true" data-tip="upper bound for adjustments to symmetry" type="range" class="slider" min="3" max="27" value="27" name="symmetrymaxslider" data-insert-output="true" data-insert-label="sym max">
 
 			<heading><b>Hue</b></heading>
-
 			<input data-persisted="true" data-tip="initial hue value" data-refresh="onlycolor" type="range" class="slider" min="0" max="100" value="25" data-scaled-min="0.0" data-scaled-max="1.0" name="basehueslider" data-insert-output="true" data-insert-label="base hue">
-
 			<input data-persisted="true" data-tip="lower bound for adjustments to hue" data-refresh="onlycolor" type="range" class="slider" min="0" max="100" value="0" name="huerangeminslider" data-scaled-min="0.0" data-scaled-max="1.0" data-insert-output="true" data-insert-label="hue min">
-
 			<input data-persisted="true" data-tip="upper bound for adjustments to hue" data-refresh="onlycolor" type="range" class="slider" min="1" max="100" value="100" name="huerangemaxslider" data-scaled-min="0.0" data-scaled-max="1.0" data-insert-output="true" data-insert-label="hue max">
 
 			<heading><b>Stroke</b></heading>
-
 			<input data-persisted="true" data-tip="transparency value for shape outlines" data-refresh="onlycolor" type="range" class="slider" min="0" max="100" value="10" data-scaled-min="0.0" data-scaled-max="1.0" name="strokealphaslider" data-insert-output="true" data-insert-label="stroke opacity">
-
 			<input data-persisted="true" data-tip="adjusts brightness of all outlines" data-refresh="onlycolor" type="range" class="slider" min="-100" max="100" value="0" data-scaled-min="-1.0" data-scaled-max="1.0" name="strokelumslider" data-insert-output="true" data-insert-label="stroke luma">
-
 			<input data-persisted="true" data-tip="color saturation of outlines" data-refresh="onlycolor" type="range" class="slider" min="0" max="100" value="30" data-scaled-min="0.0" data-scaled-max="1.0" name="strokesatslider" data-insert-output="true" data-insert-label="stroke sat">
-
 			<input data-persisted="true" data-tip="thickness of outlines in pixels" type="range" class="slider" min="0" max="100" value="10" data-scaled-min="0.0" data-scaled-max="10.0" name="strokewidthslider" data-insert-output="true" data-insert-label="stroke width">
 
 			<heading><b>Fill</b></heading>
-
 			<input data-refresh="onlycolor" data-tip="transparency value for shape interiors" data-persisted="true" type="range" class="slider" min="0" max="100" value="10" data-scaled-min="0.0" data-scaled-max="1.0" name="fillalphaslider" data-insert-output="true" data-insert-label="fill opacity">
-
 			<input data-refresh="onlycolor" data-tip="adjusts brightness of all shape interiors" data-persisted="true" type="range" class="slider" min="-100" max="100" value="0" data-scaled-min="-1.0" data-scaled-max="1.0" name="filllumslider" data-insert-output="true" data-insert-label="fill luma">
-
 			<input data-refresh="onlycolor" data-tip="color saturation of shape interiors" data-persisted="true" type="range" class="slider" min="0" max="100" value="30" data-scaled-min="0.0" data-scaled-max="1.0" name="fillsatslider" data-insert-output="true" data-insert-label="fill sat">
 
 			<heading><b>Packing</b></heading>
-
-
 			<input data-persisted="true" type="range" class="slider" min="0" max="100" value="55" name="minsizeslider" data-scaled-min="0.0" data-scaled-max="3.0" data-scale="log" data-insert-output="true" data-insert-label="min. size">
-
 			<input data-persisted="true" type="range" class="slider" min="1" max="12" value="8" name="maxdepthslider" data-insert-output="true" data-insert-label="max depth">
-
 			<input data-persisted="true" data-refresh="onlycolor" type="range" class="slider" min="-100" max="100" value="10" data-scaled-min="-1.0" data-scaled-max="1.0" name="huegenshiftslider" data-insert-output="true" data-insert-label="hue shift">
-
 			<input data-persisted="true" data-refresh="onlycolor" type="range" class="slider" min="-100" max="100" value="0" data-scaled-min="-1.0" data-scaled-max="1.0" name="lumgenshiftslider" data-insert-output="true" data-insert-label="luma shift">
-
 			<input data-persisted="true" type="range" class="slider" min="-12" max="12" value="0" data-scaled-min="-6.0" data-scaled-max="6.0" name="symmetrygenshiftslider" data-insert-output="true" data-insert-label="symm shift">
 
 
 			<heading><b>Recursion</b></heading>
-
 			<input data-persisted="true" type="range" class="slider" min="0" max="100" value="40" name="minrecsizeslider" data-scaled-min="0.0" data-scaled-max="3.0" data-scale="log" data-insert-output="true" data-insert-label="min. size">
-
 			<input data-persisted="true" type="range" class="slider" min="1" max="10" value="7" name="maxrecdepthslider" data-insert-output="true" data-insert-label="max depth">
-
 			<input data-persisted="true" data-refresh="onlycolor" type="range" class="slider" min="0" max="200" value="100" data-scaled-min="-1.0" data-scaled-max="1.0" name="huerecshiftslider" data-insert-output="true" data-insert-label="hue shift">
-
 			<input data-persisted="true" data-refresh="onlycolor" type="range" class="slider" min="0" max="200" value="100" data-scaled-min="-1.0" data-scaled-max="1.0" name="lumrecshiftslider" data-insert-output="true" data-insert-label="luma shift">
-
 			<input data-persisted="true" type="range" class="slider" min="-12" max="12" value="0" data-scaled-min="-6.0" data-scaled-max="6.0" name="symmetryrecshiftslider" data-insert-output="true" data-insert-label="sym shift">
 
 			<heading><b>Size Influence</b></heading>
-
 			<input data-persisted="true" data-refresh="onlycolor" type="range" class="slider" min="-400" max="400" value="0" data-scaled-min="-4.0" data-scaled-max="4.0" name="sizehueslider" data-insert-output="true" data-insert-label="size to hue">
-
 			<input data-persisted="true" data-refresh="onlycolor" type="range" class="slider" min="-400" max="400" value="0" data-scaled-min="-4.0" data-scaled-max="4.0" name="sizelumslider" data-insert-output="true" data-insert-label="size to luma">
-
 			<input data-persisted="true" type="range" class="slider" min="-200" max="200" value="0" data-scaled-min="-100.0" data-scaled-max="100.0" name="sizesymslider" data-insert-output="true" data-insert-label="size to sym">
 
 			<heading><b>1/Size Influence</b></heading>
-
 			<input data-persisted="true" data-refresh="onlycolor" type="range" class="slider" min="-400" max="400" value="0" data-scaled-min="-4.0" data-scaled-max="4.0" name="recipsizehueslider" data-insert-output="true" data-insert-label="1/size to hue">
-
 			<input data-persisted="true" data-refresh="onlycolor" type="range" class="slider" min="-400" max="400" value="0" data-scaled-min="-4.0" data-scaled-max="4.0" name="recipsizelumslider" data-insert-output="true" data-insert-label="1/size to luma">
-
 			<input data-persisted="true" type="range" class="slider" min="-200" max="200" value="0" data-scaled-min="-100.0" data-scaled-max="100.0" name="recipsizesymslider" data-insert-output="true" data-insert-label="1/size to sym">
 
 			<heading><b>Angle Influence</b></heading>
-
 			<input data-persisted="true" type="range" class="slider" min="1" max="24" value="3" data-scaled-min="1" data-scaled-max="24" name="anglesymrepslider" data-insert-output="true" data-insert-label="sym repeat">
 			<input data-persisted="true" data-refresh="onlycolor" type="range" class="slider" min="1" max="24" value="3" data-scaled-min="1" data-scaled-max="24" name="anglehuerepslider" data-insert-output="true" data-insert-label="hue repeat">
 			<input data-persisted="true" data-refresh="onlycolor" type="range" class="slider" min="1" max="24" value="3" data-scaled-min="1" data-scaled-max="24" name="anglelumrepslider" data-insert-output="true" data-insert-label="lum repeat">
@@ -179,9 +146,8 @@
 			<input data-persisted="true" data-refresh="onlycolor" type="range" class="slider" min="-400" max="400" value="0" data-scaled-min="-4.0" data-scaled-max="4.0" name="anglehueamtslider" data-insert-output="true" data-insert-label="hue amount">
 			<input data-persisted="true" data-refresh="onlycolor" type="range" class="slider" min="-400" max="400" value="0" data-scaled-min="-4.0" data-scaled-max="4.0" name="anglelumamtslider" data-insert-output="true" data-insert-label="lum amount">
 
-			<heading><b>Angle Influence</b></heading>
-
-			<input data-persisted="true" type="range" class="slider" min="0" max="255" value="0.1" data-scaled-min="0.0" data-scaled-max="1.0" name="backgroundlumslider" data-insert-output="true" data-insert-label="background lum">
+			<heading><b>Background</b></heading>
+			<input data-persisted="true" type="range" class="slider" min="0" max="255" value="0.1" data-scaled-min="0.0" data-scaled-max="1.0" name="backgroundlumslider" data-insert-output="true" data-insert-label="bg lum">
 
 		</form>
 	</aside>

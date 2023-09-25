@@ -292,156 +292,155 @@ function circleCircleIntersectionPoints(c1, c2) {
 // apollonian gasketry
 // -----------------------
 
-//(function() {
-	var Circle, apollonius, c1, c2, c3, c4, c5;
+var Circle, apollonius, c1, c2, c3, c4, c5;
 
-	// ------------------------
-	// Circle - the class used to specify the three circle parameters to and the fourth circle returned by the appolonius() function. Upon construction, if r is negative
-	// Circle.s will be -1, else Circle.s is +1. Circle.r is always stored as the absolute radius, so to get the signed radius, where positive and negative radii represent interior and exterior tangency, take Circle.r * Circle.s.
-	//
-	// Circle.inverse() returns a new copy of the Circle object with it's tangency flipped. Circle.inner(), Circle.outer() return new copies with the respective tangency.
+// ------------------------
+// Circle - the class used to specify the three circle parameters to and the fourth circle returned by the appolonius() function. Upon construction, if r is negative
+// Circle.s will be -1, else Circle.s is +1. Circle.r is always stored as the absolute radius, so to get the signed radius, where positive and negative radii represent interior and exterior tangency, take Circle.r * Circle.s.
+//
+// Circle.inverse() returns a new copy of the Circle object with it's tangency flipped. Circle.inner(), Circle.outer() return new copies with the respective tangency.
 //
 // Circle.shrinktopoint() returns a new copy with the same x and y centerpoint but radius set to 0, this can be used with our appolonius() function to find solutions which pass through one or more points.
-	// ------------------------
-  Circle = class Circle {
+// ------------------------
+Circle = class Circle {
     constructor(x, y, r, a=null, g=0, p=null, i=null, t=null) {
-      if(a == null)
-			{
-				a = 0.0;
+		if(a == null)
+		{
+			a = 0.0;
+		}
+		this.a = a;
+		this.x = x;
+		this.y = y;
+		this.r = Math.abs(r);
+		this.s = r < 0.0 ? -1.0 : 1.0;
+		this.g = g;
+		this.p = new WeakSet();
+		this.q = new WeakSet();
+		if(p !== null && p !== undefined && p.q !== undefined)
+		{
+			if(p instanceof WeakSet) {
+				p = p.values().next().value;
 			}
-			this.a = a;
-			this.x = x;
-      this.y = y;
-      this.r = Math.abs(r);
-			this.s = r < 0.0 ? -1.0 : 1.0;
-			this.g = g;
-			this.p = new WeakSet();
-			this.q = new WeakSet();
-			if(p !== null && p !== undefined && p.q !== undefined)
-			{
-				if(p instanceof WeakSet) {
-					p = p.values().next().value;
-				}
-				p.q.add(this);
-				this.p.add(p);
-			}
-			if(i !== null && i !== undefined)
-			{
-				this.i = i;
-			}
-			else
-			{
-				this.i = null;
-			}
-			this.t = new WeakSet();
-			if(t !== null && t !== undefined) {
-				Array.from(t).forEach((ti)=>{ this.t.add(ti); if(!ti.t.has(this)) ti.t.add(this); });
-			}
+			p.q.add(this);
+			this.p.add(p);
+		}
+		if(i !== null && i !== undefined)
+		{
+			this.i = i;
+		}
+		else
+		{
+			this.i = null;
+		}
+		this.t = new WeakSet();
+		if(t !== null && t !== undefined) {
+			Array.from(t).forEach((ti)=>{ this.t.add(ti); if(!ti.t.has(this)) ti.t.add(this); });
+		}
     }
 
-		grow(factor) {
-			return new Circle(this.x, this.y, this.r*factor*this.s, this.a, this.g, this.p, [this.i, this.j], this.t);
-		}
+	grow(factor) {
+		return new Circle(this.x, this.y, this.r*factor*this.s, this.a, this.g, this.p, [this.i, this.j], this.t);
+	}
 
-		addtouching(other) {
-			if((!(other == this))&&(!(other == null))) {
-				if (!this.t.has(other))
-				{
-					this.t.add(other);
-				}
-				if (!other.t.has(this))
-				{
-					other.t.add(this);
-				}
-			}
-		}
-
-		inverse() {
-			return new Circle(this.x, this.y, this.r*this.s*-1.0, this.a, this.g, this.p, this.i, this.t);
-		}
-
-		inner() {
-			return new Circle(this.x, this.y, this.r*-1.0, this.a, this.g, this.p, this.i, this.t);
-		}
-
-		outer() {
-			return new Circle(this.x, this.y, this.r, this.a, this.g, this.p, this.i, this.t);
-		}
-
-		shrinktopoint() {
-			return new Circle(this.x, this.y, 0, this.a, this.g, this.p, this.i, this.t);
-		}
-
-		overlaps(other) {
-			var dx = other.x - this.x;
-			var dy = other.y - this.y;
-			var dd = Math.sqrt(dx*dx + dy*dy);
-			if(dd < this.r + other.r)
-				return true;
-			else
-				return false;
-		}
-
-		subdivide(num, rotate, gapfn, recfn, filfn) {
-			if((filfn == undefined) || filfn(this))
+	addtouching(other) {
+		if((!(other == this))&&(!(other == null))) {
+			if (!this.t.has(other))
 			{
-				var subr = (this.r * Math.sin(Math.PI/num)) / (1.0 + Math.sin(Math.PI/num));
-				var subt = (2*Math.PI)/num;
-				var centc = new Circle(this.x, this.y, (this.r - subr * 2) * this.s, this.a, this.g + 1, this, null, null);
-				var subcs = [];
-				var lastsubc = null;
-				for(let subi = 0; subi < num; subi++)
-				{
-					var cursubc = new Circle(this.x + Math.cos(subt * subi) * (this.r - subr), this.y + Math.sin(subt * subi) * (this.r - subr), subr, this.a + subt * subi * (180.0/Math.PI), this.g + 1, this, [subi, num],  [this, centc]);
-					if(lastsubc != null) {
-						cursubc.addtouching(lastsubc);
-						lastsubc.addtouching(cursubc);
-					}
-					subcs.push(cursubc);
-					lastsubc = cursubc;
-				}
-				// filter them all and call recurse when filter returns true. also record result of filter for each to skip gaps between filtered circles below
-				var centfilt = true, subfilt = [];
-				if((filfn == undefined) || filfn(centc.inner()))
-					// recfn signature is:
-					// passtonextinvocation = recfn(circle, parentcircle, resultfromlastinvocation, index, count)
-					recfn(centc.inner(), this, null, 0, 0);
-				else
-					centfilt = false;
-				var recresult = null;
-				for(let subi = 0; subi < num; subi ++)
-				{
-					subfilt[subi] = true;
-					if((filfn == undefined) || filfn(subcs[subi].inner()))
-						recresult = recfn(subcs[subi].inner(), this, recresult, subi, num);
-					else
-						subfilt[subi] = false;
-				}
-				var innergapresult = null;
-				var outergapresult = null;
-				for(let subi = 0; subi < num; subi++)
-				{
-					var subca = subcs[subi];
-					var subcb;
-					if(subi + 1 >= num)
-						subcb = subcs[0];
-					else
-						subcb = subcs[subi + 1];
+				this.t.add(other);
+			}
+			if (!other.t.has(this))
+			{
+				other.t.add(this);
+			}
+		}
+	}
 
-					if(subfilt[subi] && subfilt[(subi + 1 >= num) ? 0 : subi + 1])
+	inverse() {
+		return new Circle(this.x, this.y, this.r*this.s*-1.0, this.a, this.g, this.p, this.i, this.t);
+	}
+
+	inner() {
+		return new Circle(this.x, this.y, this.r*-1.0, this.a, this.g, this.p, this.i, this.t);
+	}
+
+	outer() {
+		return new Circle(this.x, this.y, this.r, this.a, this.g, this.p, this.i, this.t);
+	}
+
+	shrinktopoint() {
+		return new Circle(this.x, this.y, 0, this.a, this.g, this.p, this.i, this.t);
+	}
+
+	overlaps(other) {
+		var dx = other.x - this.x;
+		var dy = other.y - this.y;
+		var dd = Math.sqrt(dx*dx + dy*dy);
+		if(dd < this.r + other.r)
+			return true;
+		else
+			return false;
+	}
+
+	subdivide(num, rotate, gapfn, recfn, filfn) {
+		if((filfn == undefined) || filfn(this))
+		{
+			var subr = (this.r * Math.sin(Math.PI/num)) / (1.0 + Math.sin(Math.PI/num));
+			var subt = (2*Math.PI)/num;
+			var centc = new Circle(this.x, this.y, (this.r - subr * 2) * this.s, this.a, this.g + 1, this, null, null);
+			var subcs = [];
+			var lastsubc = null;
+			for(let subi = 0; subi < num; subi++)
+			{
+				var cursubc = new Circle(this.x + Math.cos(subt * subi) * (this.r - subr), this.y + Math.sin(subt * subi) * (this.r - subr), subr, this.a + subt * subi * (180.0/Math.PI), this.g + 1, this, [subi, num],  [this, centc]);
+				if(lastsubc != null) {
+					cursubc.addtouching(lastsubc);
+					lastsubc.addtouching(cursubc);
+				}
+				subcs.push(cursubc);
+				lastsubc = cursubc;
+			}
+			// filter them all and call recurse when filter returns true. also record result of filter for each to skip gaps between filtered circles below
+			var centfilt = true, subfilt = [];
+			if((filfn == undefined) || filfn(centc.inner()))
+				// recfn signature is:
+				// passtonextinvocation = recfn(circle, parentcircle, resultfromlastinvocation, index, count)
+				recfn(centc.inner(), this, null, 0, 0);
+			else
+				centfilt = false;
+			var recresult = null;
+			for(let subi = 0; subi < num; subi ++)
+			{
+				subfilt[subi] = true;
+				if((filfn == undefined) || filfn(subcs[subi].inner()))
+					recresult = recfn(subcs[subi].inner(), this, recresult, subi, num);
+				else
+					subfilt[subi] = false;
+			}
+			var innergapresult = null;
+			var outergapresult = null;
+			for(let subi = 0; subi < num; subi++)
+			{
+				var subca = subcs[subi];
+				var subcb;
+				if(subi + 1 >= num)
+					subcb = subcs[0];
+				else
+					subcb = subcs[subi + 1];
+
+				if(subfilt[subi] && subfilt[(subi + 1 >= num) ? 0 : subi + 1])
+				{
+					// gapfn signature is:
+					// passtonextinvocation = gapfn(circlea, circleb, circlec, parentcircle, resultfromlastinvocation, circleaindex, circlebindex, numcircles)
+					innergapresult = gapfn(this.inner(), subca.outer(), subcb.outer(), this, innergapresult, subi, subi+1 % num, num);
+					if(centfilt)
 					{
-						// gapfn signature is:
-						// passtonextinvocation = gapfn(circlea, circleb, circlec, parentcircle, resultfromlastinvocation, circleaindex, circlebindex, numcircles)
-						innergapresult = gapfn(this.inner(), subca.outer(), subcb.outer(), this, innergapresult, subi, subi+1 % num, num);
-						if(centfilt)
-						{
-							outergapresult = gapfn(centc.outer(), subca.outer(), subcb.outer(), this, outergapresult, subi, subi+1 % num, num);
-						}
+						outergapresult = gapfn(centc.outer(), subca.outer(), subcb.outer(), this, outergapresult, subi, subi+1 % num, num);
 					}
 				}
 			}
 		}
-	};
+	}
+};
 
 	// return the euclidean distance from point x1,y1 to point x2,y2
 	function distance(x1, y1, x2, y2) {
@@ -901,7 +900,7 @@ function createSVGArrow(svg, x1, y1, x2, y2, options)
     return new Circle(xs, ys, rs);
   };*/
 
-	function apolloniusCircle(x1, y1, r1, x2, y2, r2, x3, y3, r3) {
+function apolloniusCircle(x1, y1, r1, x2, y2, r2, x3, y3, r3) {
 
   // Per http://mathworld.wolfram.com/ApolloniusProblem.html
 
@@ -959,7 +958,14 @@ apollonius = function (c1, c2, c3) {
 											 c2.x, c2.y, Math.abs(c2.r)*c2.s,
 											 c3.x, c3.y, Math.abs(c3.r)*c3.s)
 	if(c != null) {
-		return new Circle(c.x, c.y, c.r*c.s, null, Math.max(c1.g, c2.g, c3.g) + 1);
+		/*var ct = c1;
+		var rtotal = c1.r + c2.r + c3.r;
+		var r1 = c1.r / rtotal;
+		var r2 = c2.r / rtotal;
+		var r3 = c3.r / rtotal;
+		var r = c.r / rtotal;*/
+		var angle = Math.atan2(c.y - c1.y, c.x - c1.x);
+		return new Circle(c.x, c.y, c.r*c.s, angle, Math.max(c1.g, c2.g, c3.g) + 1);
 	} else {
 		return null;
 	}
@@ -2059,7 +2065,7 @@ this paisl" button)
 const currentSaveVersion = 102;
 const saveParamsByVersion = {
   100: ["ratioslider","angleslider","symmetryslider","symmetryminslider","symmetrymaxslider","basehueslider","huerangeminslider","huerangemaxslider","strokealphaslider","strokelumslider","strokesatslider","strokewidthslider","fillalphaslider","filllumslider","fillsatslider","minsizeslider","maxdepthslider","huegenshiftslider","lumgenshiftslider","symmetrygenshiftslider","minrecsizeslider","maxrecdepthslider","huerecshiftslider","lumrecshiftslider","symmetryrecshiftslider","sizehueslider","sizelumslider","sizesymslider","recipsizehueslider","recipsizelumslider","recipsizesymslider","anglesymrepslider", "anglesymamtslider","anglehuerepslider", "anglehueamtslider", "anglelumrepslider", "anglelumamtslider"],
-	102: ["ratioslider","angleslider","symmetryslider","symmetryminslider","symmetrymaxslider","basehueslider","huerangeminslider","huerangemaxslider","strokealphaslider","strokelumslider","strokesatslider","strokewidthslider","fillalphaslider","filllumslider","fillsatslider","minsizeslider","maxdepthslider","huegenshiftslider","lumgenshiftslider","symmetrygenshiftslider","minrecsizeslider","maxrecdepthslider","huerecshiftslider","lumrecshiftslider","symmetryrecshiftslider","sizehueslider","sizelumslider","sizesymslider","recipsizehueslider","recipsizelumslider","recipsizesymslider","anglesymrepslider", "anglesymamtslider","anglehuerepslider", "anglehueamtslider", "anglelumrepslider", "anglelumamtslider", "backgroundlumslider"]
+  102: ["ratioslider","angleslider","symmetryslider","symmetryminslider","symmetrymaxslider","basehueslider","huerangeminslider","huerangemaxslider","strokealphaslider","strokelumslider","strokesatslider","strokewidthslider","fillalphaslider","filllumslider","fillsatslider","minsizeslider","maxdepthslider","huegenshiftslider","lumgenshiftslider","symmetrygenshiftslider","minrecsizeslider","maxrecdepthslider","huerecshiftslider","lumrecshiftslider","symmetryrecshiftslider","sizehueslider","sizelumslider","sizesymslider","recipsizehueslider","recipsizelumslider","recipsizesymslider","anglesymrepslider", "anglesymamtslider","anglehuerepslider", "anglehueamtslider", "anglelumrepslider", "anglelumamtslider", "backgroundlumslider"]
 };
 
 function getSaveParamString(sep="+") {
@@ -2414,6 +2420,7 @@ function storeinputs()
 		}
 	}
 	storePersist("inputState", inputMap);
+	document.location.hash = getSaveParamString("_");
 }
 
 function restoreinputs()
