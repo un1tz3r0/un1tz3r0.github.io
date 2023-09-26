@@ -1518,10 +1518,10 @@ function refresh(onlycolor = false)
 					transform.setTranslate((circle.x - parent.x)*100.0, (circle.y - parent.y) * 100.0);
 					var transform2 = svg.createSVGTransform();
 					transform2.setRotate(circle.a/Math.PI*180, 0,0); //(circle.x - parent.x)*100.0, (circle.y - parent.y) * 100.0);
-					newgroup.transform.baseVal.appendItem(transform3);
 					
-					newgroup.transform.baseVal.appendItem(transform);
 					newgroup.transform.baseVal.appendItem(transform2);
+					newgroup.transform.baseVal.appendItem(transform);
+					newgroup.transform.baseVal.appendItem(transform3);
 
 					// call it's subdivide method with our callbacks created above
 
