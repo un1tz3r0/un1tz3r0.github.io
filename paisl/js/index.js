@@ -1790,15 +1790,17 @@ function refresh(onlycolor = false)
 	/*el = createSVGCircle(fggrp, clarge, {edgehue: 0.77});
 	el = createSVGCircle(fggrp, csmall, {edgehue: 0.88});*/
 
-	currefresh.schedule(newrecurse, ccurrent.inner(), maxdepth, maxrecdepth, ccurrent, newgrp);
-
-	currefresh.schedule(newrecurse, cnext.inner(), maxdepth-1, maxrecdepth, ccurrent, newgrp);
 
 	currefresh.schedule(newrecurse, [clarge, ccurrent.outer(), cnext.outer()], maxdepth-2, maxrecdepth, ccurrent, newgrp);
 
 	currefresh.schedule(newrecurse, [csmall, ccurrent.outer(), cnext.outer()], maxdepth-2, maxrecdepth, ccurrent, newgrp);
 
 	currefresh.schedule(newrecurse, [clarge, csmall, cnext.outer()], maxdepth-2, maxrecdepth, ccurrent, newgrp);
+
+	currefresh.schedule(newrecurse, ccurrent.inner(), maxdepth, maxrecdepth, ccurrent, newgrp);
+
+	currefresh.schedule(newrecurse, cnext.inner(), maxdepth-1, maxrecdepth, ccurrent, newgrp);
+
 
 	// find the points on either side of the main circle where
 	// the circles defining the sides of the body are tangent
