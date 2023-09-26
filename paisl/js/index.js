@@ -1513,7 +1513,7 @@ function refresh(onlycolor = false)
 					var newparent = circle;
 					var newgroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
 					var transform3 = svg.createSVGTransform();
-					transform3.setRotate(circle.a/Math.PI*180, (circle.x-parent.x)*100.0,(circle.y-parent.y)*100.0); //(circle.x - parent.x)*100.0, (circle.y - parent.y) * 100.0);
+					transform3.setRotate(parent.a/Math.PI*180, (circle.x-parent.x)*100.0,(circle.y-parent.y)*100.0); //(circle.x - parent.x)*100.0, (circle.y - parent.y) * 100.0);
 					var transform = svg.createSVGTransform();
 					transform.setTranslate((circle.x - parent.x)*100.0, (circle.y - parent.y) * 100.0);
 					var transform2 = svg.createSVGTransform();
@@ -1521,7 +1521,7 @@ function refresh(onlycolor = false)
 					
 					newgroup.transform.baseVal.appendItem(transform2);
 					newgroup.transform.baseVal.appendItem(transform);
-					newgroup.transform.baseVal.appendItem(transform3);
+					//newgroup.transform.baseVal.appendItem(transform3);
 
 					// call it's subdivide method with our callbacks created above
 
