@@ -1713,9 +1713,9 @@ function refresh(onlycolor = false)
 
 	//let clarge;// = new Circle(0,0,-2);
 	//let csmall;// = new Circle(-0.0001,(2.0-startratio), ratioshift*2);
-  let ccurrent = new Circle(0, 0, 1);
+  let ccurrent = new Circle(0, 0, 1, startangle/180*Math.PI);
   let cnext = new Circle(Math.cos(startangle / 180 * Math.PI) * (startratio + 1.0001), Math.sin(startangle / 180 * Math.PI) * (startratio + 1.0001) + 0.0001, startratio*0.99, startangle/180*Math.PI);
-  let ctip = new Circle(0, -3, 0); //Math.cos(tailangle / 180 * Math.PI) * (tailratio + 1.0001), Math.sin(tailangle / 180 * Math.PI) * (tailratio + 1.0001) + 0.0001, 0.000);
+  let ctip = new Circle(0, -3, 0, tailangle/180*Math.PI); //Math.cos(tailangle / 180 * Math.PI) * (tailratio + 1.0001), Math.sin(tailangle / 180 * Math.PI) * (tailratio + 1.0001) + 0.0001, 0.000);
 
 	// ctail is the arc that runs down the middle of the paisl, we find this by fitting a circle to three points: the tip of the tail, and the centerpoints of the head and the first gap circle
   let ctail = apollonius(ccurrent.shrinktopoint(), cnext.shrinktopoint(), ctip.shrinktopoint());
@@ -1791,11 +1791,11 @@ function refresh(onlycolor = false)
 	el = createSVGCircle(fggrp, csmall, {edgehue: 0.88});*/
 
 
-	currefresh.schedule(newrecurse, [clarge, ccurrent.outer(), cnext.outer()], maxdepth-2, maxrecdepth, ccurrent, newgrp);
+	currefresh.schedule(newrecurse, [cnext.outer(), clarge, ccurrent.outer()], maxdepth-2, maxrecdepth, ccurrent, newgrp);
 
-	currefresh.schedule(newrecurse, [csmall, ccurrent.outer(), cnext.outer()], maxdepth-2, maxrecdepth, ccurrent, newgrp);
+	currefresh.schedule(newrecurse, [cnext.outer(), csmall, ccurrent.outer()], maxdepth-2, maxrecdepth, ccurrent, newgrp);
 
-	currefresh.schedule(newrecurse, [clarge, csmall, cnext.outer()], maxdepth-2, maxrecdepth, ccurrent, newgrp);
+	currefresh.schedule(newrecurse, [cnext.outer(), clarge, csmall], maxdepth-2, maxrecdepth, ccurrent, newgrp);
 
 	currefresh.schedule(newrecurse, ccurrent.inner(), maxdepth, maxrecdepth, ccurrent, newgrp);
 
