@@ -1714,7 +1714,7 @@ function refresh(onlycolor = false)
 	//let clarge;// = new Circle(0,0,-2);
 	//let csmall;// = new Circle(-0.0001,(2.0-startratio), ratioshift*2);
   let ccurrent = new Circle(0, 0, 1);
-  let cnext = new Circle(Math.cos(startangle / 180 * Math.PI) * (startratio + 1.0001), Math.sin(startangle / 180 * Math.PI) * (startratio + 1.0001) + 0.0001, startratio*0.99);
+  let cnext = new Circle(Math.cos(startangle / 180 * Math.PI) * (startratio + 1.0001), Math.sin(startangle / 180 * Math.PI) * (startratio + 1.0001) + 0.0001, startratio*0.99, startangle/180*Math.PI);
   let ctip = new Circle(0, -3, 0); //Math.cos(tailangle / 180 * Math.PI) * (tailratio + 1.0001), Math.sin(tailangle / 180 * Math.PI) * (tailratio + 1.0001) + 0.0001, 0.000);
 
 	// ctail is the arc that runs down the middle of the paisl, we find this by fitting a circle to three points: the tip of the tail, and the centerpoints of the head and the first gap circle
@@ -1929,7 +1929,7 @@ function refresh(onlycolor = false)
 	rectel.setAttribute("y", bbox.y-20);
 	rectel.setAttribute("fill", rgbtohex(hsvtorgb(0, 0.0, backgroundlum), 1.0));
 	bggrp.insertBefore(rectel, bggrp.firstChild);
-	//svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+	svg.setAttribute("preserveAspectRatio", "xMidYMid- meet");
 
 	currefresh.after((canceled)=>{
 		if(!canceled) {
@@ -1966,7 +1966,7 @@ function formatXML(input,indent)
   xmlString = input
                    .replace( /(<([a-zA-Z]+\b)[^>]*>)(?!<\/\2>|[\w\s])/g, "$1\n" ) //add \n after tag if not followed by the closing tag of pair or text node
                    .replace( /(<\/[a-zA-Z]+[^>]*>)/g, "$1\n") //add \n after closing tag
-                   .replace( />\s+(.+?)\s+<(?!\/)/g, ">\n$1\n<") //add \n between sets of angled brackets and text node between them
+                   .replace( />\s+(.+?)\s+<(?!\/)/g, ">-\n$1\n<") //add \n between sets of angled brackets and text node between them
                    .replace( />(.+?)<([a-zA-Z])/g, ">\n$1\n<$2") //add \n between angled brackets and text node between them
                    .replace(/\?></, "?>\n<") //detect a header of XML
 
@@ -2068,7 +2068,8 @@ const saveParamsByVersion = {
   102: ["ratioslider","angleslider","symmetryslider","symmetryminslider","symmetrymaxslider","basehueslider","huerangeminslider","huerangemaxslider","strokealphaslider","strokelumslider","strokesatslider","strokewidthslider","fillalphaslider","filllumslider","fillsatslider","minsizeslider","maxdepthslider","huegenshiftslider","lumgenshiftslider","symmetrygenshiftslider","minrecsizeslider","maxrecdepthslider","huerecshiftslider","lumrecshiftslider","symmetryrecshiftslider","sizehueslider","sizelumslider","sizesymslider","recipsizehueslider","recipsizelumslider","recipsizesymslider","anglesymrepslider", "anglesymamtslider","anglehuerepslider", "anglehueamtslider", "anglelumrepslider", "anglelumamtslider", "backgroundlumslider"]
 };
 
-function getSaveParamString(sep="+") {
+function getSaveParamString(sep="+")
+{
   var params = new Map(); Array.from(document.querySelectorAll("input[name][data-persisted]")).forEach(el=>{params.set(el.getAttribute("name").trim(), el.value);});
   var values = [currentSaveVersion];
   for(let name of saveParamsByVersion[currentSaveVersion]) {
@@ -2083,7 +2084,8 @@ function getSaveParamString(sep="+") {
   return values.map(v=>encodeURIComponent(String(v))).join(sep);
 }
 
-function loadParameterString(s, sep="+") {
+function loadParameterString(s, sep="+")
+{
   var words = s.split(sep).map(x=>decodeURIComponent(x)).map(x=>parseInt(x));
   var version = words[0];
   //var values = words.splice(1, words.length);
