@@ -391,7 +391,7 @@ Circle = class Circle {
 			var lastsubc = null;
 			for(let subi = 0; subi < num; subi++)
 			{
-				var cursubc = new Circle(this.x + Math.cos(subt * subi) * (this.r - subr), this.y + Math.sin(subt * subi) * (this.r - subr), subr, this.a + subt * subi * (180.0/Math.PI), this.g + 1, this, [subi, num],  [this, centc]);
+				var cursubc = new Circle(this.x + Math.cos(subt * subi) * (this.r - subr), this.y + Math.sin(subt * subi) * (this.r - subr), subr, -this.a + subt * subi * (180.0/Math.PI), this.g + 1, this, [subi, num],  [this, centc]);
 				if(lastsubc != null) {
 					cursubc.addtouching(lastsubc);
 					lastsubc.addtouching(cursubc);
@@ -955,8 +955,8 @@ function apolloniusCircle(x1, y1, r1, x2, y2, r2, x3, y3, r3) {
 apollonius = function (c1, c2, c3) {
 	var cx, cy, cr, c;
 	c = apolloniusCircle(c1.x, c1.y, Math.abs(c1.r)*c1.s,
-											 c2.x, c2.y, Math.abs(c2.r)*c2.s,
-											 c3.x, c3.y, Math.abs(c3.r)*c3.s)
+			c2.x, c2.y, Math.abs(c2.r)*c2.s,
+			c3.x, c3.y, Math.abs(c3.r)*c3.s)
 	if(c != null) {
 		/*var ct = c1;
 		var rtotal = c1.r + c2.r + c3.r;
@@ -1345,8 +1345,8 @@ function refresh(onlycolor = false)
 		if(el.gapdepth == undefined || el.circle == undefined || el.recdepth == undefined)
 		  return;
 		var gapdepth = el.gapdepth;
-    var recdepth = el.recdepth;
-    var circle = el.circle;
+	        var recdepth = el.recdepth;
+    		var circle = el.circle;
 
 		var edgehue=curcalchue(circle, gapdepth, recdepth),
 		edgesat=strokesat,
@@ -1425,7 +1425,7 @@ function refresh(onlycolor = false)
 	var currefresh = new WorkQueue();
 	lastrefresh = currefresh;
 	lastupdate = curupdate;
-    lastelements = [];
+    	lastelements = [];
 
 	newgrp.appendChild(bggrp);
 	newgrp.appendChild(fggrp);
@@ -1515,7 +1515,7 @@ function refresh(onlycolor = false)
 					var transform3 = svg.createSVGTransform();
 					transform3.setRotate(parent.a/Math.PI*180, (circle.x-parent.x)*100.0,(circle.y-parent.y)*100.0); //(circle.x - parent.x)*100.0, (circle.y - parent.y) * 100.0);
 					var transform = svg.createSVGTransform();
-					transform.setTranslate((circle.x - parent.x)*100.0, (circle.y - parent.y) * 100.0);
+					transform.setTranslate(radius((circle.x - parent.x), (circle.y - parent.y)) * 100.0, 0.0);
 					var transform2 = svg.createSVGTransform();
 					transform2.setRotate(parent.a/Math.PI*180, 0,0); //(circle.x - parent.x)*100.0, (circle.y - parent.y) * 100.0);
 					
