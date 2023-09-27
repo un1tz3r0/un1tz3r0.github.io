@@ -241,8 +241,7 @@ function circleCircleIntersectionPoints(c1, c2) {
 		return new Point(fp.x+xRot,fp.y+yRot);
 	}
 
-
-	if (c1.r < c2.r) {
+  if (c1.r < c2.r) {
     r  = c1.r;  R = c2.r;
     cx = c1.x; cy = c1.y;
     Cx = c2.x; Cy = c2.y;
@@ -391,7 +390,7 @@ Circle = class Circle {
 			var lastsubc = null;
 			for(let subi = 0; subi < num; subi++)
 			{
-				var cursubc = new Circle(this.x + Math.cos(subt * subi) * (this.r - subr), this.y + Math.sin(subt * subi) * (this.r - subr), subr, -this.a + subt * subi * (180.0/Math.PI), this.g + 1, this, [subi, num],  [this, centc]);
+				var cursubc = new Circle(this.x + Math.cos(subt * subi) * (this.r - subr), this.y + Math.sin(subt * subi) * (this.r - subr), subr, this.a + subt * subi, this.g + 1, this, [subi, num],  [this, centc]);
 				if(lastsubc != null) {
 					cursubc.addtouching(lastsubc);
 					lastsubc.addtouching(cursubc);
@@ -544,7 +543,7 @@ function revToRad(rev)
 // are low level and make direct use of trig functions.
 // --------------------------------------------------------------------
 
-function angle(x1, y1, x2, y2) {
+function angle_rad(x1, y1, x2, y2) {
 	return Math.atan2(y2 - y1, x2 - x1);
 }
 
@@ -552,19 +551,24 @@ function radius(x1, y1, x2, y2) {
 	return Math.sqrt((y2 - y1)*(y2 - y1) + (x2 - x1)*(x2 - x1));
 }
 
-function heading(x, y, a, d) {
+function heading_rad(x, y, a, d) {
 	return {x: Math.cos(a) * d + x, y: Math.sin(a) * d + y};
 }
 
 // cartesian coordinate operations based on the above primitive conversions,
 // these
 
-function rotate(x, y, a, xorigin=0.0, yorigin=0.0)
+function rotate_deg(x, y, a, xorigin=0.0, yorigin=0.0)
+{
+	return rotate_rad(x, y, degToRad(a), xorigin, yorigin);
+}
+
+function rotate_rad(x, y, a, xorigin=0.0, yorigin=0.0)
 {
 	var ox, oy, oa, od;
 	od = radius(xorigin, yorigin, x, y);
-	oa = angle(xorigin, yorigin, x, y);
-	var ret = heading(xorigin, yorigin, oa + (a / 180)*Math.PI, od);
+	oa = angle_rad(xorigin, yorigin, x, y);
+	var ret = heading_rad(xorigin, yorigin, oa + a, od);
 	return ret;
 }
 
@@ -573,9 +577,9 @@ function rotate(x, y, a, xorigin=0.0, yorigin=0.0)
 // the origin and x=0,y=1 respectively
 
 function towards(x1, y1, x2, y2, u, v) {
-	var ang = angle(x1, y1, x2, y2);
-	var a = heading(x1, y1, ang, u);
-	var b = heading(a.x, a.y, ang + Math.PI / 2.0, v);
+	var ang = angle_rad(x1, y1, x2, y2);
+	var a = heading_rad(x1, y1, ang, u);
+	var b = heading_rad(a.x, a.y, ang + Math.PI / 2.0, v);
 	return b;
 }
 
@@ -622,8 +626,8 @@ function mkarc(S, V, E, move = true)
 		return Math.hypot(a+(i*l-k/2)/g,b-l);
 	};
 
-	const lgArcFl = Math.abs(angle(S,E,V)) < pi/2 ? 0 : 1;
-	const sweepFl = angle(S,E,V) > 0 ? 0 : 1;
+	const lgArcFl = Math.abs(angle_rad(S,E,V)) < pi/2 ? 0 : 1;
+	const sweepFl = angle_rad(S,E,V) > 0 ? 0 : 1;
 
 	const fmtArc = ([sx, sy], [ex, ey], r, lg, sw, mv) =>
   	(mv ? `M ${sx} ${sy}` : ``) + `A ${r} ${r} 0 ${lg} ${sw} ${ex} ${ey}`;
@@ -762,7 +766,7 @@ function createSVGArrow(svg, x1, y1, x2, y2, options)
 			el.setAttribute("fill", "none");
 		}
 		if(circle.a != 0) {
-			el.setAttribute("transform", `rotate(${roundToStr(circle.a)},${roundToStr(circle.x*100)},${roundToStr(circle.y*100)})`);
+			//el.setAttribute("transform", `rotate(${roundToStr(circle.a)},${roundToStr(circle.x*100)},${roundToStr(circle.y*100)})`);
 		}
 		if(info != null) {
 			el.setAttribute("data-info", JSON.stringify(info));
@@ -1366,7 +1370,7 @@ function refresh(onlycolor = false)
 		}
 		el.setAttribute("fill-opacity", filla);
 		el.style.fillOpacity = filla;
-		if(fillcolor != null) {
+		if(fillcolor != null) {0
 			el.setAttribute("fill", fillcolor);
 			el.style.fill = fillcolor;
 		} else {
@@ -1413,13 +1417,13 @@ function refresh(onlycolor = false)
 	let bggrp = document.createElementNS("http://www.w3.org/2000/svg", "g");
 	let allcircles = [];
 
-	if(lastupdate != null)
-	{
-		lastupdate.cancel();
-	}
 	if(lastrefresh != null)
 	{
 		lastrefresh.cancel();
+	}
+	if(lastupdate != null)
+	{
+		lastupdate.cancel();
 	}
 	var curupdate = new AnimationQueue();
 	var currefresh = new WorkQueue();
@@ -1480,7 +1484,7 @@ function refresh(onlycolor = false)
 				if(cl != null)
 				{
 					cl.g = [(maxrecdepth - recdepth), (maxdepth - gapdepth)];
-					cl.a = angle(cl.x, cl.y, ci.x, ci.y);
+					cl.a = angle_rad(ci.x, ci.y, cl.x, cl.y);
 
 					if(recdepth > 0 && Math.abs(cl.r) > minrecsize)
 					{
@@ -1515,7 +1519,7 @@ function refresh(onlycolor = false)
 					var transform3 = svg.createSVGTransform();
 					transform3.setRotate(parent.a/Math.PI*180, (circle.x-parent.x)*100.0,(circle.y-parent.y)*100.0); //(circle.x - parent.x)*100.0, (circle.y - parent.y) * 100.0);
 					var transform = svg.createSVGTransform();
-					transform.setTranslate(radius((circle.x - parent.x), (circle.y - parent.y)) * 100.0, 0.0);
+					transform.setTranslate(radius((circle.x - parent.x), (circle.y - parent.y)) * -100.0, 0.0);
 					var transform2 = svg.createSVGTransform();
 					transform2.setRotate(parent.a/Math.PI*180, 0,0); //(circle.x - parent.x)*100.0, (circle.y - parent.y) * 100.0);
 					
@@ -1558,7 +1562,7 @@ function refresh(onlycolor = false)
 					ringpropsize = inputs["ringpropsizeslider"], */
 
 						curupdate.schedule(()=>{
-							var el = createSVGCircle(newgroup, new Circle(0, 0, circle.r, circle.a),
+							var el = createSVGCircle(newgroup, new Circle(0, 0, circle.r, 0),
 								{
 									width: strokewidth, /*
 									edgehue: curcalchue(circle, gapdepth, recdepth),
@@ -1856,10 +1860,10 @@ function refresh(onlycolor = false)
 
 	let largecross = cross(largept.x, largept.y, ctip.x, ctip.y, clarge.x, clarge.y);
 	let smallcross = cross(smallpt.x, smallpt.y, ctip.x, ctip.y, csmall.x, csmall.y);
-	let largetipangle = radtodeg(angle(clarge.x, clarge.y, ctip.x, ctip.y));
-	let smalltipangle = radtodeg(angle(csmall.x, csmall.y, ctip.x, ctip.y));
-	let largeptangle = radtodeg(angle(clarge.x, clarge.y, largept.x, largept.y));
-	let smallptangle = radtodeg(angle(csmall.x, csmall.y, smallpt.x, smallpt.y));
+	let largetipangle = radtodeg(angle_rad(clarge.x, clarge.y, ctip.x, ctip.y));
+	let smalltipangle = radtodeg(angle_rad(csmall.x, csmall.y, ctip.x, ctip.y));
+	let largeptangle = radtodeg(angle_rad(clarge.x, clarge.y, largept.x, largept.y));
+	let smallptangle = radtodeg(angle_rad(csmall.x, csmall.y, smallpt.x, smallpt.y));
 	let largeanglediff = anglediff(largetipangle, largeptangle);
 	let largelongflag = largeanglediff > 180 ? 1 : 0;
 	let largesweepflag = largetipangle < largeptangle ? 1 : 0;
