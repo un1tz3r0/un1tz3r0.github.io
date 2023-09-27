@@ -626,12 +626,12 @@ function mkarc(S, V, E, move = true)
 		return Math.hypot(a+(i*l-k/2)/g,b-l);
 	};
 
-	const lgArcFl = Math.abs(angle_rad(S,E,V)) < pi/2 ? 0 : 1;
-	const sweepFl = angle_rad(S,E,V) > 0 ? 0 : 1;
+	const lgArcFl = Math.abs(angle(S,E,V)) < pi/2 ? 0 : 1;
+	const sweepFl = angle(S,E,V) > 0 ? 0 : 1;
 
 	const fmtArc = ([sx, sy], [ex, ey], r, lg, sw, mv) =>
   	(mv ? `M ${sx} ${sy}` : ``) + `A ${r} ${r} 0 ${lg} ${sw} ${ex} ${ey}`;
-	return fmtArc(S, E, radius(S, V, E), lgArcFl,  sweepFl, move);// +
+	return fmtArc(S, E, radius(S, V, E), lgArcFl,  sweepFl, move); // +
 		//( ? mkline(S, V) + mkline(E, V); //+ mkcircle(V, radius(S,V,E));
 }
 
