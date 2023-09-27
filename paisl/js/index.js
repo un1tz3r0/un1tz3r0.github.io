@@ -1079,17 +1079,14 @@ class WorkQueue
 	}
 
 	cancel() {
-		if(!this.canceled)
+		if(!this._canceled)
 		{
 			this._canceled = true;
 			if(this._handle != null) {
 				cancelIdleCallback(this._handle);
 				this._handle = null;
 			}
-			while(this._tasks.length > 0)
-			{
-				this._tasks.pop();
-			}
+			this._tasks.clear()
 			if(this._deadline == null)
 			{
 				this._done = true;
@@ -1120,7 +1117,7 @@ class WorkQueue
 			try {
 				t[0].apply(null, t[1]);
 			} catch(err) {
-				console.error(`Uncaught exception thrown by deferred function ${t[0]} called with args ${t[1]}: ${err}`);
+				console.error(`Uncaught exception thrown by deferred function ${t[0].name}(${t[1]}): ${err}`);
 			}
 		}
 
@@ -1181,6 +1178,10 @@ class AnimationQueue {
 		else
 		{
 			this._after.push(fn);
+			if(this._handle == null && !this._updating)
+			{
+				this._handle = requestAnimationFrame((tm)=>{this.run(tm);});
+			}
 		}
 	}
 
@@ -1218,7 +1219,7 @@ class AnimationQueue {
 			}
 		}
 
-		if(this._tasks.length <= 0 || this._canceled && !this._done) {
+		if((this._tasks.length <= 0 || this._canceled) && !this._done) {
 			this._done = true;
 			for(let fn of this._after)
 			{
