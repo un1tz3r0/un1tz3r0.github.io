@@ -1086,7 +1086,7 @@ class WorkQueue
 				cancelIdleCallback(this._handle);
 				this._handle = null;
 			}
-			this._tasks.clear()
+			this._tasks.splice(0);
 			if(this._deadline == null)
 			{
 				this._done = true;
@@ -1191,10 +1191,7 @@ class AnimationQueue {
 			cancelAnimationFrame(this._handle);
 			this._handle = null;
 		}
-		while(this._tasks.length > 0)
-		{
-			this._tasks.pop();
-		}
+		this._tasks.splice(0);
 		this._done = true;
 		if(!this._updating)
 		{
