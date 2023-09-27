@@ -2,7 +2,7 @@
 <html>
     <head>
         <meta charset="utf-8">
-        <title>My first three.js app</title>
+        <title>Squid! by Victor Condino aka un1tz3r0</title>
         <style>
             body, body canvas {
                 margin: 0;
@@ -27,14 +27,15 @@
             "CSG": "./esm/csg.js",
             "fastsimplexnoise": "./esm/fast-simplex-noise.js",
             "fractalnoise": "./esm/fractal-noise.js",
-            "taperextrudegeometry": "./esm/TaperExtrudeGeometry.js"
+            "taperextrudegeometry": "./esm/TaperExtrudeGeometry.js",
+	    "tweakpane": "./esm/tweakpane.min.js"
           }}
         </script>
     </head>
     <body>
         <script type="module">/* <![CDATA[ */
 
-			import * as THREE from 'three';
+      import * as THREE from 'three';
       import { OrbitControls } from 'OrbitControls';
       import { EffectComposer } from 'EffectComposer';
       import { RenderPixelatedPass } from 'RenderPixelatedPass';
@@ -46,6 +47,7 @@
       import fractalnoise from 'fractalnoise';
       import { TaperExtrudeGeometry } from 'taperextrudegeometry';
       import * as BufferGeometryUtils from 'BufferGeometryUtils';
+      import * as tweakpane from 'tweakpane';
 
 let camera, scene, renderer, composer, clock, interaction, updateFunctions = [];
 let gui, params={};

@@ -1,5 +1,20 @@
 "use strict";
 /*
+ * a es6 modular library of fast simplex gradient noise functions
+ *
+ * exports factory functions makeNoise2D(), makeNoise3D() and
+ * makeNoise4D() which return callables that take 2, 3 and 4
+ * scalar arguments and return a value in [0.0, 1.0] which varies
+ * continuously and randomly along all input axes. Can be used 
+ * to compose fractal noise by summing multiple sampled octaves,
+ * and can also be used to permute coordinates to apply distortion
+ * as is popular in organic texture and terrain generation. Can
+ * also be sampled along ring-shaped paths to create smooth and
+ * seamless looping animations. In fact I do all of these things
+ * and more in this project.
+ */
+
+/*
  * Based on example code by Stefan Gustavson (stegu@itn.liu.se).
  * Optimisations by Peter Eastman (peastman@drizzle.stanford.edu).
  * Better rank ordering method by Stefan Gustavson in 2012.
