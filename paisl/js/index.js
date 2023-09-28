@@ -1318,9 +1318,13 @@ function refresh(onlycolor = false)
 	function getangleamount(circle)
 	{
 		try {
-			return Math.abs((circle.i[0]/circle.i[1])*2-1);
+			if(circle.i != null) {
+				return Math.abs((circle.i[0]/circle.i[1])*2-1);
+			} else {
+				return 0.0;
+			}
 		} catch {
-			return 1.0;
+			return 0.0;
 		}
 	}
 
@@ -1517,12 +1521,12 @@ function refresh(onlycolor = false)
 					var transform3 = svg.createSVGTransform();
 					transform3.setRotate(parent.a/Math.PI*180, (circle.x-parent.x)*100.0,(circle.y-parent.y)*100.0); //(circle.x - parent.x)*100.0, (circle.y - parent.y) * 100.0);
 					var transform = svg.createSVGTransform();
-					transform.setTranslate(radius((circle.x - parent.x), (circle.y - parent.y)) * -100.0, 0.0);
+					transform.setTranslate(radius(circle.x, circle.y, parent.x, parent.y) * -100.0, 0.0);
 					var transform2 = svg.createSVGTransform();
 					transform2.setRotate(parent.a/Math.PI*180, 0,0); //(circle.x - parent.x)*100.0, (circle.y - parent.y) * 100.0);
 					
-					newgroup.transform.baseVal.appendItem(transform2);
 					newgroup.transform.baseVal.appendItem(transform);
+					newgroup.transform.baseVal.appendItem(transform2);
 					//newgroup.transform.baseVal.appendItem(transform3);
 
 					// call it's subdivide method with our callbacks created above
