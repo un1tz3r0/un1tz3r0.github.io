@@ -241,7 +241,8 @@ function circleCircleIntersectionPoints(c1, c2) {
 		return new Point(fp.x+xRot,fp.y+yRot);
 	}
 
-  if (c1.r < c2.r) {
+
+	if (c1.r < c2.r) {
     r  = c1.r;  R = c2.r;
     cx = c1.x; cy = c1.y;
     Cx = c2.x; Cy = c2.y;
@@ -390,7 +391,7 @@ Circle = class Circle {
 			var lastsubc = null;
 			for(let subi = 0; subi < num; subi++)
 			{
-				var cursubc = new Circle(this.x + Math.cos(subt * subi) * (this.r - subr), this.y + Math.sin(subt * subi) * (this.r - subr), subr, this.a + subt * subi, this.g + 1, this, [subi, num],  [this, centc]);
+				var cursubc = new Circle(this.x + Math.cos(subt * subi) * (this.r - subr), this.y + Math.sin(subt * subi) * (this.r - subr), subr, this.a + subt * subi * (180.0/Math.PI), this.g + 1, this, [subi, num],  [this, centc]);
 				if(lastsubc != null) {
 					cursubc.addtouching(lastsubc);
 					lastsubc.addtouching(cursubc);
@@ -543,7 +544,7 @@ function revToRad(rev)
 // are low level and make direct use of trig functions.
 // --------------------------------------------------------------------
 
-function angle_rad(x1, y1, x2, y2) {
+function angle(x1, y1, x2, y2) {
 	return Math.atan2(y2 - y1, x2 - x1);
 }
 
@@ -551,24 +552,19 @@ function radius(x1, y1, x2, y2) {
 	return Math.sqrt((y2 - y1)*(y2 - y1) + (x2 - x1)*(x2 - x1));
 }
 
-function heading_rad(x, y, a, d) {
+function heading(x, y, a, d) {
 	return {x: Math.cos(a) * d + x, y: Math.sin(a) * d + y};
 }
 
 // cartesian coordinate operations based on the above primitive conversions,
 // these
 
-function rotate_deg(x, y, a, xorigin=0.0, yorigin=0.0)
-{
-	return rotate_rad(x, y, degToRad(a), xorigin, yorigin);
-}
-
-function rotate_rad(x, y, a, xorigin=0.0, yorigin=0.0)
+function rotate(x, y, a, xorigin=0.0, yorigin=0.0)
 {
 	var ox, oy, oa, od;
 	od = radius(xorigin, yorigin, x, y);
-	oa = angle_rad(xorigin, yorigin, x, y);
-	var ret = heading_rad(xorigin, yorigin, oa + a, od);
+	oa = angle(xorigin, yorigin, x, y);
+	var ret = heading(xorigin, yorigin, oa + (a / 180)*Math.PI, od);
 	return ret;
 }
 
@@ -577,9 +573,9 @@ function rotate_rad(x, y, a, xorigin=0.0, yorigin=0.0)
 // the origin and x=0,y=1 respectively
 
 function towards(x1, y1, x2, y2, u, v) {
-	var ang = angle_rad(x1, y1, x2, y2);
-	var a = heading_rad(x1, y1, ang, u);
-	var b = heading_rad(a.x, a.y, ang + Math.PI / 2.0, v);
+	var ang = angle(x1, y1, x2, y2);
+	var a = heading(x1, y1, ang, u);
+	var b = heading(a.x, a.y, ang + Math.PI / 2.0, v);
 	return b;
 }
 
@@ -631,7 +627,7 @@ function mkarc(S, V, E, move = true)
 
 	const fmtArc = ([sx, sy], [ex, ey], r, lg, sw, mv) =>
   	(mv ? `M ${sx} ${sy}` : ``) + `A ${r} ${r} 0 ${lg} ${sw} ${ex} ${ey}`;
-	return fmtArc(S, E, radius(S, V, E), lgArcFl,  sweepFl, move); // +
+	return fmtArc(S, E, radius(S, V, E), lgArcFl,  sweepFl, move);// +
 		//( ? mkline(S, V) + mkline(E, V); //+ mkcircle(V, radius(S,V,E));
 }
 
@@ -766,7 +762,7 @@ function createSVGArrow(svg, x1, y1, x2, y2, options)
 			el.setAttribute("fill", "none");
 		}
 		if(circle.a != 0) {
-			//el.setAttribute("transform", `rotate(${roundToStr(circle.a)},${roundToStr(circle.x*100)},${roundToStr(circle.y*100)})`);
+			el.setAttribute("transform", `rotate(${roundToStr(circle.a)},${roundToStr(circle.x*100)},${roundToStr(circle.y*100)})`);
 		}
 		if(info != null) {
 			el.setAttribute("data-info", JSON.stringify(info));
@@ -959,8 +955,8 @@ function apolloniusCircle(x1, y1, r1, x2, y2, r2, x3, y3, r3) {
 apollonius = function (c1, c2, c3) {
 	var cx, cy, cr, c;
 	c = apolloniusCircle(c1.x, c1.y, Math.abs(c1.r)*c1.s,
-			c2.x, c2.y, Math.abs(c2.r)*c2.s,
-			c3.x, c3.y, Math.abs(c3.r)*c3.s)
+											 c2.x, c2.y, Math.abs(c2.r)*c2.s,
+											 c3.x, c3.y, Math.abs(c3.r)*c3.s)
 	if(c != null) {
 		/*var ct = c1;
 		var rtotal = c1.r + c2.r + c3.r;
@@ -1079,14 +1075,17 @@ class WorkQueue
 	}
 
 	cancel() {
-		if(!this._canceled)
+		if(!this.canceled)
 		{
 			this._canceled = true;
 			if(this._handle != null) {
 				cancelIdleCallback(this._handle);
 				this._handle = null;
 			}
-			this._tasks.splice(0);
+			while(this._tasks.length > 0)
+			{
+				this._tasks.pop();
+			}
 			if(this._deadline == null)
 			{
 				this._done = true;
@@ -1117,7 +1116,7 @@ class WorkQueue
 			try {
 				t[0].apply(null, t[1]);
 			} catch(err) {
-				console.error(`Uncaught exception thrown by deferred function ${t[0].name}(${t[1]}): ${err}`);
+				console.error(`Uncaught exception thrown by deferred function ${t[0]} called with args ${t[1]}: ${err}`);
 			}
 		}
 
@@ -1178,10 +1177,6 @@ class AnimationQueue {
 		else
 		{
 			this._after.push(fn);
-			if(this._handle == null && !this._updating)
-			{
-				this._handle = requestAnimationFrame((tm)=>{this.run(tm);});
-			}
 		}
 	}
 
@@ -1191,7 +1186,10 @@ class AnimationQueue {
 			cancelAnimationFrame(this._handle);
 			this._handle = null;
 		}
-		this._tasks.splice(0);
+		while(this._tasks.length > 0)
+		{
+			this._tasks.pop();
+		}
 		this._done = true;
 		if(!this._updating)
 		{
@@ -1216,7 +1214,7 @@ class AnimationQueue {
 			}
 		}
 
-		if((this._tasks.length <= 0 || this._canceled) && !this._done) {
+		if(this._tasks.length <= 0 || this._canceled && !this._done) {
 			this._done = true;
 			for(let fn of this._after)
 			{
@@ -1318,13 +1316,9 @@ function refresh(onlycolor = false)
 	function getangleamount(circle)
 	{
 		try {
-			if(circle.i != null) {
-				return Math.abs((circle.i[0]/circle.i[1])*2-1);
-			} else {
-				return 0.0;
-			}
+			return Math.abs((circle.i[0]/circle.i[1])*2-1);
 		} catch {
-			return 0.0;
+			return 1.0;
 		}
 	}
 
@@ -1351,8 +1345,8 @@ function refresh(onlycolor = false)
 		if(el.gapdepth == undefined || el.circle == undefined || el.recdepth == undefined)
 		  return;
 		var gapdepth = el.gapdepth;
-	        var recdepth = el.recdepth;
-    		var circle = el.circle;
+    var recdepth = el.recdepth;
+    var circle = el.circle;
 
 		var edgehue=curcalchue(circle, gapdepth, recdepth),
 		edgesat=strokesat,
@@ -1372,7 +1366,7 @@ function refresh(onlycolor = false)
 		}
 		el.setAttribute("fill-opacity", filla);
 		el.style.fillOpacity = filla;
-		if(fillcolor != null) {0
+		if(fillcolor != null) {
 			el.setAttribute("fill", fillcolor);
 			el.style.fill = fillcolor;
 		} else {
@@ -1419,19 +1413,19 @@ function refresh(onlycolor = false)
 	let bggrp = document.createElementNS("http://www.w3.org/2000/svg", "g");
 	let allcircles = [];
 
-	if(lastrefresh != null)
-	{
-		lastrefresh.cancel();
-	}
 	if(lastupdate != null)
 	{
 		lastupdate.cancel();
+	}
+	if(lastrefresh != null)
+	{
+		lastrefresh.cancel();
 	}
 	var curupdate = new AnimationQueue();
 	var currefresh = new WorkQueue();
 	lastrefresh = currefresh;
 	lastupdate = curupdate;
-    	lastelements = [];
+    lastelements = [];
 
 	newgrp.appendChild(bggrp);
 	newgrp.appendChild(fggrp);
@@ -1486,7 +1480,7 @@ function refresh(onlycolor = false)
 				if(cl != null)
 				{
 					cl.g = [(maxrecdepth - recdepth), (maxdepth - gapdepth)];
-					cl.a = angle_rad(ci.x, ci.y, cl.x, cl.y);
+					cl.a = angle(cl.x, cl.y, ci.x, ci.y);
 
 					if(recdepth > 0 && Math.abs(cl.r) > minrecsize)
 					{
@@ -1519,12 +1513,12 @@ function refresh(onlycolor = false)
 					var newparent = circle;
 					var newgroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
 					var transform3 = svg.createSVGTransform();
-					transform3.setRotate(parent.a/Math.PI*180, 0, 0) //(circle.x-parent.x)*100.0,(circle.y-parent.y)*100.0); //(circle.x - parent.x)*100.0, (circle.y - parent.y) * 100.0);
+					transform3.setRotate(parent.a/Math.PI*180, (circle.x-parent.x)*100.0,(circle.y-parent.y)*100.0); //(circle.x - parent.x)*100.0, (circle.y - parent.y) * 100.0);
 					var transform = svg.createSVGTransform();
-					transform.setTranslate(radius(circle.x, circle.y, parent.x, parent.y) * 100.0, 0.0);
+					transform.setTranslate((circle.x - parent.x)*100.0, (circle.y - parent.y) * 100.0);
 					var transform2 = svg.createSVGTransform();
-					transform2.setRotate(parent.a /*angle_rad(circle.x, circle.y, parent.x, parent.y)*/ / Math.PI*180, 0,0); //(circle.x - parent.x)*100.0, (circle.y - parent.y) * 100.0);
-					
+					transform2.setRotate(parent.a/Math.PI*180, 0,0); //(circle.x - parent.x)*100.0, (circle.y - parent.y) * 100.0);
+
 					newgroup.transform.baseVal.appendItem(transform2);
 					newgroup.transform.baseVal.appendItem(transform);
 					//newgroup.transform.baseVal.appendItem(transform3);
@@ -1564,7 +1558,7 @@ function refresh(onlycolor = false)
 					ringpropsize = inputs["ringpropsizeslider"], */
 
 						curupdate.schedule(()=>{
-							var el = createSVGCircle(newgroup, new Circle(0, 0, circle.r, 0),
+							var el = createSVGCircle(newgroup, new Circle(0, 0, circle.r, circle.a),
 								{
 									width: strokewidth, /*
 									edgehue: curcalchue(circle, gapdepth, recdepth),
@@ -1862,10 +1856,10 @@ function refresh(onlycolor = false)
 
 	let largecross = cross(largept.x, largept.y, ctip.x, ctip.y, clarge.x, clarge.y);
 	let smallcross = cross(smallpt.x, smallpt.y, ctip.x, ctip.y, csmall.x, csmall.y);
-	let largetipangle = radtodeg(angle_rad(clarge.x, clarge.y, ctip.x, ctip.y));
-	let smalltipangle = radtodeg(angle_rad(csmall.x, csmall.y, ctip.x, ctip.y));
-	let largeptangle = radtodeg(angle_rad(clarge.x, clarge.y, largept.x, largept.y));
-	let smallptangle = radtodeg(angle_rad(csmall.x, csmall.y, smallpt.x, smallpt.y));
+	let largetipangle = radtodeg(angle(clarge.x, clarge.y, ctip.x, ctip.y));
+	let smalltipangle = radtodeg(angle(csmall.x, csmall.y, ctip.x, ctip.y));
+	let largeptangle = radtodeg(angle(clarge.x, clarge.y, largept.x, largept.y));
+	let smallptangle = radtodeg(angle(csmall.x, csmall.y, smallpt.x, smallpt.y));
 	let largeanglediff = anglediff(largetipangle, largeptangle);
 	let largelongflag = largeanglediff > 180 ? 1 : 0;
 	let largesweepflag = largetipangle < largeptangle ? 1 : 0;
