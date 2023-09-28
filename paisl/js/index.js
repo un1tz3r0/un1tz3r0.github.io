@@ -1519,14 +1519,14 @@ function refresh(onlycolor = false)
 					var newparent = circle;
 					var newgroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
 					var transform3 = svg.createSVGTransform();
-					transform3.setRotate(parent.a/Math.PI*180, (circle.x-parent.x)*100.0,(circle.y-parent.y)*100.0); //(circle.x - parent.x)*100.0, (circle.y - parent.y) * 100.0);
+					transform3.setRotate(parent.a/Math.PI*180, 0, 0) //(circle.x-parent.x)*100.0,(circle.y-parent.y)*100.0); //(circle.x - parent.x)*100.0, (circle.y - parent.y) * 100.0);
 					var transform = svg.createSVGTransform();
-					transform.setTranslate(radius(circle.x, circle.y, parent.x, parent.y) * -100.0, 0.0);
+					transform.setTranslate(radius(circle.x, circle.y, parent.x, parent.y) * 100.0, 0.0);
 					var transform2 = svg.createSVGTransform();
-					transform2.setRotate(parent.a/Math.PI*180, 0,0); //(circle.x - parent.x)*100.0, (circle.y - parent.y) * 100.0);
+					transform2.setRotate(parent.a /*angle_rad(circle.x, circle.y, parent.x, parent.y)*/ / Math.PI*180, 0,0); //(circle.x - parent.x)*100.0, (circle.y - parent.y) * 100.0);
 					
-					newgroup.transform.baseVal.appendItem(transform);
 					newgroup.transform.baseVal.appendItem(transform2);
+					newgroup.transform.baseVal.appendItem(transform);
 					//newgroup.transform.baseVal.appendItem(transform3);
 
 					// call it's subdivide method with our callbacks created above
