@@ -1121,7 +1121,7 @@ class WorkQueue
 			}
 		}
 
-		print(`WorkQueue.run() finished ${n} tasks in ${initialtime}, ${this._tasks.length} tasks remaining in queue.`);
+		console.debug(`WorkQueue.run() finished ${n} tasks in ${initialtime}, ${this._tasks.length} tasks remaining in queue.`);
 
 		if((this._tasks.length <= 0 || this._canceled) && !this._done) {
 			this._done = true;
