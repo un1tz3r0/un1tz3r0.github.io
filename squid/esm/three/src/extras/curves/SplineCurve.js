@@ -5,15 +5,10 @@ import { Vector2 } from '../../math/Vector2.js';
 class SplineCurve extends Curve {
 
 	constructor( points = [] ) {
-
 		super();
-
 		this.isSplineCurve = true;
-
 		this.type = 'SplineCurve';
-
 		this.points = points;
-
 	}
 
 	getPoint( t, optionalTarget = new Vector2() ) {

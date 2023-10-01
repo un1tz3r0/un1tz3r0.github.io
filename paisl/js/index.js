@@ -1099,9 +1099,10 @@ class WorkQueue
 
 	run(deadline)
 	{
-		console.info(`entering WorkQueue.run() with ${this._tasks.length} tasks in queue, time remaining is ${deadline.timeRemaining()}`);
+		//console.info(`entering WorkQueue.run() with ${this._tasks.length} tasks in queue, time remaining is ${deadline.timeRemaining()}`);
 		this._deadline = deadline;
 		this._handle = null;
+		var initialtime = deadline.timeRemaining();
 		//this._deadline = deadline;
 		//if(this._tasks.length == 0 || this._canceled) {
 			// short circuit if queue is empty or canceled
@@ -1109,7 +1110,7 @@ class WorkQueue
 			//return;
 		//}
 		var n = 0, m = this._tasks.length * 2;
-		while((deadline.timeRemaining() > 0 || ((n < m) && deadline.didTimeout)) && this._tasks.length > 0 && !this._canceled)
+		while((deadline.timeRemaining() > 0 || ((n < 1) && deadline.didTimeout)) && this._tasks.length > 0 && !this._canceled)
 		{
 			n = n + 1;
 			var t = this._tasks.shift();
@@ -1119,6 +1120,8 @@ class WorkQueue
 				console.error(`Uncaught exception thrown by deferred function ${t[0]} called with args ${t[1]}: ${err}`);
 			}
 		}
+
+		print(`WorkQueue.run() finished ${n} tasks in ${initialtime}, ${this._tasks.length} tasks remaining in queue.`);
 
 		if((this._tasks.length <= 0 || this._canceled) && !this._done) {
 			this._done = true;
