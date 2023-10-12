@@ -317,6 +317,33 @@ function generateScene(use_scene=null)
     }
   }
 
+  const uvGenerator = {
+          generateTopUV: function(geometry, vertices, idxA, idxB, idxC) {
+            var ax, ay, bx, by, cx, cy;
+
+            ax = vertices[idxA * 3];
+            ay = vertices[(idxA * 3) + 1];
+            bx = vertices[idxB * 3];
+            by = vertices[(idxB * 3) + 1];
+            cx = vertices[idxC * 3];
+            cy = vertices[(idxC * 3) + 1];
+            return ([
+              new THREE.Vector2(ax, ay),
+              new THREE.Vector2(bx, by),
+              new THREE.Vector2(cx, cy),
+            ]);
+          },
+          generateSideWallUV: function(geometry, vertices, idxA, idxB, idxC, idxD) {
+            return ([
+              new THREE.Vector2(0, 0),
+              new THREE.Vector2(1, 0),
+              new THREE.Vector2(1, 1),
+              new THREE.Vector2(0, 1),
+            ]);
+          }
+        };
+
+
   // instantiate simplex noise function
   var noise4x = fastsimplexnoise.makeNoise4D();
   var noise4y = fastsimplexnoise.makeNoise4D();
@@ -408,12 +435,13 @@ function generateScene(use_scene=null)
     const profileShape = new THREE.Shape(profilePoints);
     const extrudeSettings = {
       steps: mpoints,
-      extrudePath: warpedCurve
+      extrudePath: warpedCurve,
+      UVGenerator: uvGenerator
     };
 
     const extrudeGeometry = new TaperExtrudeGeometry( profileShape, extrudeSettings );
     extrudeGeometry.deleteAttribute('normal');
-    extrudeGeometry.deleteAttribute('uv');
+    //extrudeGeometry.deleteAttribute('uv');
 
     //extrudeGeometry.computeUVs();
 
