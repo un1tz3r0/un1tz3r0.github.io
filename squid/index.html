@@ -176,9 +176,13 @@
 
       // gui
 
+      // this big huge mess is basically a dynamic functionally composed adaptor
+      // from lilgui --to-> tweakpane. rather than rewrite all the lazily instantiated
+      // parameters peppered throughout the generative code as only a truly degenerate
+      // douche
       gui = (()=>{
-        function add(dest, obj, name) {
-          const binding = dest.addBinding(obj, name);
+        function add(parent, obj, name) {
+          const binding = parent.binding.addBinding(obj, name);
           const wrapper = {
             'binding': binding,
             'min': (min) => {
@@ -194,35 +198,42 @@
               return wrapper;
             },
             'onChange': (f) => {
-              binding.on((ev)=>f(ev.value));
+              binding.on("change", (ev)=>f(ev.val));
               return wrapper;
+            },
+            'pop': () => {
+              return parent;
             }
           };
           return wrapper;
         };
-        function addFolder(dest, title) {
-          const folder = dest.addFolder({title: title, expanded: true});
+        function addFolder(parent, title, expanded=true) {
+          const folder = parent.binding.addFolder({title: title, expanded: expanded});
           const wrapper = {
             'binding': folder,
             'add': (obj, name) => {
-              return add(folder, obj, name);
+              return add(wrapper, obj, name);
             },
-            'addFolder': (name) => {
-              return addFolder(folder, name);
+            'addFolder': (name, expanded=true) => {
+              return addFolder(wrapper, name, expanded);
+            },
+            'pop': () => {
+              return parent;
             }
           };
           return wrapper;
         };
-        pane = new Pane();
-        return {
+        const pane = new Pane();
+        const wrapper = {
           'binding': pane,
           'add': (obj, name) => {
-            return add(pane, obj, name);
+            return add(wrapper, obj, name);
           },
-          'addFolder': (name) => {
-            return addFolder(pane, name);
+          'addFolder': (name, expanded=true) => {
+            return addFolder(wrapper, name, expanded);
           }
         };
+        return wrapper;
       })();
 
       gui.add(params, 'zoom').min(1).max(6).step(0.1).onChange(() => {
@@ -323,6 +334,9 @@
       }
 
       function linear({ x0 = 0.0, x1 = 1.0, y0 = 0.0, y1 = 1.0 }) {
+          // x0, x1 are two input points
+          // y0, y1 are two corresponding output points
+          // clamp is whether or not to allow values x0 < x < x1
         return {
           scale: (x) => { return m * x + b },
           unscale: (x) => { return (x - b) / m }
