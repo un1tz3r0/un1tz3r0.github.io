@@ -177,6 +177,53 @@
 
       // gui
 
+      const gui = ()=>{
+        function add(dest, obj, name) {
+          const binding = dest.addBinding(obj, name);
+          const wrapper = {
+            'binding': binding,
+            'min': (min) => {
+              binding.min = min;
+              return wrapper;
+            },
+            'max': (max) => {
+              binding.max = max;
+              return wrapper;
+            },
+            'step': (step) => {
+              binding.step = step;
+              return wrapper;
+            },
+            'onChange': (f) => {
+              binding.on((ev)=>f(ev.value));
+              return wrapper;
+            }
+          };
+          return wrapper;
+        };
+        function addFolder(dest, title) {
+          const folder = dest.addFolder({title: title, expanded: true});
+          const wrapper = {
+            'folder': folder,
+            'add': (obj, name) => {
+              return add(folder, obj, name);
+            },
+            'addFolder': (name) => {
+              return addFolder(folder, name);
+            }
+          };
+          return wrapper;
+        };
+        return {
+          'add': (obj, name) => {
+            return add(gui, obj, name);
+          },
+          'addFolder': (name) => {
+            return addFolder(gui, name);
+          }
+        }
+      }
+
       gui.add(params, 'zoom').min(1).max(6).step(0.1).onChange(() => {
         camera.zoom = 1.0 / params.zoom;
       });
