@@ -1,20 +1,22 @@
 <!DOCTYPE html>
 <html>
-    <head>
-        <meta charset="utf-8">
-        <title>Squid! by Victor Condino aka un1tz3r0</title>
-        <style>
-            body, body canvas {
-                margin: 0;
-                overflow: hidden;
-                padding: 0;
-                box-sizing: border-box;
-                width: 100vw;
-                height: 100vh;
-            }
-        </style>
 
-        <script type="importmap">
+<head>
+  <meta charset="utf-8">
+  <title>Squid! by Victor Condino aka un1tz3r0</title>
+  <style>
+    body,
+    body canvas {
+      margin: 0;
+      overflow: hidden;
+      padding: 0;
+      box-sizing: border-box;
+      width: 100vw;
+      height: 100vh;
+    }
+  </style>
+
+  <script type="importmap">
           {"imports":{
             "three": "./esm/three.module.js",
             "OrbitControls": "./esm/three.examples.jsm/controls/OrbitControls.js",
@@ -31,1103 +33,1076 @@
 	    "tweakpane": "./esm/tweakpane.min.js"
           }}
         </script>
-    </head>
-    <body>
-        <script type="module">/* <![CDATA[ */
+</head>
 
-      import * as THREE from 'three';
-      import { OrbitControls } from 'OrbitControls';
-      import { EffectComposer } from 'EffectComposer';
-      import { RenderPixelatedPass } from 'RenderPixelatedPass';
-      import { UnrealBloomPass } from 'UnrealBloomPass';
-      import { ShaderPass } from 'ShaderPass';
-      import { GUI } from 'GUI';
-      import * as CSG from 'CSG';
-      import fastsimplexnoise from 'fastsimplexnoise';
-      import fractalnoise from 'fractalnoise';
-      import { TaperExtrudeGeometry } from 'taperextrudegeometry';
-      import * as BufferGeometryUtils from 'BufferGeometryUtils';
-      import * as tweakpane from 'tweakpane';
+<body>
+  <script type="module">/* <![CDATA[ */
 
-let camera, scene, renderer, composer, clock, interaction, updateFunctions = [];
-let gui, params={};
+    import * as THREE from 'three';
+    import { OrbitControls } from 'OrbitControls';
+    import { EffectComposer } from 'EffectComposer';
+    import { RenderPixelatedPass } from 'RenderPixelatedPass';
+    import { UnrealBloomPass } from 'UnrealBloomPass';
+    import { ShaderPass } from 'ShaderPass';
+    import { GUI } from 'GUI';
+    import * as CSG from 'CSG';
+    import fastsimplexnoise from 'fastsimplexnoise';
+    import fractalnoise from 'fractalnoise';
+    import { TaperExtrudeGeometry } from 'taperextrudegeometry';
+    import * as BufferGeometryUtils from 'BufferGeometryUtils';
+    import { Pane } from 'tweakpane';
 
-function init()
-{
-  // camera and scene
+    let camera, scene, renderer, composer, clock, interaction, updateFunctions = [];
+    let gui, params = {};
 
-  const aspectRatio = window.innerWidth / window.innerHeight;
+    function init() {
+      // camera and scene
 
-  camera = new THREE.OrthographicCamera( - aspectRatio, aspectRatio, 1, - 1, 0.1, 1000 );
-  camera.position.y = 2 * Math.tan( Math.PI / 6 );
-  camera.position.z = 20;
-  camera.zoom = 0.33;
+      const aspectRatio = window.innerWidth / window.innerHeight;
 
-  // gui
+      camera = new THREE.OrthographicCamera(- aspectRatio, aspectRatio, 1, - 1, 0.1, 1000);
+      camera.position.y = 2 * Math.tan(Math.PI / 6);
+      camera.position.z = 20;
+      camera.zoom = 0.33;
 
-  gui = new GUI();
-  params = { zoom: 3.0, pixelSize: 3, normalEdgeStrength: 0.0, depthEdgeStrength: 0.0, pixelAlignedPanning: true };
+      // gui
 
-  // create and populate the scene with geometry
+      gui = new Pane();
+      params = { zoom: 3.0, pixelSize: 3, normalEdgeStrength: 0.0, depthEdgeStrength: 0.0, pixelAlignedPanning: true };
 
-  scene = new THREE.Scene();
+      // create and populate the scene with geometry
 
-  // clock
+      scene = new THREE.Scene();
 
-  clock = new THREE.Clock();
+      // clock
 
-  // renderer
+      clock = new THREE.Clock();
 
-  renderer = new THREE.WebGLRenderer();
-  renderer.shadowMap.enabled = true;
-  //renderer.setPixelRatio( window.devicePixelRatio );
-  renderer.setSize( window.innerWidth , window.innerHeight );
-  document.body.appendChild( renderer.domElement );
+      // renderer
 
-  // postprocessing
+      renderer = new THREE.WebGLRenderer();
+      renderer.shadowMap.enabled = true;
+      //renderer.setPixelRatio( window.devicePixelRatio );
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.appendChild(renderer.domElement);
 
-  // selective bloom
-  params['exposure'] = 1;
-  params['bloomStrength'] = 5;
-  params['bloomThreshold'] = 0.3;
-  params['bloomRadius'] = 4;
+      // postprocessing
 
-  const renderScene = new RenderPixelatedPass(params.pixelSize, scene, camera);
-  const renderPixelatedPass = renderScene;
+      // selective bloom
+      params['exposure'] = 1;
+      params['bloomStrength'] = 5;
+      params['bloomThreshold'] = 0.3;
+      params['bloomRadius'] = 4;
 
-  const bloomPass = new UnrealBloomPass( new THREE.Vector2( window.innerWidth, window.innerHeight ), 1.5, 0.4, 0.85 );
-  bloomPass.threshold = params.bloomThreshold;
-  bloomPass.strength = params.bloomStrength;
-  bloomPass.radius = params.bloomRadius;
+      const renderScene = new RenderPixelatedPass(params.pixelSize, scene, camera);
+      const renderPixelatedPass = renderScene;
 
-  const bloomComposer = new EffectComposer( renderer );
-  bloomComposer.renderToScreen = false;
-  bloomComposer.addPass( renderScene );
-  bloomComposer.addPass( bloomPass );
+      const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
+      bloomPass.threshold = params.bloomThreshold;
+      bloomPass.strength = params.bloomStrength;
+      bloomPass.radius = params.bloomRadius;
 
-  const vertexshader=[
-			'varying vec2 vUv;',
-			'void main() {',
-				'vUv = uv;',
-				'gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );',
-			'}'
-  ].join("\n");
+      const bloomComposer = new EffectComposer(renderer);
+      bloomComposer.renderToScreen = false;
+      bloomComposer.addPass(renderScene);
+      bloomComposer.addPass(bloomPass);
 
-	const fragmentshader=
-			'uniform sampler2D baseTexture;\n' +
-			'uniform sampler2D bloomTexture;\n' +
-			'varying vec2 vUv;\n' +
-			'void main() {\n' +
-			'	gl_FragColor = ( texture2D( baseTexture, vUv ) + vec4( 1.0 ) * texture2D( bloomTexture, vUv ) );\n' +
-			'}\n';
+      const vertexshader = [
+        'varying vec2 vUv;',
+        'void main() {',
+        'vUv = uv;',
+        'gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );',
+        '}'
+      ].join("\n");
 
-  const finalPass = new ShaderPass(
-    new THREE.ShaderMaterial( {
-      uniforms: {
-        baseTexture: { value: null },
-        bloomTexture: { value: bloomComposer.renderTarget2.texture }
-      },
-      vertexShader: vertexshader,
-      fragmentShader: fragmentshader,
-      defines: {}
-    } ), "baseTexture"
-  );
-  finalPass.needsSwap = true;
+      const fragmentshader =
+        'uniform sampler2D baseTexture;\n' +
+        'uniform sampler2D bloomTexture;\n' +
+        'varying vec2 vUv;\n' +
+        'void main() {\n' +
+        '	gl_FragColor = ( texture2D( baseTexture, vUv ) + vec4( 1.0 ) * texture2D( bloomTexture, vUv ) );\n' +
+        '}\n';
 
-  const finalComposer = new EffectComposer( renderer );
-  finalComposer.addPass( renderScene );
-  finalComposer.addPass( finalPass );
-  //const renderPixelatedPass = new RenderPixelatedPass(1, scene, camera);
-  //finalComposer.addPass(renderPixelatedPass);
-
-  // pixelated postprocessing pass
-  composer = finalComposer;
-  /*composer = new EffectComposer(renderer);
-  const renderPixelatedPass = new RenderPixelatedPass(1, scene, camera);
-  composer.addPass(renderPixelatedPass);*/
-
-  // resizing
-
-  function doResize(width, height) {
-    const aspectRatio = width / height;
-    camera.left = - aspectRatio;
-    camera.right = aspectRatio;
-    camera.updateProjectionMatrix();
-    renderer.setSize( width, height );
-    bloomComposer.setSize( width, height )
-    finalComposer.setSize( width, height );
-  }
-
-  function handleResize(evts) {
-    //for(let evt of Array.from(evts)) {
-      doResize(window.innerWidth , window.innerHeight);
-    //}
-  }
-
-  doResize(window.innerWidth, window.innerHeight);
-  const resizeObserver = new ResizeObserver(handleResize);
-  resizeObserver.observe(document.body);
-
-  // controls
-
-  const controls = new OrbitControls( camera, renderer.domElement );
-  controls.maxZoom = 1;
-
-  // gui
-
-  gui.add( params, 'zoom' ).min(1).max(6).step(0.1).onChange(()=>{
-    camera.zoom = 1.0/params.zoom;
-  });
-  gui.add( params, 'pixelSize' ).min( 1 ).max( 6 ).step( 1 )
-    .onChange( () => {
-      renderPixelatedPass.setPixelSize( params.pixelSize );
-    }
-  );
-  gui.add( renderPixelatedPass, 'normalEdgeStrength' ).min( -2 ).max( 2 ).step( .05 );
-  gui.add( renderPixelatedPass, 'depthEdgeStrength' ).min( -1 ).max( 1 ).step( .05 );
-  gui.add( params, 'pixelAlignedPanning' );
-
-  gui.add( params, 'exposure').min(0).max(3).step(0.01);
-  gui.add( params, 'bloomStrength').min(0).max(15).step(0.05);
-  gui.add( params, 'bloomThreshold').min(0).max(1.0).step(0.01);
-  gui.add( params, 'bloomRadius').min(0).max(20).step(0.1);
-
-  //gui.domElement.style.display = 'none'; // hide gui by default
-
-  // interaction
-  //interaction = new Interaction( renderer, scene, camera );
-
-  // ironically
-  scene = generateScene(scene);
-}
-
-// these manage a queue of functions to be called on each frame. they are set up as we build our generative
-// geometry and materials, and are called in the main render loop
-
-function addUpdateFunction(f) {
-  updateFunctions.push(f);
-}
-
-function callUpdateFunctions(t) {
-  for(let f of updateFunctions) {
-    f(t);
-  }
-}
-
-// generate the scene and install update functions
-function generateScene(use_scene=null)
-{
-  var scene = ((use_scene != null) ? use_scene : new THREE.Scene());
-
-  scene.background = new THREE.Color( 0x232221 );
-
-  // texture loader
-
-  const texLoader = new THREE.TextureLoader();
-  //const gltfLoader = new THREE.GLTFLoader();
-
-  /*
-  const texChecker = pixelTexture( loader.load( 'textures/checker.png' ) );
-  const texChecker2 = pixelTexture( loader.load( 'textures/checker.png' ) );
-  texChecker.repeat.set( 3, 3 );
-  texChecker2.repeat.set( 1.5, 1.5 );
-  */
-
-  // procedural colors and materials
-
-  function hslColor(h, s=1.0, l=0.5) {
-    return new THREE.Color().setHSL( h, s, l );
-  }
-
-  function coloredPhongMaterial( color, shininess = 5.0, emissive = 0x000000 ) {
-    return new THREE.MeshPhongMaterial( {
-      color: color,
-      shininess: shininess,
-      specular: 0xffffff,
-      emissive: emissive
-    } );
-  }
-
-  function checkeredMaterial({color1="white", color2="black", shininess = 5.0 //, emissive = 0, size=64, repeat = [6,6]
-      }) {
-    var canvas = document.createElement("canvas");
-    canvas.width = 64;
-    canvas.height = 64;
-    var context = canvas.getContext("2d");
-    context.fillStyle = color1;
-    context.fillRect(0, 0, canvas.width, canvas.height);
-    context.fillStyle = color2;
-    context.fillRect(0, canvas.height/2, canvas.width/2, canvas.height);
-    context.fillRect(canvas.width/2, 0, canvas.width, canvas.height/2);
-    var texture = new THREE.Texture(canvas);
-    texture.needsUpdate = true;
-    var material = new THREE.MeshPhongMaterial({
-      map : texture,
-      overdraw: true,
-      shininess: shininess,
-      specular: 0xffffff
-    });
-    material.needsUpdate = true;
-    return material;
-  }
-
-  function linear({x0=0.0, x1=1.0, y0=0.0, y1=1.0}) {
-    return {
-      scale: (x)=>{return m*x+b},
-      unscale: (x)=>{return (x-b)/m}
-    };
-  }
-
-  function guiControl({name, min=0.0, max=1.0, value=0.5, step=0.05, conv=linear})
-  {
-    if(!Object.keys(params).includes(name)) {
-      params[name] = value;
-      gui.add( params, name ).min( min ).max( max ).step( step );
-    }
-    return params[name];
-  }
-
-  function arrayn(n, f) {
-    return Array.from(Array(n).keys()).map((n)=>{return f(n)});
-  }
-
-  function bindarr(farr) {
-    return (...args)=>{return farr.map((felem)=>{return felem(...args)})};
-  }
-
-  function makendnoise(d=2) {
-    return bindarr(arrayn(d, (n)=>{return fastsimplexnoise.makeNoise4D()}));
-  }
-
-  class NoiseLoop {
-    constructor({radius=4.0, length=1.5, period=1.0, noise=null, dims=1}) {
-      this.radius = radius;
-      this.period = period;
-      this.position = position;
-      this.noise = Array.from(range(dims)).map(dim => ((noise === null) ? fastsimplexnoise.makeNoise4D() : noise));
-      this.dims = dims;
-      this.angle = 0.0;
-      this.last_t = null;
-    }
-    update(t) {
-      if(this.last_t == null) {
-        this.last_t = t;
-      }
-      const dt = t - this.last_t;
-      this.last_t = t;
-      this.angle = this.angle + dt / this.period;
-      this.position = [x, y, this.radius * Math.cos(this.angle), this.radius * Math.sin(this.angle)];
-      if(this.dims > 1) {
-        return this.noise.map((fn)=>fn(this.position[0], this.position[1], this.position[2], this.position[3]));
-      } else {
-        return this.noise(this.position[0], this.position[1], this.position[2], this.position[3]);
-      }
-    }
-  }
-
-  const uvGenerator = {
-          generateTopUV: function(geometry, vertices, idxA, idxB, idxC) {
-            var ax, ay, bx, by, cx, cy;
-
-            ax = vertices[idxA * 3];
-            ay = vertices[(idxA * 3) + 1];
-            bx = vertices[idxB * 3];
-            by = vertices[(idxB * 3) + 1];
-            cx = vertices[idxC * 3];
-            cy = vertices[(idxC * 3) + 1];
-            return ([
-              new THREE.Vector2(ax, ay),
-              new THREE.Vector2(bx, by),
-              new THREE.Vector2(cx, cy),
-            ]);
+      const finalPass = new ShaderPass(
+        new THREE.ShaderMaterial({
+          uniforms: {
+            baseTexture: { value: null },
+            bloomTexture: { value: bloomComposer.renderTarget2.texture }
           },
-          generateSideWallUV: function(geometry, vertices, idxA, idxB, idxC, idxD) {
-            return ([
-              new THREE.Vector2(0, 0),
-              new THREE.Vector2(1, 0),
-              new THREE.Vector2(1, 1),
-              new THREE.Vector2(0, 1),
-            ]);
+          vertexShader: vertexshader,
+          fragmentShader: fragmentshader,
+          defines: {}
+        }), "baseTexture"
+      );
+      finalPass.needsSwap = true;
+
+      const finalComposer = new EffectComposer(renderer);
+      finalComposer.addPass(renderScene);
+      finalComposer.addPass(finalPass);
+      //const renderPixelatedPass = new RenderPixelatedPass(1, scene, camera);
+      //finalComposer.addPass(renderPixelatedPass);
+
+      // pixelated postprocessing pass
+      composer = finalComposer;
+      /*composer = new EffectComposer(renderer);
+      const renderPixelatedPass = new RenderPixelatedPass(1, scene, camera);
+      composer.addPass(renderPixelatedPass);*/
+
+      // resizing
+
+      function doResize(width, height) {
+        const aspectRatio = width / height;
+        camera.left = - aspectRatio;
+        camera.right = aspectRatio;
+        camera.updateProjectionMatrix();
+        renderer.setSize(width, height);
+        bloomComposer.setSize(width, height)
+        finalComposer.setSize(width, height);
+      }
+
+      function handleResize(evts) {
+        //for(let evt of Array.from(evts)) {
+        doResize(window.innerWidth, window.innerHeight);
+        //}
+      }
+
+      doResize(window.innerWidth, window.innerHeight);
+      const resizeObserver = new ResizeObserver(handleResize);
+      resizeObserver.observe(document.body);
+
+      // controls
+
+      const controls = new OrbitControls(camera, renderer.domElement);
+      controls.maxZoom = 1;
+
+      // gui
+
+      gui.add(params, 'zoom').min(1).max(6).step(0.1).onChange(() => {
+        camera.zoom = 1.0 / params.zoom;
+      });
+
+      gui.add(params, 'pixelSize').min(1).max(6).step(1)
+        .onChange(() => {
+          renderPixelatedPass.setPixelSize(params.pixelSize);
+        }
+      );
+
+      gui.add(renderPixelatedPass, 'normalEdgeStrength').min(-2).max(2).step(.05);
+      gui.add(renderPixelatedPass, 'depthEdgeStrength').min(-1).max(1).step(.05);
+      gui.add(params, 'pixelAlignedPanning');
+
+      gui.add(params, 'exposure').min(0).max(3).step(0.01);
+      gui.add(params, 'bloomStrength').min(0).max(15).step(0.05);
+      gui.add(params, 'bloomThreshold').min(0).max(1.0).step(0.01);
+      gui.add(params, 'bloomRadius').min(0).max(20).step(0.1);
+
+      //gui.domElement.style.display = 'none'; // hide gui by default
+
+      // interaction
+      //interaction = new Interaction( renderer, scene, camera );
+
+      // ironically
+      scene = generateScene(scene);
+    }
+
+    // these manage a queue of functions to be called on each frame. they are set up as we build our generative
+    // geometry and materials, and are called in the main render loop
+
+    function addUpdateFunction(f) {
+      updateFunctions.push(f);
+    }
+
+    function callUpdateFunctions(t) {
+      for (let f of updateFunctions) {
+        f(t);
+      }
+    }
+
+    // generate the scene and install update functions
+    function generateScene(use_scene = null) {
+      var scene = ((use_scene != null) ? use_scene : new THREE.Scene());
+
+      scene.background = new THREE.Color(0x232221);
+
+      // texture loader
+
+      const texLoader = new THREE.TextureLoader();
+      //const gltfLoader = new THREE.GLTFLoader();
+
+      /*
+      const texChecker = pixelTexture( loader.load( 'textures/checker.png' ) );
+      const texChecker2 = pixelTexture( loader.load( 'textures/checker.png' ) );
+      texChecker.repeat.set( 3, 3 );
+      texChecker2.repeat.set( 1.5, 1.5 );
+      */
+
+      // procedural colors and materials
+
+      function hslColor(h, s = 1.0, l = 0.5) {
+        return new THREE.Color().setHSL(h, s, l);
+      }
+
+      function coloredPhongMaterial(color, shininess = 5.0, emissive = 0x000000) {
+        return new THREE.MeshPhongMaterial({
+          color: color,
+          shininess: shininess,
+          specular: 0xffffff,
+          emissive: emissive
+        });
+      }
+
+      function checkeredMaterial({ color1 = "white", color2 = "black", shininess = 5.0 //, emissive = 0, size=64, repeat = [6,6]
+      }) {
+        var canvas = document.createElement("canvas");
+        canvas.width = 64;
+        canvas.height = 64;
+        var context = canvas.getContext("2d");
+        context.fillStyle = color1;
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.fillStyle = color2;
+        context.fillRect(0, canvas.height / 2, canvas.width / 2, canvas.height);
+        context.fillRect(canvas.width / 2, 0, canvas.width, canvas.height / 2);
+        var texture = new THREE.Texture(canvas);
+        texture.needsUpdate = true;
+        var material = new THREE.MeshPhongMaterial({
+          map: texture,
+          overdraw: true,
+          shininess: shininess,
+          specular: 0xffffff
+        });
+        material.needsUpdate = true;
+        return material;
+      }
+
+      function linear({ x0 = 0.0, x1 = 1.0, y0 = 0.0, y1 = 1.0 }) {
+        return {
+          scale: (x) => { return m * x + b },
+          unscale: (x) => { return (x - b) / m }
+        };
+      }
+
+      function guiControl({ name, min = 0.0, max = 1.0, value = 0.5, step = 0.05, conv = linear }) {
+        if (!Object.keys(params).includes(name)) {
+          params[name] = value;
+          gui.add(params, name).min(min).max(max).step(step);
+        }
+        return params[name];
+      }
+
+      function arrayn(n, f) {
+        return Array.from(Array(n).keys()).map((n) => { return f(n) });
+      }
+
+      function bindarr(farr) {
+        return (...args) => { return farr.map((felem) => { return felem(...args) }) };
+      }
+
+      function makendnoise(d = 2) {
+        return bindarr(arrayn(d, (n) => { return fastsimplexnoise.makeNoise4D() }));
+      }
+
+      class NoiseLoop {
+        constructor({ radius = 4.0, length = 1.5, period = 1.0, noise = null, dims = 1 }) {
+          this.radius = radius;
+          this.period = period;
+          this.position = position;
+          this.noise = Array.from(range(dims)).map(dim => ((noise === null) ? fastsimplexnoise.makeNoise4D() : noise));
+          this.dims = dims;
+          this.angle = 0.0;
+          this.last_t = null;
+        }
+        update(t) {
+          if (this.last_t == null) {
+            this.last_t = t;
           }
+          const dt = t - this.last_t;
+          this.last_t = t;
+          this.angle = this.angle + dt / this.period;
+          this.position = [x, y, this.radius * Math.cos(this.angle), this.radius * Math.sin(this.angle)];
+          if (this.dims > 1) {
+            return this.noise.map((fn) => fn(this.position[0], this.position[1], this.position[2], this.position[3]));
+          } else {
+            return this.noise(this.position[0], this.position[1], this.position[2], this.position[3]);
+          }
+        }
+      }
+
+      const uvGenerator = {
+        generateTopUV: function (geometry, vertices, idxA, idxB, idxC) {
+          var ax, ay, bx, by, cx, cy;
+
+          ax = vertices[idxA * 3];
+          ay = vertices[(idxA * 3) + 1];
+          bx = vertices[idxB * 3];
+          by = vertices[(idxB * 3) + 1];
+          cx = vertices[idxC * 3];
+          cy = vertices[(idxC * 3) + 1];
+          return ([
+            new THREE.Vector2(ax, ay),
+            new THREE.Vector2(bx, by),
+            new THREE.Vector2(cx, cy),
+          ]);
+        },
+        generateSideWallUV: function (geometry, vertices, idxA, idxB, idxC, idxD) {
+          return ([
+            new THREE.Vector2(0, 0),
+            new THREE.Vector2(1, 0),
+            new THREE.Vector2(1, 1),
+            new THREE.Vector2(0, 1),
+          ]);
+        }
+      };
+
+
+      // instantiate simplex noise function
+      var noise4x = fastsimplexnoise.makeNoise4D();
+      var noise4y = fastsimplexnoise.makeNoise4D();
+
+      var noise4arate = fastsimplexnoise.makeNoise4D();
+
+      function bezWarpGeom(noiseloopangle = 0, twistangle = 0, npoints = 5, nnoiselooppos = [0, 0], nnoiseloopradius = 4., nnoiseloopheight = 1.5, nnoisemag = 2.0, mpoints = 15, mradius = 0.3, opoints = 6, startpoint = [0, 0, 0], endpoint = [0, 0, -10]) {
+        const noiseCylindrical = false;
+        var noiseCurve = null;
+        var noisePoints = null;
+
+        if (noiseCylindrical) {
+          // figure out where in the noise field our cylinder sample line is
+          const loopCurve = new THREE.EllipseCurve(
+            nnoiselooppos[0], nnoiselooppos[1],
+            nnoiseloopradius, nnoiseloopradius,
+            0, 2 * Math.PI,
+            false,
+            0
+          );
+          const noiselooppoint = loopCurve.getPoint((noiseloopangle % (Math.PI * 2)) / (Math.PI * 2));
+
+          // the path through the noise field that we sample to warp it
+          noiseCurve = new THREE.CatmullRomCurve3([
+            new THREE.Vector3(noiselooppoint.x, noiselooppoint.y, -nnoiseloopheight),
+            new THREE.Vector3(noiselooppoint.x, noiselooppoint.y, 0)
+          ]);
+
+          // sample the noise curve and extrude path to warp with it at npoints intervals
+          noisePoints = noiseCurve.getPoints(npoints);
+        }
+        else // not noiseCylindrical
+        {
+          // the path through the noise field is an arc segment which rotates around a ring
+          noiseCurve = new THREE.EllipseCurve(
+            nnoiselooppos[0], nnoiselooppos[1],
+            nnoiseloopradius, nnoiseloopradius,
+            0, nnoiseloopheight,
+            false,
+            noiseloopangle
+          );
+
+          noisePoints = Array.from(noiseCurve.getPoints(npoints)).map((p) => {
+            return new THREE.Vector3(p.x, p.y, 0);
+          });
+        }
+
+        // the straight extrude path we want to warp
+        const sampleCurve = new THREE.CatmullRomCurve3([
+          new THREE.Vector3(startpoint.x, startpoint.y, startpoint.z),
+          new THREE.Vector3(endpoint.x, endpoint.y, endpoint.z)
+        ]);
+
+        var samplePoints = sampleCurve.getPoints(npoints);
+
+        // warp sample points with noise along noise curve
+        var noisevec = new THREE.Vector2();
+        var tangentvec = new THREE.Vector3(startpoint.x, startpoint.y, startpoint.z).sub(new THREE.Vector3(endpoint.x, endpoint.y, endpoint.z)).normalize();
+        var normalvec = new THREE.Vector3().copy(tangentvec).cross(new THREE.Vector3(1, 0, 0)).normalize();
+        var binormalvec = new THREE.Vector3().copy(normalvec).cross(tangentvec).normalize();
+        //console.info(tangentvec, normalvec, binormalvec);
+
+        for (var i = 0; i < samplePoints.length; i++) {
+          var fact = (i >= 2 ? i - 2 : 0) / (samplePoints.length - 2) * nnoisemag;
+          noisevec.x = noise4x(noisePoints[i].x, noisePoints[i].y, noisePoints[i].z, 0);
+          noisevec.y = noise4y(noisePoints[i].x, noisePoints[i].y, noisePoints[i].z, 0);
+          samplePoints[i].addScaledVector(normalvec, fact * noisevec.x);
+          samplePoints[i].addScaledVector(binormalvec, fact * noisevec.y);
+          //samplePoints[i].applyAxisAngle(tangentvec, twistangle * Math.PI / 2);
+        }
+        // create a curved extrusion path through the warped sample points
+        const warpedCurve = new THREE.CatmullRomCurve3(samplePoints);
+        const warpedPoints = warpedCurve.getPoints(mpoints);
+        //const extrudeCurveGeometry = new THREE.BufferGeometry().setFromPoints( points );
+
+        // create a profile curve for the extrusion, a circle in this case
+        const profileCurve = new THREE.EllipseCurve(
+          0, 0,            // ax, aY
+          mradius, mradius, // xRadius, yRadius
+          0, 2 * Math.PI,  // aStartAngle, aEndAngle
+          false,            // aClockwise
+          twistangle * Math.PI * 2 // aRotation
+        );
+
+        // sample the profile curve at opoints intervals
+        const profilePoints = profileCurve.getPoints(opoints);
+        const profileShape = new THREE.Shape(profilePoints);
+        const extrudeSettings = {
+          steps: mpoints,
+          extrudePath: warpedCurve,
+          UVGenerator: uvGenerator
         };
 
+        const extrudeGeometry = new TaperExtrudeGeometry(profileShape, extrudeSettings);
+        extrudeGeometry.deleteAttribute('normal');
+        //extrudeGeometry.deleteAttribute('uv');
 
-  // instantiate simplex noise function
-  var noise4x = fastsimplexnoise.makeNoise4D();
-  var noise4y = fastsimplexnoise.makeNoise4D();
+        //extrudeGeometry.computeUVs();
 
-  var noise4arate = fastsimplexnoise.makeNoise4D();
+        const smoothGeometry = BufferGeometryUtils.mergeVertices(extrudeGeometry, 0.0005);
+        smoothGeometry.computeVertexNormals();
+        //smoothGeometry.computeUVs();
 
-  function bezWarpGeom(noiseloopangle=0, twistangle=0, npoints=5, nnoiselooppos=[0,0], nnoiseloopradius=4., nnoiseloopheight=1.5, nnoisemag=2.0, mpoints=15, mradius=0.3, opoints=6, startpoint=[0,0,0], endpoint=[0,0,-10])
-  {
-    const noiseCylindrical = false;
-    var noiseCurve = null;
-    var noisePoints = null;
+        extrudeGeometry.dispose();
+        try {
+          smoothGeometry.computeBoundingSphere();
+        } catch (e) {
+          console.error(e, smoothGeometry);
+          return null;
+        }
+        return smoothGeometry;
+      }
 
-    if(noiseCylindrical)
-    {
-      // figure out where in the noise field our cylinder sample line is
-      const loopCurve = new THREE.EllipseCurve(
-        nnoiselooppos[0], nnoiselooppos[1],
-        nnoiseloopradius, nnoiseloopradius,
-        0, 2 * Math.PI,
-        false,
-        0
-      );
-      const noiselooppoint = loopCurve.getPoint( (noiseloopangle % (Math.PI * 2)) / (Math.PI * 2) );
+      const colorseed = guiControl({ name: 'colorseed', min: 0, max: 1000000, value: 0, step: 1.0 });
+      const palette = new ColorPalette([
+        { color: { h: 60.0 * 0.5, s: 1.0, l: 0.5 }, variance: { h: 30.0, s: 0.2, l: 0.3 }, weight: 1.0 },
+        { color: { h: 60.0 * 2.5, s: 1.0, l: 0.5 }, variance: { h: 30.0, s: 0.2, l: 0.3 }, weight: 1.0 },
+        { color: { h: 60.0 * 5.5, s: 1.0, l: 0.5 }, variance: { h: 30.0, s: 0.2, l: 0.3 }, weight: 1.0 },
+      ]);
 
-      // the path through the noise field that we sample to warp it
-      noiseCurve = new THREE.CatmullRomCurve3( [
-        new THREE.Vector3( noiselooppoint.x, noiselooppoint.y, -nnoiseloopheight ),
-        new THREE.Vector3( noiselooppoint.x, noiselooppoint.y, 0 )
-      ] );
+      function addBezWarp(
+        objectindex, objectcount, directionx = 0, directiony = 0, directionz = 0
+      ) {
+        const direction = new THREE.Vector3(directionx, directiony, directionz).normalize();
+        const nnoiselooppos = [objectindex * 100, 0];
 
-      // sample the noise curve and extrude path to warp with it at npoints intervals
-      noisePoints = noiseCurve.getPoints( npoints );
+        const hslColor = palette.getColor(noise4arate((objectindex / objectcount) * 200, colorseed * 10, 0, 0));
+        const color1 = hslToHexRgb({ "h": hslColor.h, "s": hslColor.s, "l": hslColor.l / 3.0 + 2.0 / 3.0 });
+        const color2 = hslToHexRgb({ "h": hslColor.h, "s": hslColor.s, "l": hslColor.l / 3.0 + 0.0 / 3.0 });
+
+        const material = checkeredMaterial({ color1: color1, color2: color2 });
+        //material.clearMap();
+
+        var twirlangle = 0.0;
+        var noiseangle = 0.0;
+        var last_t = 0;
+
+        function createGeometry(t) {
+          const
+            twirlrate = guiControl({ name: 'twirlrate', min: 0.001, max: 1.0, value: 0.8, step: 0.001 }),
+            noiserate = guiControl({ name: 'noiserate', min: 0.001, max: 1.0, value: 0.19, step: 0.001 }),
+            //twirlratemin=guiControl({name:'twirlratemin', min:1.0, max:360.0, value:90.0, step:1.0}),
+            //twirlratemax=guiControl({name:'twirlratemax', min:1.0, max:360.0, value:90.0, step:1.0}),
+            //twirlrateseed=guiControl({name:'twirlrateseed', min:1.0, max:100.0, value:90.0, step:1.0}),
+            //noiseratemin=guiControl({name:'noiseratemin', min:1.0, max:880.0, value:90.0, step:1.0}),
+            //noiseratemax=guiControl({name:'noiseratemax', min:1.0, max:880.0, value:180.0, step:1.0}),
+            //noiserateseed=guiControl({name:'noiserateseed', min:1.0, max:100.0, value:90.0, step:1.0}),
+            npoints = guiControl({ name: 'npoints', min: 2, max: 48, value: 32, step: 1 }),
+            nnoiseloopradius = guiControl({ name: 'noiseloopradius', min: 0.1, max: 20.0, value: 14.1, step: 0.1 }),
+            nnoiseloopheight = guiControl({ name: 'noiseloopheight', min: 0.01, max: 1.5, value: 0.14, step: 0.01 }),
+            nnoisemag = guiControl({ name: 'noisemag', min: 0.0, max: 4.0, value: 0.36, step: 0.01 }),
+            mpoints = guiControl({ name: 'mpoints', min: 2, max: 96, value: 36, step: 1 }),
+            mradius = guiControl({ name: 'mradius', min: 0.01, max: 1.0, value: 0.14, step: 0.01 }),
+            coreradius = guiControl({ name: 'coreradius', min: 0.01, max: 5.0, value: 0.125, step: 0.01 }),
+            opoints = guiControl({ name: 'opoints', min: 3, max: 18, value: 6, step: 1 }),
+            mlength = guiControl({ name: 'mlength', min: 0.1, max: 5.0, value: 3.0, step: 0.1 }),
+            colorseed = guiControl({ name: 'colorseed', min: 0.0, max: 100.0, value: 1.0, step: 1.0 });
+
+          var dt = t - last_t;
+          last_t = t;
+
+          //var noiserate = noiseratemin + (noiseratemax - noiseratemin) * noise4arate(noiserateseed, 100, angle[0] * 300, angle[1] * 300);
+          //var twirlrate = twirlratemin + (twirlratemax - twirlratemin) * noise4arate(100, twirlrateseed, angle[0] * 300, angle[1] * 300);
+
+          var startpoint = new THREE.Vector3(0, 0, 0);
+
+          startpoint.addScaledVector(direction, coreradius);
+
+          var endpoint = new THREE.Vector3(0, 0, 0);
+
+          endpoint.addScaledVector(direction, coreradius + mlength);
+
+          //console.info(t);
+          noiseangle += (dt / (10.0 / noiserate ** 2)) * Math.PI * 2;
+          twirlangle += (dt / (10.0 / twirlrate ** 2)) * Math.PI * 2;
+          //console.info(noiseloopangle, mesh);
+          var geometry = bezWarpGeom(noiseangle, twirlangle, npoints, nnoiselooppos, nnoiseloopradius, nnoiseloopheight, nnoisemag, mpoints, mradius, opoints, startpoint, endpoint);
+          return geometry;
+        }
+
+        const meshGeometry = createGeometry(0.0);
+        const mesh = new THREE.Mesh(meshGeometry, material);
+        mesh.matrixAutoUpdate = true;
+        mesh.frustumCulled = false;
+        scene.add(mesh);
+        addUpdateFunction((t) => {
+          mesh.geometry.dispose();
+          mesh.geometry = createGeometry(t);
+        });
+      }
+
+      function spherePoints(n, func) {
+        //const n = 50;
+        let epsilon = 0.33;
+
+        if (n >= 600000) {
+          epsilon = 214;
+        } else if (n >= 400000) {
+          epsilon = 75;
+        } else if (n >= 11000) {
+          epsilon = 27;
+        } else if (n >= 890) {
+          epsilon = 10;
+        } else if (n >= 177) {
+          epsilon = 3.33;
+        } else if (n >= 24) {
+          epsilon = 1.33;
+        }
+
+        const goldenRatio = (1 + Math.sqrt(5)) / 2;
+        const results = [];
+
+        for (let i = 0; i < n; i++) {
+          const theta = 2 * Math.PI * i / goldenRatio;
+          const phi = Math.acos(1 - 2 * (i + epsilon) / (n - 1 + 2 * epsilon));
+          const x = Math.cos(theta) * Math.sin(phi);
+          const y = Math.sin(theta) * Math.sin(phi);
+          const z = Math.cos(phi);
+          results.push(func(i, n, x, y, z));
+        }
+        return results;
+      }
+
+      spherePoints(20, (i, n, x, y, z) => {
+        return addBezWarp(i, n, x, y, z);
+      });
+
+      function addBox({ size = [1, 1, 1], position = [0, 0, 0], rotation = [0, 0, 0], origin = [0, 0, 0], hue = 60 / 360, sat = 0.2, lum = 0.5 }) {
+        const boxMaterial = checkeredMaterial(hslColor(hue, sat, lum), hslColor(hue, sat, lum / 2.0), 64, [3, 3]);
+        const mesh = new THREE.Mesh(new THREE.BoxGeometry(size[0], size[1], size[2]), boxMaterial);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        //mesh.setRotationFromQuaternion(q);
+        mesh.autoUpdateMatrix = true;
+        mesh.position.fromArray(position);
+        mesh.rotation.fromArray(rotation);
+        return mesh;
+      }
+
+      /*
+      const offsx = -.5;
+      const offsy = -.5;
+      const scalex = 5.;
+      const scaley = 5.;
+      const scalez = 0.3;
+      const divsx = 20;
+      const divsy = 20;
+      const scaler = 3.0;
+    
+      let sizezfn = (x, y)=>{
+        return (1 + Math.sin(Math.PI*Math.sqrt(x*x+y*y)*scaler)+0.5) * scalez;
+      };
+    
+      for(let indy = 0; indy <= divsy; indy++) {
+          for(let indx = 0; indx <= divsx; indx++) {
+              let gridx = indx / divsx + offsx;
+              let gridy = indy / divsy + offsy;
+              let gridz = sizezfn(gridx, gridy);
+              scene.add( addBox({ size:[scalex/divsx, scaley/divsy, gridz], position:[(indx/divsx+offsx)*scalex, (indy/divsy+offsy)*scaley, gridz/2.], hue:90+(gridz/scalez*90)/360, sat:0.6, lum:0.7 }) );
+          }
+      }
+      //scene.add( addBox({ size:[.5, .5, .5], position:[- 1, -1, 0], hue:90/360, sat:0.4, lum:0.6 }) );
+      */
+
+      /*
+      function addPlane({ sideu, sidev, position=[0,0,0], pointat=[0,0,1], hue=60, sat=0.2, lum=0.5})
+      {
+        const material = coloredPhongMaterial( hslColor( hue, sat, lum ), 10 );
+        const planePos = new THREE.Vector3(...Array.from(position));
+        const pointAtPos = new THREE.Vector3(...Array.from(pointat));
+        const pointAtDir = (planePos.sub(pointAtPos)).normalize();
+        const planeQuat = new THREE.Quaternion().setFromUnitVectors(
+          new THREE.Vector3(...Array.from([0., 0., 1.])),
+    
+          pointAtDir
+        );
+        const planeMesh = new THREE.Mesh(
+          new THREE.PlaneGeometry( sideu, sidev ),
+          material
+        );
+        planeMesh.receiveShadow = true;
+        planeMesh.autoUpdateMatrix = true;
+        planeMesh.rotation.setFromQuaternion(planeQuat);
+        planeMesh.position.set(planePos);
+    
+        return planeMesh;
+      }
+    
+      //scene.add( addPlane({ sideu:3, sidev:3, position:[0,0,0], hue:10, sat: 0.3, lum: 0.5}));
+    
+      function addIcos({ radius=.2, position=[0,0,0], pointat=[0,0,1], hue=60, sat=0.2, lum=0.5})
+      {
+        const geometry = new THREE.IcosahedronGeometry( radius );
+        const crystalMesh = new THREE.Mesh(
+          geometry,
+          new THREE.MeshPhongMaterial( {
+            color: 0x2379cf,
+            emissive: 0x143542,
+            shininess: 10,
+            specular: 0xffffff
+          } )
+        );
+        crystalMesh.receiveShadow = true;
+        crystalMesh.castShadow = true;
+        crystalMesh.autoUpdateMatrix = true;
+        crystalMesh.position.set(...Array.from(position));
+        return crystalMesh;
+      }
+    
+      //scene.add( addIcos({radius: 0.25, position:[0,0,1.5], hue:270, sat:0.7, lum:1.0}) );
+    
+      // lights
+      */
+
+      scene.add(new THREE.AmbientLight(0x333333, 1.5));
+
+      const directionalLight = new THREE.DirectionalLight(0xffffff, .5);
+      directionalLight.position.set(50, 50, 100);
+      directionalLight.castShadow = true;
+      directionalLight.shadow.mapSize.set(2048, 2048);
+      scene.add(directionalLight);
+
+      /*
+      const spotLight = new THREE.SpotLight( 0xff8800, 1, 10, Math.PI / 16, .02, 2 );
+      spotLight.position.set( 2, 2, 0 );
+      const target = spotLight.target;
+      scene.add( target );
+      target.position.set( 0, 0, 0 );
+      spotLight.castShadow = true;
+      scene.add( spotLight );
+      */
+      window.__scene__ = scene;
+      return scene;
     }
-    else // not noiseCylindrical
-    {
-      // the path through the noise field is an arc segment which rotates around a ring
-      noiseCurve = new THREE.EllipseCurve(
-        nnoiselooppos[0], nnoiselooppos[1],
-        nnoiseloopradius, nnoiseloopradius,
-        0, nnoiseloopheight,
-        false,
-        noiseloopangle
-      );
 
-      noisePoints = Array.from(noiseCurve.getPoints( npoints )).map((p)=>{
-        return new THREE.Vector3(p.x, p.y, 0);
+    /* --------------------------------------------------------------------------
+    ANIMATION LOOP AND HANDLING
+    
+    Code for starting, stopping and running the animation loop.
+    -------------------------------------------------------------------------- */
+
+    var animateScheduledId = null;
+
+    function startStopAnimation(flag) {
+      if (flag && animateScheduledId == null) {
+        animateScheduledId = requestAnimationFrame(animate);
+      } else if (!flag && animateScheduledId != null) {
+        cancelAnimationFrame(animateScheduledId);
+        animateScheduledId = null;
+      }
+    }
+
+    function isAnimationRunning() {
+      return animateScheduledId != null;
+    }
+
+    function toggleAnimation() {
+      startStopAnimation(!isAnimationRunning());
+    }
+
+    function installDefaultKeyBindings() {
+      addKeyBinding('s', toggleAnimation);
+    }
+
+    function animate() {
+      animateScheduledId = requestAnimationFrame(animate);
+
+      const t = clock.getElapsedTime();
+
+      callUpdateFunctions(t);
+
+      //crystalMesh.material.emissiveIntensity = Math.sin( t * 3 ) * .5 + .5;
+      //crystalMesh.position.y = .7 + Math.sin( t * 2 ) * .05;
+      //crystalMesh.rotation.y = stopGoEased( t, 2, 4 ) * 2 * Math.PI;
+
+      const rendererSize = renderer.getSize(new THREE.Vector2());
+      const aspectRatio = rendererSize.x / rendererSize.y;
+      if (params['pixelAlignedPanning']) {
+
+        pixelAlignFrustum(camera, aspectRatio, Math.floor(rendererSize.x / params['pixelSize']),
+          Math.floor(rendererSize.y / params['pixelSize']));
+
+      } else if (camera.left != - aspectRatio || camera.top != 1.0) {
+
+        // Reset the Camera Frustum if it has been modified
+        camera.left = - aspectRatio;
+        camera.right = aspectRatio;
+        camera.top = 1.0;
+        camera.bottom = - 1.0;
+        camera.updateProjectionMatrix();
+
+      }
+
+      composer.render();
+    }
+
+    /* --------------------------------------------------------------------------
+    TEXTURE GENERATION AND COLOR HELPER FUNCTIONS
+    -------------------------------------------------------------------------- */
+
+    function checkerTexture(size = 64, color1 = '#bb8844', color2 = '#886622') {
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+
+      const context = canvas.getContext('2d');
+
+      context.fillStyle = color1;
+      context.fillRect(0, 0, size, size);
+
+      context.fillStyle = color2;
+      context.fillRect(0, 0, size / 2, size / 2);
+      context.fillRect(size / 2, size / 2, size / 2, size / 2);
+
+      var image = new Image();
+      image.src = canvas.toDataURL();
+
+      return pixelTexture(image);
+    }
+
+
+    function checkerTexture2(loader, color1, color2) {
+      return new Promise((accept, reject) => {
+        const denom = 5;
+        var canvas = document.createElement("canvas");
+        canvas.width = 200;
+        canvas.height = 200;
+
+        var ctx = canvas.getContext("2d");
+
+        for (var i = 0; i < canvas.width; i++) {
+          for (var j = 0; j < canvas.height; j++) {
+            var color = (Math.floor(i / denom) + Math.floor(j / denom)) % 2 == 0 ? color1 : color2;
+            ctx.fillStyle = color;
+            ctx.fillRect(Math.floor(i / denom) * denom, Math.floor(j / denom) * denom, canvas.width / denom, canvas.hweight / denom);
+          }
+        }
+
+        const data = canvas.toDataURL();
+        return loader.load(data, (texture) => {
+          accept(pixelTexture(texture));
+        },
+          (progress) => {
+            console.verbose("progress loading texture", progress);
+          },
+          (error) => {
+            console.error(error);
+            reject(error);
+          }
+        );
       });
     }
 
-    // the straight extrude path we want to warp
-    const sampleCurve = new THREE.CatmullRomCurve3( [
-      new THREE.Vector3( startpoint.x, startpoint.y, startpoint.z ),
-      new THREE.Vector3( endpoint.x, endpoint.y, endpoint.z )
-    ] );
 
-    var samplePoints = sampleCurve.getPoints( npoints );
-
-    // warp sample points with noise along noise curve
-    var noisevec = new THREE.Vector2();
-    var tangentvec = new THREE.Vector3(startpoint.x, startpoint.y, startpoint.z).sub(new THREE.Vector3(endpoint.x, endpoint.y, endpoint.z)).normalize();
-    var normalvec = new THREE.Vector3().copy(tangentvec).cross(new THREE.Vector3(1,0,0)).normalize();
-    var binormalvec = new THREE.Vector3().copy(normalvec).cross(tangentvec).normalize();
-    //console.info(tangentvec, normalvec, binormalvec);
-
-    for(var i = 0; i < samplePoints.length; i++) {
-      var fact = (i>=2?i-2:0)/(samplePoints.length - 2) * nnoisemag;
-      noisevec.x = noise4x(noisePoints[i].x, noisePoints[i].y, noisePoints[i].z, 0);
-      noisevec.y = noise4y(noisePoints[i].x, noisePoints[i].y, noisePoints[i].z, 0);
-      samplePoints[i].addScaledVector( normalvec, fact * noisevec.x);
-      samplePoints[i].addScaledVector( binormalvec, fact * noisevec.y);
-      //samplePoints[i].applyAxisAngle(tangentvec, twistangle * Math.PI / 2);
-    }
-    // create a curved extrusion path through the warped sample points
-    const warpedCurve = new THREE.CatmullRomCurve3(samplePoints );
-    const warpedPoints = warpedCurve.getPoints( mpoints );
-    //const extrudeCurveGeometry = new THREE.BufferGeometry().setFromPoints( points );
-
-    // create a profile curve for the extrusion, a circle in this case
-    const profileCurve = new THREE.EllipseCurve(
-      0,  0,            // ax, aY
-      mradius, mradius, // xRadius, yRadius
-      0,  2 * Math.PI,  // aStartAngle, aEndAngle
-      false,            // aClockwise
-      twistangle * Math.PI * 2 // aRotation
-    );
-
-    // sample the profile curve at opoints intervals
-    const profilePoints = profileCurve.getPoints( opoints );
-    const profileShape = new THREE.Shape(profilePoints);
-    const extrudeSettings = {
-      steps: mpoints,
-      extrudePath: warpedCurve,
-      UVGenerator: uvGenerator
-    };
-
-    const extrudeGeometry = new TaperExtrudeGeometry( profileShape, extrudeSettings );
-    extrudeGeometry.deleteAttribute('normal');
-    //extrudeGeometry.deleteAttribute('uv');
-
-    //extrudeGeometry.computeUVs();
-
-    const smoothGeometry = BufferGeometryUtils.mergeVertices(extrudeGeometry, 0.0005);
-    smoothGeometry.computeVertexNormals();
-    //smoothGeometry.computeUVs();
-
-    extrudeGeometry.dispose();
-    try {
-      smoothGeometry.computeBoundingSphere();
-    } catch(e) {
-      console.error(e, smoothGeometry);
-      return null;
-    }
-    return smoothGeometry;
-  }
-
-  const colorseed=guiControl({name:'colorseed', min:0, max:1000000, value:0, step:1.0});
-  const palette = new ColorPalette([
-    {color: {h: 60.0*0.5, s: 1.0, l: 0.5}, variance: {h: 30.0, s: 0.2, l: 0.3}, weight: 1.0},
-    {color: {h: 60.0*2.5, s: 1.0, l: 0.5}, variance: {h: 30.0, s: 0.2, l: 0.3}, weight: 1.0},
-    {color: {h: 60.0*5.5, s: 1.0, l: 0.5}, variance: {h: 30.0, s: 0.2, l: 0.3}, weight: 1.0},
-  ]);
-
-  function addBezWarp(
-    objectindex, objectcount, directionx=0, directiony=0, directionz=0
-  )
-  {
-    const direction = new THREE.Vector3(directionx, directiony, directionz).normalize();
-    const nnoiselooppos = [objectindex*100, 0];
-
-    const hslColor = palette.getColor(noise4arate((objectindex/objectcount)*200, colorseed*10, 0, 0));
-    const color1 = hslToHexRgb({"h": hslColor.h, "s": hslColor.s, "l": hslColor.l/3.0+2.0/3.0});
-    const color2 = hslToHexRgb({"h": hslColor.h, "s": hslColor.s, "l": hslColor.l/3.0+0.0/3.0});
-
-    const material = checkeredMaterial({color1: color1, color2: color2});
-    //material.clearMap();
-
-    var twirlangle = 0.0;
-    var noiseangle = 0.0;
-    var last_t = 0;
-
-    function createGeometry(t)
-    {
-      const
-        twirlrate=guiControl({name:'twirlrate', min:0.001, max:1.0, value:0.8, step:0.001}),
-        noiserate=guiControl({name:'noiserate', min:0.001, max:1.0, value:0.19, step:0.001}),
-        //twirlratemin=guiControl({name:'twirlratemin', min:1.0, max:360.0, value:90.0, step:1.0}),
-        //twirlratemax=guiControl({name:'twirlratemax', min:1.0, max:360.0, value:90.0, step:1.0}),
-        //twirlrateseed=guiControl({name:'twirlrateseed', min:1.0, max:100.0, value:90.0, step:1.0}),
-        //noiseratemin=guiControl({name:'noiseratemin', min:1.0, max:880.0, value:90.0, step:1.0}),
-        //noiseratemax=guiControl({name:'noiseratemax', min:1.0, max:880.0, value:180.0, step:1.0}),
-        //noiserateseed=guiControl({name:'noiserateseed', min:1.0, max:100.0, value:90.0, step:1.0}),
-        npoints=guiControl({name:'npoints', min:2, max:48, value:32, step:1}),
-        nnoiseloopradius=guiControl({name:'noiseloopradius', min:0.1, max:20.0, value:14.1, step:0.1}),
-        nnoiseloopheight=guiControl({name:'noiseloopheight', min:0.01, max:1.5, value:0.14, step:0.01}),
-        nnoisemag=guiControl({name:'noisemag', min:0.0, max:4.0, value:0.36, step:0.01}),
-        mpoints=guiControl({name:'mpoints', min:2, max:96, value:36, step:1}),
-        mradius=guiControl({name:'mradius', min:0.01, max:1.0, value:0.14, step:0.01}),
-        coreradius=guiControl({name:'coreradius', min:0.01, max:5.0, value:0.125, step:0.01}),
-        opoints=guiControl({name:'opoints', min:3, max:18, value:6, step:1}),
-        mlength=guiControl({name:'mlength', min:0.1, max:5.0, value:3.0, step:0.1}),
-        colorseed=guiControl({name:'colorseed', min:0.0, max:100.0, value:1.0, step:1.0});
-
-      var dt = t - last_t;
-      last_t = t;
-
-      //var noiserate = noiseratemin + (noiseratemax - noiseratemin) * noise4arate(noiserateseed, 100, angle[0] * 300, angle[1] * 300);
-      //var twirlrate = twirlratemin + (twirlratemax - twirlratemin) * noise4arate(100, twirlrateseed, angle[0] * 300, angle[1] * 300);
-
-      var startpoint = new THREE.Vector3( 0, 0, 0 );
-
-      startpoint.addScaledVector(direction, coreradius);
-
-      var endpoint = new THREE.Vector3( 0, 0, 0 );
-
-      endpoint.addScaledVector(direction, coreradius+mlength);
-
-      //console.info(t);
-      noiseangle += (dt / (10.0/noiserate**2)) * Math.PI * 2;
-      twirlangle += (dt / (10.0/twirlrate**2)) * Math.PI * 2;
-      //console.info(noiseloopangle, mesh);
-      var geometry = bezWarpGeom(noiseangle, twirlangle, npoints, nnoiselooppos, nnoiseloopradius, nnoiseloopheight, nnoisemag, mpoints, mradius, opoints, startpoint, endpoint);
-      return geometry;
+    function pixelTexture(texture) {
+      texture.minFilter = THREE.NearestFilter;
+      texture.magFilter = THREE.NearestFilter;
+      texture.generateMipmaps = false;
+      texture.wrapS = THREE.RepeatWrapping;
+      texture.wrapT = THREE.RepeatWrapping;
+      return texture;
     }
 
-    const meshGeometry = createGeometry(0.0);
-    const mesh = new THREE.Mesh( meshGeometry, material );
-    mesh.matrixAutoUpdate = true;
-    mesh.frustumCulled = false;
-    scene.add( mesh );
-    addUpdateFunction((t)=>{
-      mesh.geometry.dispose();
-      mesh.geometry = createGeometry(t);
-    });
-  }
+    function easeInOutCubic(x) {
 
-  function spherePoints(n, func)
-  {
-    //const n = 50;
-    let epsilon = 0.33;
+      return x ** 2 * 3 - x ** 3 * 2;
 
-    if (n >= 600000) {
-      epsilon = 214;
-    } else if (n >= 400000) {
-      epsilon = 75;
-    } else if (n >= 11000) {
-      epsilon = 27;
-    } else if (n >= 890) {
-      epsilon = 10;
-    } else if (n >= 177) {
-      epsilon = 3.33;
-    } else if (n >= 24) {
-      epsilon = 1.33;
     }
 
-    const goldenRatio = (1 + Math.sqrt(5)) / 2;
-    const results = [];
+    function linearStep(x, edge0, edge1) {
 
-    for (let i = 0; i < n; i++) {
-      const theta = 2 * Math.PI * i / goldenRatio;
-      const phi = Math.acos(1 - 2 * (i + epsilon) / (n - 1 + 2 * epsilon));
-      const x = Math.cos(theta) * Math.sin(phi);
-      const y = Math.sin(theta) * Math.sin(phi);
-      const z = Math.cos(phi);
-      results.push(func(i, n, x, y, z));
+      const w = edge1 - edge0;
+      const m = 1 / w;
+      const y0 = - m * edge0;
+      return THREE.MathUtils.clamp(y0 + m * x, 0, 1);
+
     }
-    return results;
-  }
 
-  spherePoints(20, (i, n, x, y, z)=>{
-    return addBezWarp(i, n, x, y, z);
-  });
+    function stopGoEased(x, downtime, period) {
 
-  function addBox({ size=[1,1,1], position=[0,0,0], rotation=[0,0,0], origin=[0,0,0], hue=60/360, sat=0.2, lum=0.5})
-  {
-    const boxMaterial = checkeredMaterial( hslColor( hue, sat, lum ), hslColor(hue, sat, lum/2.0), 64, [3,3] );
-    const mesh = new THREE.Mesh( new THREE.BoxGeometry( size[0], size[1], size[2] ), boxMaterial );
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    //mesh.setRotationFromQuaternion(q);
-    mesh.autoUpdateMatrix = true;
-    mesh.position.fromArray(position);
-    mesh.rotation.fromArray(rotation);
-    return mesh;
-  }
+      const cycle = (x / period) | 0;
+      const tween = x - cycle * period;
+      const linStep = easeInOutCubic(linearStep(tween, downtime, period));
+      return cycle + linStep;
 
-  /*
-  const offsx = -.5;
-  const offsy = -.5;
-  const scalex = 5.;
-  const scaley = 5.;
-  const scalez = 0.3;
-  const divsx = 20;
-  const divsy = 20;
-  const scaler = 3.0;
+    }
 
-  let sizezfn = (x, y)=>{
-    return (1 + Math.sin(Math.PI*Math.sqrt(x*x+y*y)*scaler)+0.5) * scalez;
-  };
+    function pixelAlignFrustum(camera, aspectRatio, pixelsPerScreenWidth, pixelsPerScreenHeight) {
 
-  for(let indy = 0; indy <= divsy; indy++) {
-      for(let indx = 0; indx <= divsx; indx++) {
-          let gridx = indx / divsx + offsx;
-          let gridy = indy / divsy + offsy;
-          let gridz = sizezfn(gridx, gridy);
-          scene.add( addBox({ size:[scalex/divsx, scaley/divsy, gridz], position:[(indx/divsx+offsx)*scalex, (indy/divsy+offsy)*scaley, gridz/2.], hue:90+(gridz/scalez*90)/360, sat:0.6, lum:0.7 }) );
+      // 0. Get Pixel Grid Units
+      const worldScreenWidth = ((camera.right - camera.left) / camera.zoom);
+      const worldScreenHeight = ((camera.top - camera.bottom) / camera.zoom);
+      const pixelWidth = worldScreenWidth / pixelsPerScreenWidth;
+      const pixelHeight = worldScreenHeight / pixelsPerScreenHeight;
+
+      // 1. Project the current camera position along its local rotation bases
+      const camPos = new THREE.Vector3(); camera.getWorldPosition(camPos);
+      const camRot = new THREE.Quaternion(); camera.getWorldQuaternion(camRot);
+      const camRight = new THREE.Vector3(1.0, 0.0, 0.0).applyQuaternion(camRot);
+      const camUp = new THREE.Vector3(0.0, 1.0, 0.0).applyQuaternion(camRot);
+      const camPosRight = camPos.dot(camRight);
+      const camPosUp = camPos.dot(camUp);
+
+      // 2. Find how far along its position is along these bases in pixel units
+      const camPosRightPx = camPosRight / pixelWidth;
+      const camPosUpPx = camPosUp / pixelHeight;
+
+      // 3. Find the fractional pixel units and convert to world units
+      const fractX = camPosRightPx - Math.round(camPosRightPx);
+      const fractY = camPosUpPx - Math.round(camPosUpPx);
+
+      // 4. Add fractional world units to the left/right top/bottom to align with the pixel grid
+      camera.left = - aspectRatio - (fractX * pixelWidth);
+      camera.right = aspectRatio - (fractX * pixelWidth);
+      camera.top = 1.0 - (fractY * pixelHeight);
+      camera.bottom = - 1.0 - (fractY * pixelHeight);
+      camera.updateProjectionMatrix();
+
+    }
+
+    /** converts an rgb color in {r: 0..1, g: 0..1, b: 0..1} to rgb24 packed binary format */
+    function rgbToRgb24({ r, g, b }) {
+      return (r * 255) << 16 ^ (g * 255) << 8 ^ (b * 255) << 0;
+    }
+
+    function rgbToHexRgb({ r, g, b }) {
+      function toHexByte(v) {
+        const s = Math.round((v < 0 ? 0 : (v > 1 ? 1 : v)) * 255).toString(16);
+        return s.length == 1 ? '0' + s : s;
       }
-  }
-  //scene.add( addBox({ size:[.5, .5, .5], position:[- 1, -1, 0], hue:90/360, sat:0.4, lum:0.6 }) );
-  */
+      return "#" + toHexByte(r) + toHexByte(g) + toHexByte(b);
+    }
 
-  /*
-  function addPlane({ sideu, sidev, position=[0,0,0], pointat=[0,0,1], hue=60, sat=0.2, lum=0.5})
-  {
-    const material = coloredPhongMaterial( hslColor( hue, sat, lum ), 10 );
-    const planePos = new THREE.Vector3(...Array.from(position));
-    const pointAtPos = new THREE.Vector3(...Array.from(pointat));
-    const pointAtDir = (planePos.sub(pointAtPos)).normalize();
-    const planeQuat = new THREE.Quaternion().setFromUnitVectors(
-      new THREE.Vector3(...Array.from([0., 0., 1.])),
+    function hslToHexRgb({ h, s, l }) {
+      return rgbToHexRgb(hslToRgb({ h, s, l }));
+    }
 
-      pointAtDir
-    );
-    const planeMesh = new THREE.Mesh(
-      new THREE.PlaneGeometry( sideu, sidev ),
-      material
-    );
-    planeMesh.receiveShadow = true;
-    planeMesh.autoUpdateMatrix = true;
-    planeMesh.rotation.setFromQuaternion(planeQuat);
-    planeMesh.position.set(planePos);
+    function hslToRgb24({ h, s, l }) {
+      return rgbToRgb24(hslToRgb({ h, s, l }));
+    }
 
-    return planeMesh;
-  }
-
-  //scene.add( addPlane({ sideu:3, sidev:3, position:[0,0,0], hue:10, sat: 0.3, lum: 0.5}));
-
-  function addIcos({ radius=.2, position=[0,0,0], pointat=[0,0,1], hue=60, sat=0.2, lum=0.5})
-  {
-    const geometry = new THREE.IcosahedronGeometry( radius );
-    const crystalMesh = new THREE.Mesh(
-      geometry,
-      new THREE.MeshPhongMaterial( {
-        color: 0x2379cf,
-        emissive: 0x143542,
-        shininess: 10,
-        specular: 0xffffff
-      } )
-    );
-    crystalMesh.receiveShadow = true;
-    crystalMesh.castShadow = true;
-    crystalMesh.autoUpdateMatrix = true;
-    crystalMesh.position.set(...Array.from(position));
-    return crystalMesh;
-  }
-
-  //scene.add( addIcos({radius: 0.25, position:[0,0,1.5], hue:270, sat:0.7, lum:1.0}) );
-
-  // lights
-  */
-
-    scene.add( new THREE.AmbientLight( 0x333333, 1.5 ) );
-
-    const directionalLight = new THREE.DirectionalLight( 0xffffff, .5 );
-    directionalLight.position.set( 50, 50, 100 );
-    directionalLight.castShadow = true;
-    directionalLight.shadow.mapSize.set( 2048, 2048 );
-    scene.add( directionalLight );
-
-    /*
-    const spotLight = new THREE.SpotLight( 0xff8800, 1, 10, Math.PI / 16, .02, 2 );
-    spotLight.position.set( 2, 2, 0 );
-    const target = spotLight.target;
-    scene.add( target );
-    target.position.set( 0, 0, 0 );
-    spotLight.castShadow = true;
-    scene.add( spotLight );
+    /**
+    * Converts an HSL color value to RGB. Conversion formula
+    * adapted from http://en.wikipedia.org/wiki/HSL_color_space.
+    * Assumes h, s, and l are contained in the set [0, 1] and
+    * returns r, g, and b in the set [0, 255].
+    *
+    * @param   Number  h       The hue
+    * @param   Number  s       The saturation
+    * @param   Number  l       The lightness
+    * @return  Array           The RGB representation
     */
-    window.__scene__ = scene;
-    return scene;
-}
+    function hslToRgb({ h, s, l }) {
+      var r, g, b;
 
-/* --------------------------------------------------------------------------
-ANIMATION LOOP AND HANDLING
+      if (h < 0)
+        h = 360.0 - (-h % 360.0);
+      h = (h % 360.0) / 360.0;
+      s = (s > 1.0 ? 1.0 : (s < 0.0 ? 0.0 : s));
+      l = (l > 1.0 ? 1.0 : (l < 0.0 ? 0.0 : l));
 
-Code for starting, stopping and running the animation loop.
--------------------------------------------------------------------------- */
+      if (s == 0) {
+        r = g = b = l; // achromatic
+      } else {
+        function hue2rgb(p, q, t) {
+          if (t < 0) t += 1;
+          if (t > 1) t -= 1;
+          if (t < 1 / 6) return p + (q - p) * 6 * t;
+          if (t < 1 / 2) return q;
+          if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+          return p;
+        }
 
-var animateScheduledId = null;
+        var q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+        var p = 2 * l - q;
 
-function startStopAnimation(flag) {
-  if(flag && animateScheduledId == null) {
-    animateScheduledId = requestAnimationFrame( animate );
-  } else if(!flag && animateScheduledId != null) {
-    cancelAnimationFrame(animateScheduledId);
-    animateScheduledId = null;
-  }
-}
-
-function isAnimationRunning() {
-  return animateScheduledId != null;
-}
-
-function toggleAnimation() {
-  startStopAnimation(!isAnimationRunning());
-}
-
-function installDefaultKeyBindings() {
-  addKeyBinding( 's', toggleAnimation );
-}
-
-function animate()
-{
-  animateScheduledId = requestAnimationFrame( animate );
-
-  const t = clock.getElapsedTime();
-
-  callUpdateFunctions( t );
-
-  //crystalMesh.material.emissiveIntensity = Math.sin( t * 3 ) * .5 + .5;
-  //crystalMesh.position.y = .7 + Math.sin( t * 2 ) * .05;
-  //crystalMesh.rotation.y = stopGoEased( t, 2, 4 ) * 2 * Math.PI;
-
-  const rendererSize = renderer.getSize( new THREE.Vector2() );
-  const aspectRatio = rendererSize.x / rendererSize.y;
-  if ( params[ 'pixelAlignedPanning' ] ) {
-
-    pixelAlignFrustum( camera, aspectRatio, Math.floor( rendererSize.x / params[ 'pixelSize' ] ),
-      Math.floor( rendererSize.y / params[ 'pixelSize' ] ) );
-
-  } else if ( camera.left != - aspectRatio || camera.top != 1.0 ) {
-
-    // Reset the Camera Frustum if it has been modified
-    camera.left = - aspectRatio;
-    camera.right = aspectRatio;
-    camera.top = 1.0;
-    camera.bottom = - 1.0;
-    camera.updateProjectionMatrix();
-
-  }
-
-  composer.render();
-}
-
-/* --------------------------------------------------------------------------
-TEXTURE GENERATION AND COLOR HELPER FUNCTIONS
--------------------------------------------------------------------------- */
-
-function checkerTexture( size = 64, color1 = '#bb8844', color2 = '#886622' )
-{
-  const canvas = document.createElement( 'canvas' );
-  canvas.width = size;
-  canvas.height = size;
-
-  const context = canvas.getContext( '2d' );
-
-  context.fillStyle = color1;
-  context.fillRect( 0, 0, size, size );
-
-  context.fillStyle = color2;
-  context.fillRect( 0, 0, size / 2, size / 2 );
-  context.fillRect( size / 2, size / 2, size / 2, size / 2 );
-
-  var image = new Image();
-  image.src = canvas.toDataURL();
-
-  return pixelTexture(image);
-}
-
-
-function checkerTexture2(loader, color1, color2)
-{
-  return new Promise((accept, reject) => {
-    const denom=5;
-  	var canvas = document.createElement("canvas");
-  	canvas.width = 200;
-  	canvas.height = 200;
-
-  	var ctx = canvas.getContext("2d");
-
-  	for (var i = 0; i < canvas.width; i++) {
-  	  for (var j = 0; j < canvas.height; j++) {
-  	    var color = (Math.floor(i/denom) + Math.floor(j/denom)) % 2 == 0 ? color1 : color2;
-  	    ctx.fillStyle = color;
-  	    ctx.fillRect(Math.floor(i/denom)*denom, Math.floor(j/denom)*denom, canvas.width/denom, canvas.hweight/denom);
-  	  }
-  	}
-
-    const data = canvas.toDataURL();
-    return loader.load(data, (texture)=>{
-        accept(pixelTexture(texture));
-      },
-      (progress)=>{
-        console.verbose("progress loading texture", progress);
-      },
-      (error)=>{
-        console.error(error);
-        reject(error);
+        r = hue2rgb(p, q, h + 1 / 3);
+        g = hue2rgb(p, q, h);
+        b = hue2rgb(p, q, h - 1 / 3);
       }
-    );
-  });
-}
 
-
-function pixelTexture( texture )
-{
-  texture.minFilter = THREE.NearestFilter;
-  texture.magFilter = THREE.NearestFilter;
-  texture.generateMipmaps = false;
-  texture.wrapS = THREE.RepeatWrapping;
-  texture.wrapT = THREE.RepeatWrapping;
-  return texture;
-}
-
-function easeInOutCubic( x ) {
-
-  return x ** 2 * 3 - x ** 3 * 2;
-
-}
-
-function linearStep( x, edge0, edge1 ) {
-
-  const w = edge1 - edge0;
-  const m = 1 / w;
-  const y0 = - m * edge0;
-  return THREE.MathUtils.clamp( y0 + m * x, 0, 1 );
-
-}
-
-function stopGoEased( x, downtime, period ) {
-
-  const cycle = ( x / period ) | 0;
-  const tween = x - cycle * period;
-  const linStep = easeInOutCubic( linearStep( tween, downtime, period ) );
-  return cycle + linStep;
-
-}
-
-function pixelAlignFrustum( camera, aspectRatio, pixelsPerScreenWidth, pixelsPerScreenHeight ) {
-
-  // 0. Get Pixel Grid Units
-  const worldScreenWidth = ( ( camera.right - camera.left ) / camera.zoom );
-  const worldScreenHeight = ( ( camera.top - camera.bottom ) / camera.zoom );
-  const pixelWidth = worldScreenWidth / pixelsPerScreenWidth;
-  const pixelHeight = worldScreenHeight / pixelsPerScreenHeight;
-
-  // 1. Project the current camera position along its local rotation bases
-  const camPos = new THREE.Vector3(); camera.getWorldPosition( camPos );
-  const camRot = new THREE.Quaternion(); camera.getWorldQuaternion( camRot );
-  const camRight = new THREE.Vector3( 1.0, 0.0, 0.0 ).applyQuaternion( camRot );
-  const camUp = new THREE.Vector3( 0.0, 1.0, 0.0 ).applyQuaternion( camRot );
-  const camPosRight = camPos.dot( camRight );
-  const camPosUp = camPos.dot( camUp );
-
-  // 2. Find how far along its position is along these bases in pixel units
-  const camPosRightPx = camPosRight / pixelWidth;
-  const camPosUpPx = camPosUp / pixelHeight;
-
-  // 3. Find the fractional pixel units and convert to world units
-  const fractX = camPosRightPx - Math.round( camPosRightPx );
-  const fractY = camPosUpPx - Math.round( camPosUpPx );
-
-  // 4. Add fractional world units to the left/right top/bottom to align with the pixel grid
-  camera.left = - aspectRatio - ( fractX * pixelWidth );
-  camera.right = aspectRatio - ( fractX * pixelWidth );
-  camera.top = 1.0 - ( fractY * pixelHeight );
-  camera.bottom = - 1.0 - ( fractY * pixelHeight );
-  camera.updateProjectionMatrix();
-
-}
-
-/** converts an rgb color in {r: 0..1, g: 0..1, b: 0..1} to rgb24 packed binary format */
-function rgbToRgb24({r, g, b})
-{
-  return (r * 255) << 16 ^ (g * 255) << 8 ^ (b * 255) << 0;
-}
-
-function rgbToHexRgb({r, g, b})
-{
-  function toHexByte(v)
-  {
-    const s = Math.round((v<0?0:(v>1?1:v)) * 255).toString(16);
-    return s.length == 1 ? '0' + s : s;
-  }
-  return "#" + toHexByte(r) + toHexByte (g) + toHexByte(b);
-}
-
-function hslToHexRgb({h, s, l})
-{
-  return rgbToHexRgb(hslToRgb({h, s, l}));
-}
-
-function hslToRgb24({h, s, l})
-{
-  return rgbToRgb24(hslToRgb({h, s, l}));
-}
-
-/**
-* Converts an HSL color value to RGB. Conversion formula
-* adapted from http://en.wikipedia.org/wiki/HSL_color_space.
-* Assumes h, s, and l are contained in the set [0, 1] and
-* returns r, g, and b in the set [0, 255].
-*
-* @param   Number  h       The hue
-* @param   Number  s       The saturation
-* @param   Number  l       The lightness
-* @return  Array           The RGB representation
-*/
-function hslToRgb({h, s, l})
-{
-  var r, g, b;
-
-  if(h < 0)
-    h=360.0 - (-h % 360.0);
-  h=(h % 360.0)/360.0;
-  s=(s>1.0?1.0:(s<0.0?0.0:s));
-  l=(l>1.0?1.0:(l<0.0?0.0:l));
-
-  if (s == 0) {
-    r = g = b = l; // achromatic
-  } else {
-    function hue2rgb(p, q, t) {
-      if (t < 0) t += 1;
-      if (t > 1) t -= 1;
-      if (t < 1/6) return p + (q - p) * 6 * t;
-      if (t < 1/2) return q;
-      if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
-      return p;
+      return { "r": r, "g": g, "b": b };
     }
 
-    var q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-    var p = 2 * l - q;
+    function rgbToHsl({ r, g, b }) {
+      // convert rgb color in range 0.0-1.0 to hsv color in range 0.0-360.0, 0.0-1.0, 0.0-1.0
+      var h, s, l;
+      var min, max, delta;
 
-    r = hue2rgb(p, q, h + 1/3);
-    g = hue2rgb(p, q, h);
-    b = hue2rgb(p, q, h - 1/3);
-  }
+      min = Math.min(r, g, b);
+      max = Math.max(r, g, b);
+      delta = max - min;
 
-  return {"r": r, "g": g, "b": b};
-}
+      l = (min + max) / 2;
 
-function rgbToHsl({r, g, b})
-{
-  // convert rgb color in range 0.0-1.0 to hsv color in range 0.0-360.0, 0.0-1.0, 0.0-1.0
-  var h, s, l;
-  var min, max, delta;
+      if (delta === 0) {
+        h = 0;
+        s = 0;
+      } else {
+        s = delta / (1 - Math.abs(2 * l - 1));
 
-  min = Math.min(r, g, b);
-  max = Math.max(r, g, b);
-  delta = max - min;
+        switch (max) {
+          case r:
+            h = ((g - b) / delta) % 6;
+            break;
+          case g:
+            h = (b - r) / delta + 2;
+            break;
+          case b:
+            h = (r - g) / delta + 4;
+            break;
+        }
 
-  l = (min + max) / 2;
+        h *= 60;
+      }
 
-  if (delta === 0) {
-    h = 0;
-    s = 0;
-  } else {
-    s = delta / (1 - Math.abs(2 * l - 1));
-
-    switch (max) {
-      case r:
-        h = ((g - b) / delta) % 6;
-        break;
-      case g:
-        h = (b - r) / delta + 2;
-        break;
-      case b:
-        h = (r - g) / delta + 4;
-        break;
+      return { "h": h, "s": s, "l": l };
     }
 
-    h *= 60;
-  }
-
-  return {"h": h, "s": s, "l": l};
-}
-
-function interpolateHsl(factor, color1, color2) {
-  return {
-    "h": THREE.MathUtils.lerp(color1.h, color2.h, factor),
-    "s": THREE.MathUtils.lerp(color1.s, color2.s, factor),
-    "l": THREE.MathUtils.lerp(color1.l, color2.l, factor)
-  };
-}
-
-/* --------------------------------------------------------------------------
-ColorPalette CLASS
-
-Class for representing color palettes made up of weighted hsl ranges that can
-be sampled randomly or uniformly
--------------------------------------------------------------------------- */
-
-class ColorPalette
-{
-  constructor(ranges = [], interpolationMethod = interpolateHsl)
-  {
-    this.weightedRanges = [];
-    this.totalWeight = 0;
-    this.interpolate = interpolationMethod;
-    for(let range of ranges)
-    {
-      this.addRange(range);
+    function interpolateHsl(factor, color1, color2) {
+      return {
+        "h": THREE.MathUtils.lerp(color1.h, color2.h, factor),
+        "s": THREE.MathUtils.lerp(color1.s, color2.s, factor),
+        "l": THREE.MathUtils.lerp(color1.l, color2.l, factor)
+      };
     }
-  }
 
-  addColor({color, weight=1})
-  {
-    this.weightedRanges.push( { "startColor": color, "endColor": color, "weight": weight } );
-    this.totalWeight += weight;
-  }
+    /* --------------------------------------------------------------------------
+    ColorPalette CLASS
+    
+    Class for representing color palettes made up of weighted hsl ranges that can
+    be sampled randomly or uniformly
+    -------------------------------------------------------------------------- */
 
-  addRange({color=null, variance=null, startColor=null, endColor=null, weight=1})
-  {
-    if(variance == null)
-    {
-      variance = {h: 0, s: 0, l: 0};
-    }
-    if(variance != null)
-    {
-      variance.h = (variance.h !== undefined) ? variance.h : 0;
-      variance.s = (variance.s !== undefined) ? variance.l : 0;
-      variance.l = (variance.l !== undefined) ? variance.l : 0;
-    }
-    if(color != null && variance != null)
-    {
-      startColor = {"h": color.h - variance.h/2, "s": color.s - (variance.s*(1.0-color.s)), "l": color.l - (variance.l*(1.0-variance.l))};
-      endColor = {"h": color.h + variance.h/2, "s": color.s + (variance.s*(1.0-color.s)), "l": color.l + (variance.l*(1.0-variance.l))};
-    }
-    else if(endColor != null && startColor == null && variance != null)
-    {
-      startColor = {"h": color.h - variance.h, "s": color.s - variance.s, "l": color.l - variance.l};
-    }
-    else if(endColor == null && startColor != null && variance != null)
-    {
-      endColor = {"h": color.h + variance.h, "s": color.s + variance.s, "l": color.l + variance.l};
-    }
-    this.weightedRanges.push( { "startColor": startColor, "endColor": endColor, "weight": weight } );
-    this.totalWeight += weight;
-  }
+    class ColorPalette {
+      constructor(ranges = [], interpolationMethod = interpolateHsl) {
+        this.weightedRanges = [];
+        this.totalWeight = 0;
+        this.interpolate = interpolationMethod;
+        for (let range of ranges) {
+          this.addRange(range);
+        }
+      }
 
-  getColor(u=null)
-  {
-    if(u==null) {
-      u = Math.random();
-    }
-    const randomWeight = u * this.totalWeight;
-    let currentWeight = 0;
-    for ( let i = 0; i < this.weightedRanges.length; i++ ) {
-      const range = this.weightedRanges[ i ];
-      currentWeight += range.weight;
-      if ( randomWeight < currentWeight ) {
-        return this.interpolate( ( randomWeight - ( currentWeight - range.weight ) ) / range.weight, range.startColor, range.endColor );
+      addColor({ color, weight = 1 }) {
+        this.weightedRanges.push({ "startColor": color, "endColor": color, "weight": weight });
+        this.totalWeight += weight;
+      }
+
+      addRange({ color = null, variance = null, startColor = null, endColor = null, weight = 1 }) {
+        if (variance == null) {
+          variance = { h: 0, s: 0, l: 0 };
+        }
+        if (variance != null) {
+          variance.h = (variance.h !== undefined) ? variance.h : 0;
+          variance.s = (variance.s !== undefined) ? variance.l : 0;
+          variance.l = (variance.l !== undefined) ? variance.l : 0;
+        }
+        if (color != null && variance != null) {
+          startColor = { "h": color.h - variance.h / 2, "s": color.s - (variance.s * (1.0 - color.s)), "l": color.l - (variance.l * (1.0 - variance.l)) };
+          endColor = { "h": color.h + variance.h / 2, "s": color.s + (variance.s * (1.0 - color.s)), "l": color.l + (variance.l * (1.0 - variance.l)) };
+        }
+        else if (endColor != null && startColor == null && variance != null) {
+          startColor = { "h": color.h - variance.h, "s": color.s - variance.s, "l": color.l - variance.l };
+        }
+        else if (endColor == null && startColor != null && variance != null) {
+          endColor = { "h": color.h + variance.h, "s": color.s + variance.s, "l": color.l + variance.l };
+        }
+        this.weightedRanges.push({ "startColor": startColor, "endColor": endColor, "weight": weight });
+        this.totalWeight += weight;
+      }
+
+      getColor(u = null) {
+        if (u == null) {
+          u = Math.random();
+        }
+        const randomWeight = u * this.totalWeight;
+        let currentWeight = 0;
+        for (let i = 0; i < this.weightedRanges.length; i++) {
+          const range = this.weightedRanges[i];
+          currentWeight += range.weight;
+          if (randomWeight < currentWeight) {
+            return this.interpolate((randomWeight - (currentWeight - range.weight)) / range.weight, range.startColor, range.endColor);
+          }
+        }
       }
     }
-  }
-}
 
-/* --------------------------------------------------------------------
-  keeb input handling
+    /* --------------------------------------------------------------------
+      keeb input handling
+    
+      wherein we keep track of bound keys and their handlers, and also track
+      which unbound and bound keys are currently pressed for continuous actions
+      that are handled within animate callbacks
+    -------------------------------------------------------------------- */
 
-  wherein we keep track of bound keys and their handlers, and also track
-  which unbound and bound keys are currently pressed for continuous actions
-  that are handled within animate callbacks
--------------------------------------------------------------------- */
+    const keyBindings = new Map();
+    const pressedKeys = new Set();
+    const handledKeys = new Set();
 
-const keyBindings = new Map();
-const pressedKeys = new Set();
-const handledKeys = new Set();
-
-function addKeyBinding(key, action) {
-  keyBindings.set(key, action);
-  if(pressedKeys.has(key) || handledKeys.has(key)) {
-    action();
-    if(!handledKeys.has(key)) {
-      handledKeys.add(key);
+    function addKeyBinding(key, action) {
+      keyBindings.set(key, action);
+      if (pressedKeys.has(key) || handledKeys.has(key)) {
+        action();
+        if (!handledKeys.has(key)) {
+          handledKeys.add(key);
+        }
+        if (pressedKeys.has(key)) {
+          pressedKeys.delete(key);
+        }
+      }
     }
-    if(pressedKeys.has(key)) {
-      pressedKeys.delete(key);
+
+    function removeKeyBinding(key) {
+      keyBindings.delete(key);
+      if (handledKeys.has(key)) {
+        handledKeys.delete(key);
+        pressedKeys.add(key);
+      }
     }
-  }
-}
 
-function removeKeyBinding(key) {
-  keyBindings.delete(key);
-  if(handledKeys.has(key)) {
-    handledKeys.delete(key);
-    pressedKeys.add(key);
-  }
-}
+    function handleKeyDown(event) {
+      if (keyBindings.has(event.key)) {
+        keyBindings.get(event.key)();
+        handledKeys.add(event.key);
+      } else {
+        pressedKeys.add(event.key);
+      }
+    }
 
-function handleKeyDown(event) {
-  if (keyBindings.has(event.key)) {
-    keyBindings.get(event.key)();
-    handledKeys.add(event.key);
-  } else {
-    pressedKeys.add(event.key);
-  }
-}
+    function handleKeyUp(event) {
+      if (handledKeys.has(event.key)) {
+        handledKeys.delete(event.key);
+      }
+      if (pressedKeys.has(event.key)) {
+        pressedKeys.delete(event.key);
+      }
+    }
 
-function handleKeyUp(event) {
-  if(handledKeys.has(event.key)) {
-    handledKeys.delete(event.key);
-  }
-  if(pressedKeys.has(event.key)) {
-    pressedKeys.delete(event.key);
-  }
-}
+    /* --------------------------------------------------------------------
+      Init, install default key bindings and start animation
+    -------------------------------------------------------------------- */
 
-/* --------------------------------------------------------------------
-  Init, install default key bindings and start animation
--------------------------------------------------------------------- */
+    init();
+    installDefaultKeyBindings();
+    animate();
 
-init();
-installDefaultKeyBindings();
-animate();
+    /*]]>*/
+  </script>
+</body>
 
-  /*]]>*/
-      </script>
-  </body>
 </html>
