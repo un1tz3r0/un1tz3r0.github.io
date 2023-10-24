@@ -177,7 +177,7 @@
 
       // gui
 
-      const gui = ()=>{
+      const gui = (()=>{
         function add(dest, obj, name) {
           const binding = dest.addBinding(obj, name);
           const wrapper = {
@@ -204,7 +204,7 @@
         function addFolder(dest, title) {
           const folder = dest.addFolder({title: title, expanded: true});
           const wrapper = {
-            'folder': folder,
+            'binding': folder,
             'add': (obj, name) => {
               return add(folder, obj, name);
             },
@@ -214,15 +214,17 @@
           };
           return wrapper;
         };
+        pane = new Pane();
         return {
+          'binding': pane,
           'add': (obj, name) => {
-            return add(gui, obj, name);
+            return add(pane, obj, name);
           },
           'addFolder': (name) => {
-            return addFolder(gui, name);
+            return addFolder(guipane=, name);
           }
-        }
-      }
+        };
+      })();
 
       gui.add(params, 'zoom').min(1).max(6).step(0.1).onChange(() => {
         camera.zoom = 1.0 / params.zoom;
