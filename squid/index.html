@@ -67,7 +67,6 @@
 
       // gui
 
-      gui = new Pane();
       params = { zoom: 3.0, pixelSize: 3, normalEdgeStrength: 0.0, depthEdgeStrength: 0.0, pixelAlignedPanning: true };
 
       // create and populate the scene with geometry
@@ -177,7 +176,7 @@
 
       // gui
 
-      const gui = (()=>{
+      gui = (()=>{
         function add(dest, obj, name) {
           const binding = dest.addBinding(obj, name);
           const wrapper = {
