@@ -17,21 +17,21 @@
   </style>
 
   <script type="importmap">
-          {"imports":{
-            "three": "./esm/three.module.js",
-            "OrbitControls": "./esm/three.examples.jsm/controls/OrbitControls.js",
-            "EffectComposer": "./esm/three.examples.jsm/postprocessing/EffectComposer.js",
-            "RenderPixelatedPass": "./esm/three.examples.jsm/postprocessing/RenderPixelatedPass.js",
-            "UnrealBloomPass": "./esm/three.examples.jsm/postprocessing/UnrealBloomPass.js",
-            "ShaderPass": "./esm/three.examples.jsm/postprocessing/ShaderPass.js",
-            "BufferGeometryUtils": "./esm/three.examples.jsm/utils/BufferGeometryUtils.js",
-            "GUI": "./esm/three.examples.jsm/libs/lil-gui.module.min.js",
-            "CSG": "./esm/csg.js",
-            "fastsimplexnoise": "./esm/fast-simplex-noise.js",
-            "fractalnoise": "./esm/fractal-noise.js",
-            "taperextrudegeometry": "./esm/TaperExtrudeGeometry.js",
-	    "tweakpane": "./esm/tweakpane.min.js"
-          }}
+          {
+            "imports": {
+              "three": "./esm/three.module.js",
+              "OrbitControls": "./esm/three.examples.jsm/controls/OrbitControls.js",
+              "EffectComposer": "./esm/three.examples.jsm/postprocessing/EffectComposer.js",
+              "RenderPixelatedPass": "./esm/three.examples.jsm/postprocessing/RenderPixelatedPass.js",
+              "UnrealBloomPass": "./esm/three.examples.jsm/postprocessing/UnrealBloomPass.js",
+              "ShaderPass": "./esm/three.examples.jsm/postprocessing/ShaderPass.js",
+              "BufferGeometryUtils": "./esm/three.examples.jsm/utils/BufferGeometryUtils.js",
+              "fastsimplexnoise": "./esm/fast-simplex-noise.js",
+              "fractalnoise": "./esm/fractal-noise.js",
+              "taperextrudegeometry": "./esm/TaperExtrudeGeometry.js",
+              "tweakpane": "./esm/tweakpane.min.js"
+            }
+          }
         </script>
 </head>
 
@@ -44,8 +44,6 @@
     import { RenderPixelatedPass } from 'RenderPixelatedPass';
     import { UnrealBloomPass } from 'UnrealBloomPass';
     import { ShaderPass } from 'ShaderPass';
-    import { GUI } from 'GUI';
-    import * as CSG from 'CSG';
     import fastsimplexnoise from 'fastsimplexnoise';
     import fractalnoise from 'fractalnoise';
     import { TaperExtrudeGeometry } from 'taperextrudegeometry';
@@ -87,65 +85,71 @@
 
       // postprocessing
 
-      // selective bloom
-      params['exposure'] = 1;
-      params['bloomStrength'] = 5;
-      params['bloomThreshold'] = 0.3;
-      params['bloomRadius'] = 4;
+      if(bloomEnabled)
+      {
+        // selective bloom
+        params['exposure'] = 1;
+        params['bloomStrength'] = 5;
+        params['bloomThreshold'] = 0.3;
+        params['bloomRadius'] = 4;
 
-      const renderScene = new RenderPixelatedPass(params.pixelSize, scene, camera);
-      const renderPixelatedPass = renderScene;
+        const renderScene = new RenderPixelatedPass(params.pixelSize, scene, camera);
+        const renderPixelatedPass = renderScene;
 
-      const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
-      bloomPass.threshold = params.bloomThreshold;
-      bloomPass.strength = params.bloomStrength;
-      bloomPass.radius = params.bloomRadius;
+        const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
+        bloomPass.threshold = params.bloomThreshold;
+        bloomPass.strength = params.bloomStrength;
+        bloomPass.radius = params.bloomRadius;
 
-      const bloomComposer = new EffectComposer(renderer);
-      bloomComposer.renderToScreen = false;
-      bloomComposer.addPass(renderScene);
-      bloomComposer.addPass(bloomPass);
+        const bloomComposer = new EffectComposer(renderer);
+        bloomComposer.renderToScreen = false;
+        bloomComposer.addPass(renderScene);
+        bloomComposer.addPass(bloomPass);
 
-      const vertexshader = [
-        'varying vec2 vUv;',
-        'void main() {',
-        'vUv = uv;',
-        'gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );',
-        '}'
-      ].join("\n");
+        const vertexshader = [
+          'varying vec2 vUv;',
+          'void main() {',
+          'vUv = uv;',
+          'gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );',
+          '}'
+        ].join("\n");
 
-      const fragmentshader =
-        'uniform sampler2D baseTexture;\n' +
-        'uniform sampler2D bloomTexture;\n' +
-        'varying vec2 vUv;\n' +
-        'void main() {\n' +
-        '	gl_FragColor = ( texture2D( baseTexture, vUv ) + vec4( 1.0 ) * texture2D( bloomTexture, vUv ) );\n' +
-        '}\n';
+        const fragmentshader =
+          'uniform sampler2D baseTexture;\n' +
+          'uniform sampler2D bloomTexture;\n' +
+          'varying vec2 vUv;\n' +
+          'void main() {\n' +
+          '	gl_FragColor = ( texture2D( baseTexture, vUv ) + vec4( 1.0 ) * texture2D( bloomTexture, vUv ) );\n' +
+          '}\n';
 
-      const finalPass = new ShaderPass(
-        new THREE.ShaderMaterial({
-          uniforms: {
-            baseTexture: { value: null },
-            bloomTexture: { value: bloomComposer.renderTarget2.texture }
-          },
-          vertexShader: vertexshader,
-          fragmentShader: fragmentshader,
-          defines: {}
-        }), "baseTexture"
-      );
-      finalPass.needsSwap = true;
+        const finalPass = new ShaderPass(
+          new THREE.ShaderMaterial({
+            uniforms: {
+              baseTexture: { value: null },
+              bloomTexture: { value: bloomComposer.renderTarget2.texture }
+            },
+            vertexShader: vertexshader,
+            fragmentShader: fragmentshader,
+            defines: {}
+          }), "baseTexture"
+        );
+        finalPass.needsSwap = true;
 
-      const finalComposer = new EffectComposer(renderer);
-      finalComposer.addPass(renderScene);
-      finalComposer.addPass(finalPass);
-      //const renderPixelatedPass = new RenderPixelatedPass(1, scene, camera);
-      //finalComposer.addPass(renderPixelatedPass);
+        const finalComposer = new EffectComposer(renderer);
+        finalComposer.addPass(renderScene);
+        finalComposer.addPass(finalPass);
+        //const renderPixelatedPass = new RenderPixelatedPass(1, scene, camera);
+        //finalComposer.addPass(renderPixelatedPass);
 
-      // pixelated postprocessing pass
-      composer = finalComposer;
-      /*composer = new EffectComposer(renderer);
-      const renderPixelatedPass = new RenderPixelatedPass(1, scene, camera);
-      composer.addPass(renderPixelatedPass);*/
+        // pixelated postprocessing pass
+        composer = finalComposer;
+      }
+      else {
+        composer = new EffectComposer(renderer);
+        const renderPixelatedPass = new RenderPixelatedPass(1, scene, camera);
+        composer.addPass(renderPixelatedPass);
+      }
+
 
       // resizing
 
@@ -155,7 +159,7 @@
         camera.right = aspectRatio;
         camera.updateProjectionMatrix();
         renderer.setSize(width, height);
-        bloomComposer.setSize(width, height)
+        bloomComposer.setSize(width, height);
         finalComposer.setSize(width, height);
       }
 
