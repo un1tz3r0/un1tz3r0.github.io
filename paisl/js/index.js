@@ -964,7 +964,7 @@ apollonius = function (c1, c2, c3) {
 		var r2 = c2.r / rtotal;
 		var r3 = c3.r / rtotal;
 		var r = c.r / rtotal;*/
-		var angle = Math.atan2(c.y - c1.y, c.x - c1.x);
+		var angle = Math.atan2(c.x, c.y);
 		return new Circle(c.x, c.y, c.r*c.s, angle, Math.max(c1.g, c2.g, c3.g) + 1);
 	} else {
 		return null;
@@ -1203,8 +1203,12 @@ class AnimationQueue {
 		}
 	}
 
+	lastframetime = 0;
 	run(frametime) {
-		console.info(`entering AnimationQueue.run() with ${this._tasks.length} tasks in queue, time remaining is ${frametime}`);
+		if(this.lastframetime === undefined)
+			this.lastframetime = frametime - 1;
+		console.info(`entering AnimationQueue.run() with ${this._tasks.length} tasks in queue, fps is ${1000.0/(frametime-this.lastframetime)}`);
+		this.lastframetime = frametime;
 
 		this._updating = true;
 		while(this._tasks.length > 0 && !this._canceled)
