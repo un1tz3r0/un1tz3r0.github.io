@@ -5,10 +5,10 @@ let audiocontext, audioclips, audiobuffers, audiostarted = false;
 // it uses decodeAudioData to decode it into an AudioBuffer
 // decoded AudioBuffer is buf argument for Promise.then((buf) => {})
 // play.onclick() creates a single-use AudioBufferSourceNode
-async function fetchAudio(name) {
+async function fetchAudio(context, name) {
   try {
-    let rsvp = await fetch(`${name}.mp3`);
-    return audioContext.decodeAudioData(await rsvp.arrayBuffer()); // returns a Promise, buffer is arg for .then((arg) => {})
+    let rsvp = await fetch(`./${name}`);
+    return context.decodeAudioData(await rsvp.arrayBuffer()); // returns a Promise, buffer is arg for .then((arg) => {})
   } catch (err) {
     console.log(
       `Unable to fetch the audio file: ${name} Error: ${err.message}`,
@@ -25,23 +25,23 @@ function fetchnamedclip(clipname, dest) {
 }
 */
 
-function fetchPlaylist(playlist) {
+function fetchPlaylist(context, playlist) {
 	var fetchedclips = {};
-	function fetchNext(playlist) {
+	function fetchNext(playlist, fetchedclips) {
 		return new Promise((ok, fail) => {
 			if(playlist.length <= 0) {
-				return ok(fetchedclips);
+				ok(fetchedclips);
 			} else {
 				var clipname = playlist[0];
 				var remainingclips = playlist.slice(1);
-				return fetchAudio(clipname).then((clip)=>{
+				return fetchAudio(context, clipname).then((clip)=>{
 					fetchedclips[clipname] = clip;
-					return fetchNext(remainingclips);
+					ok(fetchNext(remainingclips, fetchedclips));
 				});
 			}
 		});
 	}
-	return fetchNext(playlist);
+	return fetchNext(playlist, fetchedclips);
 }
 
 
@@ -53,36 +53,49 @@ class Channel {
 		this.gain = actx.createGain();
 		this.gain.connect(actx.destination);
 
-		this.source = actx.createBufferSource();
-		this.source.connect(this.gain);
-		//this.sources[i].loop = true;
+		this.source = null;
+		this.initSource();
 
-		this.param = actx.createParameterNode();
-		this.param.connect(this.gain.gain);
+		this.param = this.gain.gain;
 		this.param.value = 0;
 
 		this.start_time = 0;
 		this.clip = null;
 		this.playing = false;
 		this.available = true;
-
-		this.source.addEventListener("ended", (evt)=>{
-			this.playing = false;
-			this.available = true;
-
-			this.mixer.scheduleNextClip();
-		}
 	}
 
+	initSource() {
+		const chan = this;
+		if(this.source != null) {
+			this.source.disconnect(this.gain);
+		}
+		this.source = this.context.createBufferSource();
+		this.source.connect(this.gain);
+		this.source.addEventListener("ended", (evt)=>{
+			chan.playing = false;
+			chan.available = true;
+
+			chan.mixer.scheduleNextClip();
+		});
+		//this.sources[i].loop = true;
+	}
+	
 	get endTime() {
 		if(!this.available) {
 			return this.start_time + this.clip.duration;
 		} else {
-			return this.start_time;
+			return 0;
 		}
 	}
-
+	
 	scheduleClip(clip, start_time) {
+		/*if(this.source.buffer != null) {
+			this.source.buffer = null;
+		}
+		this.source*/
+		this.initSource();
+		
 		this.clip = clip;
 		this.start_time = start_time;
 		this.available = false;
@@ -107,20 +120,20 @@ class XFadeRandomizer {
 				
 		for(let i of [0,1])
 		{
-			this.channels = new Channel(this);
+			this.channels[i] = new Channel(this);
 		}
 	}
 	
 	getRandomClip() {
 		const clips = this.playlist;
 		const keys = Object.keys(clips);
-		const idx = Math.floor(Math.random() * keys.length);
+		const idx = Math.floor(Math.random(keys.length));
 		return clips[keys[idx]];
 	}
 
 	getAvailableChannel() {
 		for(let ch of this.channels) {
-			if(!ch.available) {
+			if(ch.available) {
 				return ch;
 			}
 		}
@@ -129,11 +142,11 @@ class XFadeRandomizer {
 
 	scheduleNextClip() {
 		const next_clip = this.getRandomClip();
-		const next_start_time = -1;
+		var next_start_time = this.context.currentTime;
 		for(let ch of this.channels) {
 			if(!ch.available) {
 				const ch_end_time = ch.endTime;
-				if(ch_end_time - this.overlap < next_start_time) {
+				if(ch_end_time - this.overlap > next_start_time) {
 					next_start_time = ch_end_time - this.overlap;
 				}
 			}
@@ -157,7 +170,7 @@ function startAudio()
 	window._audioContext = audioContext;
 	audiocontext = audioContext;
 	
-	function schedulePlayback()
+	function schedulePlayback(clips)
 	{
 		// create our buffer sources and stuff
 		console.info("schedulePlayback() called...");
@@ -171,7 +184,7 @@ function startAudio()
 		console.info("Done scheduling clips...");
 	}
 	
-	return fetchPlaylist(["clip1.mp3", "clip2.mp3", "clip3.mp3", "clip4.mp3"]).then((clips)=>{
+	return fetchPlaylist(audioContext, ["clip1.mp3", "clip2.mp3", "clip3.mp3", "clip4.mp3"]).then((clips)=>{
 		console.info("Done loading samples...", clips);
 		window._clips = clips;
 		audioclips = clips;
@@ -206,15 +219,16 @@ function setupAudio()
 
 	//const pausedOverlay = document.querySelector(".pausedOverlay");
 	pausedOverlay.addEventListener("click", (evt)=>{
-		if(pausedOverlay.classList.includes("show")) {
+		if(pausedOverlay.classList.contains("show")) {
 			startAudio().then(()=>{
 				pausedOverlay.innerHTML = "&lt; Loaded! &gt;";
 				console.info("Audio running and loaded, calling scheduleAudio()");
+				pausedOverlay.style.transform = "translateY(-100vh)";
 			});
 			pausedOverlay.innerHTML = "&lt; Loading... &gt;";
 		} else {
 			pausedOverlay.innerHTML = "&lt; Click to play... &gt;";
-			pausedOverlay.style.top = "0vh";
+			pausedOverlay.style.transform = "translateY(0vh)";
 		}
 		pausedOverlay.classList.toggle("show");
 	});
