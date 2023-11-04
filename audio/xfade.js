@@ -36,7 +36,7 @@ function fetchPlaylist(context, playlist) {
 				var remainingclips = playlist.slice(1);
 				return fetchAudio(context, clipname).then((clip)=>{
 					fetchedclips[clipname] = clip;
-					ok(fetchNext(remainingclips, fetchedclips));
+					ok(await fetchNext(remainingclips, fetchedclips));
 				});
 			}
 		});
@@ -48,13 +48,14 @@ function fetchPlaylist(context, playlist) {
 class Channel {
 	constructor(mixer) {
 		const actx = mixer.context;
+		const chan = this;
+
 		this.mixer = mixer;
 		this.context = mixer.context;
 		this.gain = actx.createGain();
 		this.gain.connect(actx.destination);
 
 		this.source = null;
-		this.initSource();
 
 		this.param = this.gain.gain;
 		this.param.value = 0;
@@ -66,6 +67,9 @@ class Channel {
 	}
 
 	initSource() {
+		// because of how the web audio api works, we can't re-use BufferSource, so each time
+		// we want to schedule playback on the channel, we need to dispose of the previous one,
+		// construct a new one and hook it up to the gain node.
 		const chan = this;
 		if(this.source != null) {
 			this.source.disconnect(this.gain);
@@ -90,6 +94,7 @@ class Channel {
 	}
 	
 	scheduleClip(clip, start_time) {
+		console.info(`Scheduling clip ${clip} at time ${start_time}...`);
 		/*if(this.source.buffer != null) {
 			this.source.buffer = null;
 		}
@@ -103,6 +108,7 @@ class Channel {
 		this.source.buffer = clip;
 		this.source.start(start_time);
 		// set up envelope
+		this.param.clear();
 		this.param.setValueAtTime(0, start_time);
 		this.param.linearRampToValueAtTime(1, start_time + this.mixer.overlap);
 		this.param.linearRampToValueAtTime(1, start_time + clip.duration - this.mixer.overlap);
@@ -179,7 +185,7 @@ function startAudio()
 		window._xfade = xfade;
 		while(xfade.scheduleNextClip())
 		{
-			console.info("Scheduled next clip...");
+			console.info("Scheduled clip...");
 		}
 		console.info("Done scheduling clips...");
 	}
