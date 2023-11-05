@@ -2,9 +2,20 @@
 	<head>
 		<title>Foo</title>
 		<script src="./xfade.js"></script>
+		<script src="../cookies.js"></script>
+		<style src="./index.css"></style>
 	</head>
-	<body onload="javascript:setupAudio()">
-		<code>Ambient loop crossfade randomly demo.</code>
-		<code>by <a href="https://github.com/un1tz3r0">un1tz3r0</a></code>
+	<body onload="javascript:setupAudio()" class="startplayback">
+		<h>Ambient loop crossfade randomly demo.</h>
+		<div>
+			<p idpre="channel_1">Ch. 1 <output idsuf="_state">STOPPED</output> <input type="range" minimum="0" maximum="100" id="channel_1_gain"></input> <output id="channel_1_time"></output> <output id="channel_1_clipname"></output></p>
+			<p idpre="channel_2">Ch. 2 <output idsuf="_state">STOPPED</output> <input type="range" minimum="0" maximum="100" id="channel_2_gain"></input> <output id="channel_2_time"></output> <output id="channel_2_clipname"></output></p>
+		</div>
+		<div>
+			<p>&copy;2023 by V.C. <a href="https://github.com/un1tz3r0">@un1tz3r0</a></p>
+		</div>
+		<nav>
+			<a href="../index.html" alt="Go to landing page">Back</a>
+		</nav>
 	</body>
 </html>
