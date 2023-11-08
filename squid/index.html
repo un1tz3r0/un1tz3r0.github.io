@@ -50,7 +50,7 @@
     import * as BufferGeometryUtils from 'BufferGeometryUtils';
     import { Pane } from 'tweakpane';
 
-    let camera, scene, renderer, composer, clock, interaction, updateFunctions = [];
+    let camera, scene, renderer, composer, clock, interaction, resizecb, updateFunctions = [];
     let gui, params = {};
 
     function init() {
@@ -65,7 +65,8 @@
 
       // gui
 
-      params = { zoom: 3.0, pixelSize: 3, normalEdgeStrength: 0.0, depthEdgeStrength: 0.0, pixelAlignedPanning: true };
+      params = { zoom: 3.0, pixelSize: 3, normalEdgeStrength: 0.0, depthEdgeStrength: 0.0, pixelAlignedPanning: true,
+               bloomEnabled: false };
 
       // create and populate the scene with geometry
 
@@ -84,8 +85,9 @@
       document.body.appendChild(renderer.domElement);
 
       // postprocessing
-
-      if(bloomEnabled)
+      let renderPixelatedPass = null;
+        
+      if(params['bloomEnabled'])
       {
         // selective bloom
         params['exposure'] = 1;
@@ -94,7 +96,7 @@
         params['bloomRadius'] = 4;
 
         const renderScene = new RenderPixelatedPass(params.pixelSize, scene, camera);
-        const renderPixelatedPass = renderScene;
+        renderPixelatedPass = renderScene;
 
         const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
         bloomPass.threshold = params.bloomThreshold;
@@ -143,33 +145,38 @@
 
         // pixelated postprocessing pass
         composer = finalComposer;
+
+        resizecb = (w, h)=>{
+            renderer.setSize(w,h);
+            bloomComposer.setSize(w,h);
+            composer.setSize(w,h);
+        };
       }
       else {
         composer = new EffectComposer(renderer);
-        const renderPixelatedPass = new RenderPixelatedPass(1, scene, camera);
+        renderPixelatedPass = new RenderPixelatedPass(1, scene, camera);
         composer.addPass(renderPixelatedPass);
+        resizecb = (w, h)=>{
+            renderer.setSize(w,h);
+            composer.setSize(w,h);
+        };
       }
-
 
       // resizing
 
-      function doResize(width, height) {
+      function handleResize(evts) {
+        //for(let evt of Array.from(evts)) {
+        const width = window.innerWidth;
+        const height = window.innerHeight;
         const aspectRatio = width / height;
         camera.left = - aspectRatio;
         camera.right = aspectRatio;
         camera.updateProjectionMatrix();
-        renderer.setSize(width, height);
-        bloomComposer.setSize(width, height);
-        finalComposer.setSize(width, height);
-      }
-
-      function handleResize(evts) {
-        //for(let evt of Array.from(evts)) {
-        doResize(window.innerWidth, window.innerHeight);
+        resizecb(width, height);
         //}
       }
 
-      doResize(window.innerWidth, window.innerHeight);
+      resizecb(window.innerWidth, window.innerHeight);
       const resizeObserver = new ResizeObserver(handleResize);
       resizeObserver.observe(document.body);
 
@@ -254,11 +261,14 @@
       gui.add(renderPixelatedPass, 'depthEdgeStrength').min(-1).max(1).step(.05);
       gui.add(params, 'pixelAlignedPanning');
 
-      gui.add(params, 'exposure').min(0).max(3).step(0.01);
-      gui.add(params, 'bloomStrength').min(0).max(15).step(0.05);
-      gui.add(params, 'bloomThreshold').min(0).max(1.0).step(0.01);
-      gui.add(params, 'bloomRadius').min(0).max(20).step(0.1);
-
+      if(params['bloomEnabled'])
+      {
+          gui.add(params, 'exposure').min(0).max(3).step(0.01);
+          gui.add(params, 'bloomStrength').min(0).max(15).step(0.05);
+          gui.add(params, 'bloomThreshold').min(0).max(1.0).step(0.01);
+          gui.add(params, 'bloomRadius').min(0).max(20).step(0.1);
+      }
+    
       //gui.domElement.style.display = 'none'; // hide gui by default
 
       // interaction
