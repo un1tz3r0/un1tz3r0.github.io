@@ -6,16 +6,17 @@
     <style type="text/css">
       body,
       #container,
-      body div {
+      main,
+      body div, body main {
         box-sizing: border-box;
         padding: 0;
         margin: 0;
       }
       body {
         background-color: hsl(200deg 2% 66%);
-        text-stroke: hsl(0deg 0% 97%);
+        /*text-stroke: hsl(0deg 0% 97%);
         stroke-color: hsl(0deg 0% 66%);
-        background-color: hsl(0deg 0% 66%);
+        background-color: hsl(0deg 0% 66%);*/
         color: hsl(45deg 60% 92%);
         display: grid;
         justify-content: center;
@@ -24,54 +25,159 @@
         place-items: center;
         place-content: center;
         font-family: sans-serif;
-        font-size: 1.5em;
+        font-size: 1em;
       }
+
+      main {
+        place-self: stretch;
+        place-items: stretch;
+        place-content: stretch;
+        display: grid;
+        grid-template-columns: auto auto;
+        grid-template-rows: auto;
+      }
+
+
       div#container {
-        width: 100vw;
-        min-height: 100vh;
         place-self: center;
-        display: flex;
-        flex-direction: row;
+        display: grid;
+        padding: 5ex 3ex;
       }
+      
+      div#content {
+        display: grid;
+        place-items: start stretch;
+
+        grid-auto-rows: auto 1fr;
+        grid-auto-flow: column;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        grid-auto-columns: 1fr 1fr 1fr;
+        grid-gap: 3ex;
+      }
+      
       body,
+      main,
+      div#content,
       div#container,
       div#header,
       div#footer {
         margin: 0px;
         padding: 0px;
+        box-sizing: border-box;
       }
+      
       dl {
         display: grid;
-        grid-auto-flow: column;
+        grid-auto-flow: row;
         grid-template-rows: auto auto;
         margin: 0;
         padding: 0;
         display: grid;
-        grid-auto-column: 1fr;
-        grid-gap: 3ex;
+        grid-template-columns: fit-content;
+        margin: 0 5ex;
+        grid-gap: 1ex;
+        place-content: top;
+        place-self: top;
+        place-items: top;
       }
+
+      dl:first-of-type {
+        border-right: 1ex solid hsl(35deg, 60%, 65%);
+      }
+
+      dl:nth-of-type(2) {
+        border-right: 1ex solid hsl(70deg, 60%, 65%);
+      }
+
+      dl:nth-of-type(3) {
+        border-right: 1ex solid hsl(105deg, 60%, 65%);
+      }
+      
+      dl:nth-of-type(4) {
+        border-right: 1ex solid hsl(140deg, 60%, 65%);
+      }
+
       dl dt,
       dl dd {
-        border-right: thick solid hsl(120deg, 33%, 71%);
         padding-right: 2ex;
       }
+      
+      dl dd {
+        place-content: top;
+        place-self: top;
+        place-items: top;
+      }
+
+      dl dt {
+        height: min-content;
+        place-content: top;
+        place-self: top;
+        place-items: top;
+        text-align: right;
+
+      }
+      dt a {
+        text-decoration: none;
+        color: hsl(45deg 60% 92%);
+        font-weight: 900;
+        font-size: x-large;
+        border: medium solid hsl(45deg 60% 92%);
+        border-radius: 0.5ex;
+        width: fit-content;
+        padding: 0.5ex 1ex;
+        place-self: end;
+      }
+
+      p {
+        display: block; margin: none; font-size: medium;
+        height: fit-content;
+        text-align: justify;
+        text-justify: inter-word;
+        text-align-last: start;
+      }
+      
+      p:first-child {
+        margin-top: 0 !important;
+      }
+      
+      p:last-child {
+        margin-bottom: 0 !important;
+      }
+      
+      p:not(:first-of-type):not(:last-of-type) {
+        margin-bottom: 1ex;
+      }
+      
+      p > :last-line {
+        text-justify-last: revert;
+      }
+      
       dt {
         margin: 0;
         padding: 0;
         display: grid;
         text-indent: none;
+        grid-row: 1 / 1;
+        
+        
       }
+      dt a { text-decoration-style: none; };
       dd {
+        
         display: grid;
         text-indent: none;
         margin: 0;
         padding: 0;
       }
       div#header {
-        text-transform: rotate(-90deg);
+      height: 100vh;
+      display: none;
       }
       div#footer {
-        text-transform: rotate(90deg);
+      height: 100vh;
+      display: none;
       }
     </style>
   </head>
@@ -79,37 +185,36 @@
     style="
       height: 100vh;
       overflow: hidden;
-      text-align-last: end;
-      text-align: justify;
-      text-orientation: sideways-right;
-      text-size-adjust: revert;
     "
   >
     <div id="container" style="margin: 0px; padding: 0px">
+      
       <div id="header">
         <svg width="48pt" height="100vh">
           <g
-            style="stroke: #999; fill: #ccc; stroke-width: 0.5"
+            style="fill: #999;"
             transform="rotate(90, 10, 10) scale(2,2)"
           >
             <text>un1tz3r0.github.io</text>
           </g>
         </svg>
       </div>
+      
+      <main>
+      <h2 style="border-bottom: thick solid hsl(140deg, 60%, 65%); rotate: -90deg; width: 100%; place-self: stretch; grid-row: 1/3; grid-column: 1/2; height: fit-content; display: grid; ">Demos</h2>
+      
       <div id="content">
-        <h2>Demos</h2>
-
+        
         <dl>
           <dt><a href="./paisl/index.html">Paisl</a></dt>
           <dd>
             <p>
-              Interactive appolonian gasket art generator with SVG export and
-              realtime parametric viewer (site previously hosted at
-              paisl.cor3.app).
+              An interactive parametric paisley base on the geometry of tangent circles, the Apollonian gasket.
             </p>
-            <p></p>
           </dd>
+        </dl>
 
+        <dl>
           <dt><a href="./squid/index.html">Squid</a></dt>
           <dd>
             <p>
@@ -117,16 +222,18 @@
               animation! Utilizes circular paths through noise fields to create
               seamless looping animation.
             </p>
-            <p>
-              Featuring immersive audio courtesy of AI Test Kitchen and the
-              HTML5 Web Audio API.
-            </p>
           </dd>
+        </dl>
 
-          <dt><a href="./squid/index.html">Squid</a></dt>
+        <dl>
+          <dt><a href="./audio/index.html">Audio</a></dt>
           <dd><p>A fluid ambient soundscape</p></dd>
         </dl>
+
       </div>
+      
+      </main>
+      
       <div id="footer">
         <svg width="18pt" height="100vh">
           <g
@@ -139,6 +246,7 @@
           </g>
         </svg>
       </div>
+    
     </div>
   </body>
 </html>
