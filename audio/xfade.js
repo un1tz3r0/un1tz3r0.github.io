@@ -198,8 +198,7 @@ function startAnimation(xfade) {
 		}
 		else {
 			if (elem.textContent != String(value)) {
-				elem.replaceChildren(document.createTextNode(String(value));
-				elem.setAttribute("data-value", value);
+				elem.replaceChildren(document.createTextNode(String(value)));
 			}
 		}
 	}
