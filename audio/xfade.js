@@ -187,13 +187,30 @@ class XFadeRandomizer {
 function startAnimation(xfade) {
 	var animateHandle = null;
 
+	function updateValue(selector, value) {
+		const elem = document.querySelector(selector);
+		if(elem == null) {
+			console.warn(`Element not found: ${selector}`);
+			return;
+		}
+		if (elem.hasAttribute("value") && elem.getAttribute("value") != String(value)) {
+			elem.setAttribute(value);
+		}
+		else {
+			if (elem.textContent != String(value)) {
+				elem.replaceChildren(document.createTextNode(String(value));
+				elem.setAttribute("data-value", value);
+			}
+		}
+	}
+
 	function animate(frametime)
 	{
 		for(let i of [0,1]) {
-			document.querySelector(`#channel${i+1}_time`).value = String(xfade.channels[i].clipTime);
-			document.querySelector(`#channel${i+1}_state`).value = String(xfade.channels[i].channelState);
-			document.querySelector(`#channel${i+1}_clip`).value = String(xfade.channels[i].clipName);
-			document.querySelector(`#channel${i+1}_gain`).value = String(xfade.channels[i].channelGain);
+			updateValue(`#channel${i+1}_time`, xfade.channels[i].clipTime);
+			updateValue(`#channel${i+1}_state`, xfade.channels[i].channelState);
+			updateValue(`#channel${i+1}_clip`, xfade.channels[i].clipName);
+			updateValue(`#channel${i+1}_gain`, Math.round(xfade.channels[i].channelGain * 100.0));
 		}
 		animateHandle = window.requestAnimationFrame(animate);
 	}
