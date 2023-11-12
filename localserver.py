@@ -158,11 +158,15 @@ def main(host='0.0.0.0', port=8443, overwrite_creds=True):
 				print(f"Generating new server secret key {repr(key_path)}")
 				if cert_path.exists():
 						if not overwrite_creds:
-								# if the certificate exists, delete it
+								# cert with no key is no bueno
 								raise(FileExistsError(f"Existing certificate {cert_path} is likely invalid, please delete it."))
 						else:
+								# if the certificate exists, delete it
 								print(f"Removing old certificate {repr(cert_path)} (per --overwrite-creds)")
-								os.remove(cert_path)
+								os.remove(str(cert_path))
+				if key_path.exists():
+					print(f"Removing old private key {repr(key_path)} (per --overwrite-creds)")
+					os.remove(str(key_path))
 				# if the key doesn't exists, create a new one
 				key_pem = generate_rsa_key()
 				with open(key_path, 'wb') as f:
@@ -205,7 +209,7 @@ def main(host='0.0.0.0', port=8443, overwrite_creds=True):
 		"""
 		app = web.Application()
 		app.add_routes([web.get('/', handle),
-										web.get('/{name}', handle)])
+				web.get('/{name}', handle)])
 		"""
 
 		ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
