@@ -28,7 +28,7 @@ function fetchPlaylist(context, playlist) {
 				return fetchAudio(context, clipname).then((clip)=>{
 					clip.filename = clipname;
 					fetchedclips[clipname] = clip;
-					ok(await fetchNext(remainingclips, fetchedclips));
+					fetchNext(remainingclips, fetchedclips).then((resultclips) => { ok(resultclips); });	
 				});
 			}
 		});
