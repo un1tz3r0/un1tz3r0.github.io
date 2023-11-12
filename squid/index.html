@@ -294,7 +294,12 @@
     // generate the scene and install update functions
     function generateScene(use_scene = null) {
       var scene = ((use_scene != null) ? use_scene : new THREE.Scene());
-rned. finish reason: [stop]oader();
+
+      scene.background = new THREE.Color(0x232221);
+
+      // texture loader
+
+      const texLoader = new THREE.TextureLoader();
       //const gltfLoader = new THREE.GLTFLoader();
 
       /*
