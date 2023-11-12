@@ -149,7 +149,7 @@ class XFadeRandomizer {
 	getRandomClip() {
 		const clips = this.playlist;
 		const keys = Object.keys(clips);
-		const idx = Math.floor(Math.random(keys.length));
+		const idx = Math.floor(Math.random() * keys.length);
 		return clips[keys[idx]];
 	}
 
