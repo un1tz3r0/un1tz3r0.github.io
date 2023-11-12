@@ -335,7 +335,7 @@ function setupAudio()
 	'</svg>';
 
 		} else {
-			pausedOverlay.innerHTML = \			
+			pausedOverlay.innerHTML = 	
 			'<svg viewbox="0 0 24 24" width="96px" height="96px" xmlns="http://www.w3.org/2000/svg">' + 
 	'<use href="#av_volume_off_materialiconsround" x="0" y="0"/>' + 
 	'</svg>';
