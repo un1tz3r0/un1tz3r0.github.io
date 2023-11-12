@@ -1,28 +1,29 @@
 <html>
   <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width">
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
     <title>un1tz3r0</title>
     <style type="text/css">
-      body, #container, body div {
-	box-sizing: border-box;
-	padding: 0;
-	margin: 0;
+      body,
+      #container,
+      body div {
+        box-sizing: border-box;
+        padding: 0;
+        margin: 0;
       }
       body {
-        background-color: hsl(200deg 2.0% 66%);
-	text-stroke: hsl(0deg 0% 97%);
-	stroke-color: hsl(0deg 0% 66%);
-	background-color: hsl(0deg 0% 66%);
+        background-color: hsl(200deg 2% 66%);
+        text-stroke: hsl(0deg 0% 97%);
+        stroke-color: hsl(0deg 0% 66%);
+        background-color: hsl(0deg 0% 66%);
         color: hsl(45deg 60% 92%);
         display: grid;
-        //flex-direction: column;
         justify-content: center;
         align-items: center;
         place-self: center;
-	place-items: center;
-	place-content: center;
-	font-family: sans-serif;
+        place-items: center;
+        place-content: center;
+        font-family: sans-serif;
         font-size: 1.5em;
       }
       div#container {
@@ -31,8 +32,11 @@
         place-self: center;
         display: flex;
         flex-direction: row;
-      };
-      body, div#container, div#header, div#footer {
+      }
+      body,
+      div#container,
+      div#header,
+      div#footer {
         margin: 0px;
         padding: 0px;
       }
@@ -43,24 +47,25 @@
         margin: 0;
         padding: 0;
         display: grid;
-	grid-auto-column: 1fr;
-	grid-gap: 3ex;
+        grid-auto-column: 1fr;
+        grid-gap: 3ex;
       }
-      dl dt, dl dd {
-      	border-right: thick solid hsl(120deg, 33%, 71%);
-	padding-right: 2ex;
+      dl dt,
+      dl dd {
+        border-right: thick solid hsl(120deg, 33%, 71%);
+        padding-right: 2ex;
       }
       dt {
         margin: 0;
         padding: 0;
         display: grid;
-	text-indent: none;
+        text-indent: none;
       }
       dd {
         display: grid;
-	text-indent: none;
-	margin: 0;
-	padding: 0;
+        text-indent: none;
+        margin: 0;
+        padding: 0;
       }
       div#header {
         text-transform: rotate(-90deg);
@@ -70,39 +75,69 @@
       }
     </style>
   </head>
-  <body style="
-	height: 100vh;
-	overflow: hidden;
-	text-align-last: end;
-	text-align: justify;
-	text-orientation: sideways-right;
-	text-size-adjust: revert;">
+  <body
+    style="
+      height: 100vh;
+      overflow: hidden;
+      text-align-last: end;
+      text-align: justify;
+      text-orientation: sideways-right;
+      text-size-adjust: revert;
+    "
+  >
     <div id="container" style="margin: 0px; padding: 0px">
       <div id="header">
-        <svg width="48pt" height="100vh"><g style="stroke: #999; fill: #ccc; stroke-width: 0.5;" transform="rotate(90, 10, 10) scale(2,2)"><text>un1tz3r0.github.io</text></g></svg>
-      </div>    
+        <svg width="48pt" height="100vh">
+          <g
+            style="stroke: #999; fill: #ccc; stroke-width: 0.5"
+            transform="rotate(90, 10, 10) scale(2,2)"
+          >
+            <text>un1tz3r0.github.io</text>
+          </g>
+        </svg>
+      </div>
       <div id="content">
         <h2>Demos</h2>
 
         <dl>
-    	<dt><a href="./paisl/index.html">Paisl</a></dt>
-        <dd><p>Interactive appolonian gasket art generator with SVG export and realtime parametric viewer (site previously hosted at paisl.cor3.app).</p><p></p></dd>
-        
-        <dt><a href="./squid/index.html">Squid</a></dt>
-        <dd><p>A three.js generative procedural looping parametric tentacle animation! Utilizes circular paths through noise fields to create seamless looping animation.</p><p>Featuring immersive audio courtesy of AI Test Kitchen and the HTML5 Web Audio API.</p>
-        </dd>
-        
-        <dt><a href="./squid/index.html">Squid</a></dt>
-        <dd><p>A fluid ambient soundscape </p>
-        </dd>
-      </dl>
+          <dt><a href="./paisl/index.html">Paisl</a></dt>
+          <dd>
+            <p>
+              Interactive appolonian gasket art generator with SVG export and
+              realtime parametric viewer (site previously hosted at
+              paisl.cor3.app).
+            </p>
+            <p></p>
+          </dd>
+
+          <dt><a href="./squid/index.html">Squid</a></dt>
+          <dd>
+            <p>
+              A three.js generative procedural looping parametric tentacle
+              animation! Utilizes circular paths through noise fields to create
+              seamless looping animation.
+            </p>
+            <p>
+              Featuring immersive audio courtesy of AI Test Kitchen and the
+              HTML5 Web Audio API.
+            </p>
+          </dd>
+
+          <dt><a href="./squid/index.html">Squid</a></dt>
+          <dd><p>A fluid ambient soundscape</p></dd>
+        </dl>
       </div>
       <div id="footer">
         <svg width="18pt" height="100vh">
-          <g transform="rotate(90, 10, 10) scale(0.75,0.75)" style="stroke: #888; fill: #eee; stroke-width: 1;">
-            <text stroke="2">©2023 Victor Condino (aka un1tz3r0), CC-BY-NC</text>
+          <g
+            transform="rotate(90, 10, 10) scale(0.75,0.75)"
+            style="stroke: #888; fill: #eee; stroke-width: 1"
+          >
+            <text stroke="2">
+              ©2023 Victor Condino (aka un1tz3r0), CC-BY-NC
+            </text>
           </g>
-	</svg>
+        </svg>
       </div>
     </div>
   </body>
