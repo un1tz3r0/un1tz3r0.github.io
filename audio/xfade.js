@@ -124,7 +124,7 @@ class Channel {
 		this.source.buffer = clip;
 		this.source.start(start_time);
 		// set up envelope
-		this.param.clear();
+		this.param.cancelScheduledValues(start_time);
 		this.param.setValueAtTime(0, start_time);
 		this.param.linearRampToValueAtTime(1, start_time + this.mixer.overlap);
 		this.param.linearRampToValueAtTime(1, start_time + clip.duration - this.mixer.overlap);
