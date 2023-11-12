@@ -185,7 +185,7 @@ class XFadeRandomizer {
 
 // update the visual feedback of the channels' playback states
 function startAnimation(xfade) {
-	var animateHandle = none;
+	var animateHandle = null;
 
 	function animate(frametime)
 	{
