@@ -329,15 +329,15 @@ function setupAudio()
 				console.info("Audio running and loaded, calling scheduleAudio()");
 				pausedOverlay.style.transform = "translateY(-100vh)";
 			});
-			pausedOverlay.innerHTML = \
-			'<svg viewbox="0 0 24 24" width="96px" height="96px" xmlns="http://www.w3.org/2000/svg">' + \
-	'<use href="#av_volume_down_materialiconsround" x="0" y="0"/>' + \
+			pausedOverlay.innerHTML = 
+			'<svg viewbox="0 0 24 24" width="96px" height="96px" xmlns="http://www.w3.org/2000/svg">' + 
+	'<use href="#av_volume_down_materialiconsround" x="0" y="0"/>' + 
 	'</svg>';
 
 		} else {
 			pausedOverlay.innerHTML = \			
-			'<svg viewbox="0 0 24 24" width="96px" height="96px" xmlns="http://www.w3.org/2000/svg">' + \
-	'<use href="#av_volume_off_materialiconsround" x="0" y="0"/>' + \
+			'<svg viewbox="0 0 24 24" width="96px" height="96px" xmlns="http://www.w3.org/2000/svg">' + 
+	'<use href="#av_volume_off_materialiconsround" x="0" y="0"/>' + 
 	'</svg>';
 			pausedOverlay.style.transform = "translateY(0vh)";
 		}
