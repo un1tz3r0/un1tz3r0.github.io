@@ -6,22 +6,28 @@
 		<style src="./index.css"></style>
 	</head>
 	<body onload="javascript:setupAudio()" class="startplayback">
-		<h>Ambient loop crossfade randomly demo.</h>
+		<h1>Ambient loop crossfade randomly demo.</h1>
 		<div class="channels">
-			<p class="channel" id="channel1">
-				<span class="channel_label">Ch. 1</span>
-				<output class="state">STOPPED</output>
-				<input type="range" minimum="0" maximum="100" id="channel1_gain"></input>
-				<output id="channel1_time"></output>
-				<output id="channel1_clipname"></output>
-			</p>
-			<p class="channel" id="channel2">Ch. 2 <output class="state">STOPPED</output> <input type="range" minimum="0" maximum="100" id="channel2_gain"></input> <output id="channel2_time"></output> <output id="channel2_clipname"></output></p>
+			<div class="channel" id="channel1">
+				<label class="channel_label">Ch. 1</label>
+				<output class="channel_state" id="channel1_state">STOPPED</output>
+				<input class="channel_gain" type="range" minimum="0" maximum="100" id="channel1_gain"></input>
+				<output class="channel_time" id="channel1_time">0.0s</output>
+				<output class="channel_clipname" id="channel1_clipname">clip1.mp3</output>
+			</div>
+			<div class="channel" id="channel2">
+				<label class="channel_label">Ch. 2</label>
+				<output class="channel_state" id="channel2_state">STOPPED</output>
+				<input class="channel_gain" type="range" minimum="0" maximum="100" id="channel2_gain"></input>
+				<output class="channel_time" id="channel2_time">0.0s</output>
+				<output class="channel_clipname" id="channel2_clipname">clip2.mp3</output>
+			</div>
 		</div>
 		<div>
 			<p>&copy;2023 by V.C. <a href="https://github.com/un1tz3r0">@un1tz3r0</a></p>
 		</div>
 		<nav>
-			<a href="../index.html" alt="Go to landing page">Back</a>
+			<a href="../index.html" alt="Up to homepage...">Back</a>
 		</nav>
 	</body>
 </html>
