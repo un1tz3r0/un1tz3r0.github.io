@@ -4,24 +4,50 @@
 		<script src="./xfade.js"></script>
 		<script src="../cookies.js"></script>
 		<style src="./index.css"></style>
+		<style>
+			.fab-obl {
+				display: grid;
+				width: min-content;
+				height: min-content;
+				padding: 10vmin 10vmin;
+				place-contents: center;
+				box-sizing: border-box;
+				place-items: center;
+				position: absolute;
+				bottom: 100vh;
+				left: 0vw;
+			}
+			.btn-c {
+				display: grid;
+				border-radius: 50% 50%;
+				background-color: hsl(135deg 70% 50%);
+				color: hsl(135deg 78% 80%);
+				width: 7ex;
+				height: 7ex;
+			}
+			.btn-c * {
+				grid-column: 1/2;
+				grid-row: 1/2;
+			}
+		</style>
 	</head>
 	<body onload="javascript:setupAudio()" class="startplayback">
 		<h>Ambient loop crossfade randomly demo.</h>
 		<div class="channels">
-			<p class="channel" id="channel1">
-				<span class="channel_label">Ch. 1</span>
+			<div class="channel" id="channel1">
+				<span class="channel1_label">Ch. 1</span>
 				<output class="state">STOPPED</output>
 				<input type="range" minimum="0" maximum="100" id="channel1_gain"></input>
 				<output id="channel1_time"></output>
 				<output id="channel1_clipname"></output>
-			</p>
-			<p class="channel" id="channel2">Ch. 2 <output class="state">STOPPED</output> <input type="range" minimum="0" maximum="100" id="channel2_gain"></input> <output id="channel2_time"></output> <output id="channel2_clipname"></output></p>
+			</div>
+			<div class="channel" id="channel2">Ch. 2 <output class="state">STOPPED</output> <input type="range" minimum="0" maximum="100" id="channel2_gain"></input> <output id="channel2_time"></output> <output id="channel2_clipname"></output></p>
 		</div>
 		<div>
 			<p>&copy;2023 by V.C. <a href="https://github.com/un1tz3r0">@un1tz3r0</a></p>
 		</div>
-		<nav>
-			<a href="../index.html" alt="Go to landing page">Back</a>
+		<nav class="fab-obl">
+			<a class="btn-c" href="../index.html" alt="Go to landing page">Back</a>
 		</nav>
 	</body>
 </html>
