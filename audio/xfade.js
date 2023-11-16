@@ -16,15 +16,6 @@ async function fetchAudio(context, name) {
   }
 }
 
-/*
-function fetchnamedclip(clipname, dest) {
-	return fetchAudio(clipname).then((buf) => {
-		console.info(`Loaded clip ${clipname}.`
-		clips[clipname] = buf;
-	});
-}
-*/
-
 function fetchPlaylist(context, playlist) {
 	var fetchedclips = {};
 	function fetchNext(playlist, fetchedclips) {
@@ -36,7 +27,7 @@ function fetchPlaylist(context, playlist) {
 				var remainingclips = playlist.slice(1);
 				return fetchAudio(context, clipname).then((clip)=>{
 					fetchedclips[clipname] = clip;
-					ok(await fetchNext(remainingclips, fetchedclips));
+					fetchNext(remainingclips, fetchedclips).then(ok);
 				});
 			}
 		});
@@ -71,6 +62,7 @@ class Channel {
 		// we want to schedule playback on the channel, we need to dispose of the previous one,
 		// construct a new one and hook it up to the gain node.
 		const chan = this;
+		
 		if(this.source != null) {
 			this.source.disconnect(this.gain);
 		}
@@ -79,7 +71,7 @@ class Channel {
 		this.source.addEventListener("ended", (evt)=>{
 			chan.playing = false;
 			chan.available = true;
-
+			
 			chan.mixer.scheduleNextClip();
 		});
 		//this.sources[i].loop = true;
@@ -108,7 +100,7 @@ class Channel {
 		this.source.buffer = clip;
 		this.source.start(start_time);
 		// set up envelope
-		this.param.clear();
+		this.param.cancelScheduledValues(start_time);
 		this.param.setValueAtTime(0, start_time);
 		this.param.linearRampToValueAtTime(1, start_time + this.mixer.overlap);
 		this.param.linearRampToValueAtTime(1, start_time + clip.duration - this.mixer.overlap);
@@ -233,15 +225,15 @@ function setupAudio()
 				console.info("Audio running and loaded, calling scheduleAudio()");
 				pausedOverlay.style.transform = "translateY(-100vh)";
 			});
-			pausedOverlay.innerHTML = \
-			'<svg viewbox="0 0 24 24" width="96px" height="96px" xmlns="http://www.w3.org/2000/svg">' + \
-	'<use href="#av_volume_down_materialiconsround" x="0" y="0"/>' + \
+			pausedOverlay.innerHTML = 
+			'<svg viewbox="0 0 24 24" width="96px" height="96px" xmlns="http://www.w3.org/2000/svg">' + 
+	'<use href="#av_volume_down_materialiconsround" x="0" y="0"/>' + 
 	'</svg>';
 
 		} else {
-			pausedOverlay.innerHTML = \			
-			'<svg viewbox="0 0 24 24" width="96px" height="96px" xmlns="http://www.w3.org/2000/svg">' + \
-	'<use href="#av_volume_off_materialiconsround" x="0" y="0"/>' + \
+			pausedOverlay.innerHTML = 
+			'<svg viewbox="0 0 24 24" width="96px" height="96px" xmlns="http://www.w3.org/2000/svg">' + 
+	'<use href="#av_volume_off_materialiconsround" x="0" y="0"/>' + 
 	'</svg>';
 			pausedOverlay.style.transform = "translateY(0vh)";
 		}
