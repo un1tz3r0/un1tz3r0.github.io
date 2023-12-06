@@ -1,4 +1,7 @@
-let audiocontext, audioclips, audiobuffers, audiostarted = false;
+let audiocontext;
+let audioclips;
+let audiobuffers;
+let audiostarted = false;
 
 // fetchAudio() returns a Promise
 // it uses fetch() to load an audio file
@@ -100,7 +103,7 @@ class Channel {
 		this.source.buffer = clip;
 		this.source.start(start_time);
 		// set up envelope
-		this.param.cancelScheduledValues(start_time);
+		this.param.clear();
 		this.param.setValueAtTime(0, start_time);
 		this.param.linearRampToValueAtTime(1, start_time + this.mixer.overlap);
 		this.param.linearRampToValueAtTime(1, start_time + clip.duration - this.mixer.overlap);
@@ -214,11 +217,11 @@ function setupAudio()
 	pausedOverlay.innerHTML = "&lt; Click to play... &gt;";
 	
 	//const styleElem = document.createElement("style");
-
 	document.body.appendChild(pausedOverlay);
 
 	//const pausedOverlay = document.querySelector(".pausedOverlay");
 	pausedOverlay.addEventListener("click", (evt)=>{
+	
 		if(pausedOverlay.classList.contains("show")) {
 			startAudio().then(()=>{
 				pausedOverlay.innerHTML = "&lt; Loaded! &gt;";
@@ -229,7 +232,6 @@ function setupAudio()
 			'<svg viewbox="0 0 24 24" width="96px" height="96px" xmlns="http://www.w3.org/2000/svg">' + 
 	'<use href="#av_volume_down_materialiconsround" x="0" y="0"/>' + 
 	'</svg>';
-
 		} else {
 			pausedOverlay.innerHTML = 
 			'<svg viewbox="0 0 24 24" width="96px" height="96px" xmlns="http://www.w3.org/2000/svg">' + 

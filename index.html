@@ -5,24 +5,23 @@
     <title>un1tz3r0</title>
     <style type="text/css">
       body, #container, body div {
-	box-sizing: border-box;
-	padding: 0;
-	margin: 0;
+        box-sizing: border-box;
+        padding: 0;
+        margin: 0;
       }
       body {
-        background-color: hsl(200deg 2.0% 66%);
-	text-stroke: hsl(0deg 0% 97%);
-	stroke-color: hsl(0deg 0% 66%);
-	background-color: hsl(0deg 0% 66%);
-        color: hsl(45deg 60% 92%);
+        /* text-stroke: hsl(0deg 0% 92%);
+	      stroke-color: hsl(0deg 0% 10%);
+        */
+	      background-color: hsl(20, 100%, 50%);
+        color: hsl(30deg 50% 92%);
         display: grid;
-        //flex-direction: column;
         justify-content: center;
         align-items: center;
         place-self: center;
-	place-items: center;
-	place-content: center;
-	font-family: sans-serif;
+        place-items: center;
+        place-content: center;
+        font-family: sans-serif;
         font-size: 1.5em;
       }
       div#container {
@@ -43,24 +42,24 @@
         margin: 0;
         padding: 0;
         display: grid;
-	grid-auto-columns: 1fr;
-	grid-gap: 3ex;
+        grid-auto-columns: 1fr;
+        grid-gap: 3ex;
       }
       dl dt, dl dd {
       	border-right: thick solid hsl(120deg, 33%, 71%);
-	padding-right: 2ex;
+      	padding-right: 2ex;
       }
       dt {
         margin: 0;
         padding: 0;
         display: grid;
-	text-indent: none;
+      	text-indent: none;
       }
       dd {
         display: grid;
-	text-indent: none;
-	margin: 0;
-	padding: 0;
+        text-indent: none;
+        margin: 0;
+        padding: 0;
       }
       div#header {
         text-transform: rotate(-90deg);
@@ -68,16 +67,15 @@
       div#footer {
         text-transform: rotate(90deg);
       }
+      .vertical, h1, dt {
+        writing-mode: vertical-rl;
+        text-orientation: sideways-right;
+      }
+
     </style>
   </head>
-  <body style="
-	height: 100vh;
-	overflow: hidden;
-	text-align-last: end;
-	text-align: justify;
-	text-orientation: sideways-right;
-	text-size-adjust: revert;">
-    <div id="container" style="margin: 0px; padding: 0px">
+  <body style="height: 100vh; overflow: hidden;">
+    <div id="container" style="margin: 0px; padding: 0px; max-width: 800px;">
       <div id="header">
         <svg width="48pt" height="100vh"><g style="stroke: #999; fill: #ccc; stroke-width: 0.5;" transform="rotate(90, 10, 10) scale(2,2)"><text>un1tz3r0.github.io</text></g></svg>
       </div>    
