@@ -2261,7 +2261,7 @@ function toggleSourcePane(visibleState = null)
   	gutter.classList.add("visible");
   	container.classList.add("visible");
   	button.classList.add("visible");
-  }1v/
+  }
   else if(visibleState == false || (visibleState == null ))
   {
   	main.classList.add("sourcepanehidden");
