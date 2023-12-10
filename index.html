@@ -1,23 +1,49 @@
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width" />
+<html><head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width">
     <title>un1tz3r0</title>
     <style type="text/css">
-      body,
-      #container,
-      main,
-      body div, body main {
+
+@import url('https://fonts.googleapis.com/css2?family=Dosis:wght@200;300;400;500;700&display=swap');
+
+html, body, div {
+  font-family: 'Dosis', sans-serif;
+  font-weight: 100;
+  overflow: hide;
+}
+
+h1, h2, h3, h4, h5, h6, dt {
+  font-family: 'Dosis', sans-serif;
+font-weight: bold;
+}
+
+/*p {
+  font-family: 'IBM Plex Serif', serif;
+}*/
+
+code, pre {
+  font-family: 'Dosis', monospace;
+  font-weight: 100;
+}
+
+
+      * {
         box-sizing: border-box;
+      }
+      body, #container, div, dl, dt, dd {
         padding: 0;
         margin: 0;
       }
+      h2 {
+        font-size: 2cm;
+        transform: rotate(180deg);
+      }
       body {
-        background-color: hsl(200deg 2% 66%);
-        /*text-stroke: hsl(0deg 0% 97%);
-        stroke-color: hsl(0deg 0% 66%);
-        background-color: hsl(0deg 0% 66%);*/
-        color: hsl(45deg 60% 92%);
+        /* text-stroke: hsl(0deg 0% 92%);
+	      stroke-color: hsl(0deg 0% 10%);
+        */
+	      background-color: hsl(20, 5%, 29%);
+        color: hsl(30deg 50% 75%);
         display: grid;
         justify-content: center;
         align-items: center;
@@ -25,228 +51,208 @@
         place-items: center;
         place-content: center;
         font-family: sans-serif;
-        font-size: 1em;
+        font-size: 1.5em;
       }
-
-      main {
-        place-self: stretch;
-        place-items: stretch;
-        place-content: stretch;
-        display: grid;
-        grid-template-columns: auto auto;
-        grid-template-rows: auto;
-      }
-
-
       div#container {
+        width: 100vw;
+        /*min-height: 100vh;*/
         place-self: center;
         display: grid;
-        padding: 5ex 3ex;
+        grid-auto-flow: row;
+        grid-gap: 2ex;
+        grid-template-columns: auto 1fr auto;
       }
-      
-      div#content {
+      body, div#container, div#content, div#header, div#footer {
+        margin: 0px;
+        padding: 0px;
+      }
+      dl {
         display: grid;
-        place-items: start stretch;
-
-        grid-auto-rows: auto 1fr;
         grid-auto-flow: column;
         margin: 0;
         padding: 0;
         display: grid;
-        grid-auto-columns: 1fr 1fr 1fr;
-        grid-gap: 3ex;
+        grid-auto-columns: auto min-content;
+        grid-auto-rows: 1fr;
+        grid-gap: 1ex;
       }
-      
-      body,
-      main,
-      div#content,
-      div#container,
-      div#header,
-      div#footer {
-        margin: 0px;
-        padding: 0px;
+      dl {
+      	padding-right: 0.5ex;
+        padding-bottom: 0.5ex;
+        border-bottom-right-radius: 2ex;
+        border: 0.5ex solid hsl(120deg, 66%, 60%);
+        border-style: none solid solid none;
         box-sizing: border-box;
       }
-      
-      dl {
-        display: grid;
-        grid-auto-flow: row;
-        grid-template-rows: auto auto;
-        margin: 0;
-        padding: 0;
-        display: grid;
-        grid-template-columns: fit-content;
-        margin: 0 5ex;
-        grid-gap: 1ex;
-        place-content: top;
-        place-self: top;
-        place-items: top;
+      dl:nth-child(3n+1) {
+        border-color: hsl(60deg, 66%, 60%) !important;
       }
-
-      dl:first-of-type {
-        border-right: 1ex solid hsl(35deg, 60%, 65%);
+      dl:nth-child(3n+2) {
+        border-color: hsl(15deg, 66%, 60%) !important;
       }
-
-      dl:nth-of-type(2) {
-        border-right: 1ex solid hsl(70deg, 60%, 65%);
-      }
-
-      dl:nth-of-type(3) {
-        border-right: 1ex solid hsl(105deg, 60%, 65%);
-      }
-      
-      dl:nth-of-type(4) {
-        border-right: 1ex solid hsl(140deg, 60%, 65%);
-      }
-
-      dl dt,
-      dl dd {
-        padding-right: 2ex;
-      }
-      
-      dl dd {
-        place-content: top;
-        place-self: top;
-        place-items: top;
-      }
-
-      dl dt {
-        height: min-content;
-        place-content: top;
-        place-self: top;
-        place-items: top;
-        text-align: right;
-
+      dl:nth-child(3n+3) {
+        border-color: hsl(210deg, 66%, 60%) !important;
       }
       dt a {
+        color: hsl(30deg 30% 75%);
+        place-self: stretch;
+        place-content: center;
+        display: grid;
         text-decoration: none;
-        color: hsl(45deg 60% 92%);
-        font-weight: 900;
-        font-size: x-large;
-        border: medium solid hsl(45deg 60% 92%);
-        border-radius: 0.5ex;
-        width: fit-content;
-        padding: 0.5ex 1ex;
-        place-self: end;
+        padding: 3ex 1ex;
+        border-radius: 1ex;
+        border: 0.5ex solid hsl(30deg, 15%, 45%);
       }
-
-      p {
-        display: block; margin: none; font-size: medium;
-        height: fit-content;
-        text-align: justify;
-        text-justify: inter-word;
-        text-align-last: start;
+      dt a:hover {
+        color: hsl(30deg 15% 12%);
+        background-color: hsl(30deg, 15%, 45%);
       }
-      
-      p:first-child {
-        margin-top: 0 !important;
-      }
-      
-      p:last-child {
-        margin-bottom: 0 !important;
-      }
-      
-      p:not(:first-of-type):not(:last-of-type) {
-        margin-bottom: 1ex;
-      }
-      
-      p > :last-line {
-        text-justify-last: revert;
-      }
-      
       dt {
         margin: 0;
         padding: 0;
         display: grid;
-        text-indent: none;
-        grid-row: 1 / 1;
-        
-        
+      	text-indent: none;
+        grid-column: 2/3;
+
       }
-      dt a { text-decoration-style: none; };
       dd {
-        
+        max-width: 10em;
         display: grid;
         text-indent: none;
         margin: 0;
         padding: 0;
+        grid-column: 1/2;
       }
-      div#header {
-      height: 100vh;
-      display: none;
+      div#header div div div {
+        font-size: 2cm;
       }
       div#footer {
-      height: 100vh;
-      display: none;
+        font-size: smaller;
+      }
+      .vertical, h1, dt {
+        writing-mode: vertical-rl;
+        text-orientation: sideways-right;
+      }
+      #container {
+        grid-gap: 3ex;
+        display: grid;
+        grid-template-columns: auto auto auto;
+      }
+      #content {
+        display: grid;
+        grid-auto-flow: row;
+        grid-gap: 3ex;
+        place-self: space-around;
+      }
+      #cards {
+        place-self: stretch;
+        display: grid;
+        grid-auto-flow: dense;
+        grid-gap: 1ex;
+        grid-template-columns: repeat(auto-fill, minmax(10em, 1fr));
+      }
+      h2 {
+        /*width: auto;*/
+        place-self: stretch;
+        display: grid;
+        grid-row: 2/3;
+        place-content: center;
+        margin: 0;
+        padding: 0;
+        border-color: hsl(from color h s 35%) 0.5ex solid;
+        font-size: revert;
+        border-bottom-right-radius: 1ex;
+        border-style: none solid solid none;
+      }
+
+      .tab {
+        display: grid;
+        grid-auto-flow: row;
+        grid-gap: 0.5ex;
+        grid-template-columns: auto;
+        grid-template-rows: auto;
+        place-self: stretch;
+        place-content: stretch;
+        place-items: stretch;
+        border: 0.5ex solid hsl(30deg, 15%, 45%);
+        box-sizing: border-box;
+        margin: 0;
+        &.outer {
+          background: repeating-linear-gradient(45deg, hsl(30deg, 15%, 45%), hsl(30deg, 15%, 45%) .5ex, transparent 1px, transparent 3ex, hsl(30deg, 15%, 45%) 1px);
+          &.left { 
+            border-style: solid solid solid none;
+            border-top-right-radius: 3ex;
+            border-bottom-right-radius: 3ex;
+            padding: 2ex 2ex 2ex 0px;
+          }
+          &.right { 
+            border-style: solid none solid solid;
+            border-top-left-radius: 3ex;
+            border-bottom-left-radius: 3ex;
+            padding: 1ex 0px 1ex 1ex;
+          }
+        }
+        &.tab.inner {
+          padding: 1ex;
+          background-color:hsl(20, 5%, 29%);
+          &.left {
+            border-style: solid solid solid none;
+            border-top-right-radius: 1ex;
+            border-bottom-right-radius: 1ex;
+          }
+          &.right {
+            border-style: solid none solid solid;
+            border-top-left-radius: 1.5ex;
+            border-bottom-left-radius: 1.5ex;
+          }
+        }
       }
     </style>
   </head>
-  <body
-    style="
-      height: 100vh;
-      overflow: hidden;
-    "
-  >
-    <div id="container" style="margin: 0px; padding: 0px">
-      
+  <body style="min-height: 100vh; width: 100vw; overflow-x: hidden;">
+    <div id="container">
       <div id="header">
-        <svg width="48pt" height="100vh">
-          <g
-            style="fill: #999;"
-            transform="rotate(90, 10, 10) scale(2,2)"
-          >
-            <text>un1tz3r0.github.io</text>
-          </g>
-        </svg>
-      </div>
-      
-      <main>
-      <h2 style="border-bottom: thick solid hsl(140deg, 60%, 65%); rotate: -90deg; width: 100%; place-self: stretch; grid-row: 1/3; grid-column: 1/2; height: fit-content; display: grid; ">Demos</h2>
-      
+        <div class="left tab outer">  
+          <div class="left tab inner">  
+            <!--
+            &lt;svg width="48pt" height="100vh"&lt;&gt;g style="stroke: #999; fill: #ccc; stroke-width: 0.5;" transform="rotate(90, 10, 10) scale(2,2)"&gt;&lt;textun1tz3r0.github.io&lt;/text&gt;&lt;/g&gt;&lt;/svg&gt;
+            -->
+            <div class="vertical">un1tz3r0.github.io</div>
+          </div>
+        </div>
+      </div>    
       <div id="content">
-        
-        <dl>
-          <dt><a href="./paisl/index.html">Paisl</a></dt>
-          <dd>
-            <p>
-              An interactive parametric paisley base on the geometry of tangent circles, the Apollonian gasket.
-            </p>
-          </dd>
-        </dl>
-
-        <dl>
-          <dt><a href="./squid/index.html">Squid</a></dt>
-          <dd>
-            <p>
-              A three.js generative procedural looping parametric tentacle
-              animation! Utilizes circular paths through noise fields to create
-              seamless looping animation.
-            </p>
-          </dd>
-        </dl>
-
-        <dl>
-          <dt><a href="./audio/index.html">Audio</a></dt>
-          <dd><p>A fluid ambient soundscape</p></dd>
-        </dl>
-
+        <div id="cards">
+          <dl>
+            <dt class="vertical"><a href="./paisl/index.html">Paisl</a></dt>
+            <dd><p>Interactive appolonian gasket art generator with SVG export.</p></dd>
+          </dl>
+          <dl>
+            <dt class="vertical"><a href="./squid/index.html">Squid</a></dt>
+            <dd><p>A three.js generative procedural looping parametric tentacle animation.</p></dd>
+          </dl>
+          <dl>
+            <dt class="vertical"><a href="./audio/index.html">X-Fade</a></dt>
+            <dd><p>A fluid, randomly looping ambient soundscape.</p></dd>
+          </dl>
+        </div>
+        <h2><span style="border: 1ex; padding: 1ex;"><a style="font-size: 1.25cm">Demos</a></span></h2>
       </div>
-      
-      </main>
-      
       <div id="footer">
-        <svg width="18pt" height="100vh">
-          <g
-            transform="rotate(90, 10, 10) scale(0.75,0.75)"
-            style="stroke: #888; fill: #eee; stroke-width: 1"
-          >
-            <text stroke="2">
-              ©2023 Victor Condino (aka un1tz3r0), CC-BY-NC
-            </text>
-          </g>
-        </svg>
+        <div class="right tab outer">
+          <div class="right tab inner">
+            <span class="vertical">©2023 V. Condino (aka un1tz3r0), CC-BY-NC</span>
+          </div>
+        </div>
+        <!--
+          <svg width="18pt" height="100vh">
+            <g transform="rotate(90, 10, 10) scale(0.75,0.75)" style="stroke: #888; fill: #eee; stroke-width: 1;">
+              <text stroke="2">©2023 Victor Condino (aka un1tz3r0), CC-BY-NC</text>
+            </g>
+          </svg>
+        -->
       </div>
-    
     </div>
-  </body>
-</html>
+  
+
+</body></html>
