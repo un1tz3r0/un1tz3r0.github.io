@@ -143,13 +143,13 @@ def main(host='0.0.0.0', port=8443, overwrite_creds=True):
 		Run a local web server to serve the current directory.
 		'''
 		script_dir = pathlib.Path(__file__).resolve().parent
-		
+
 		# cd to script directory
 		os.chdir(str(script_dir))
 
 		# Get the current directory
 		current_dir = pathlib.Path('.').resolve()
-		
+
 		# Get the key and certificate pem file paths in the scripts parent directory
 		key_path = current_dir / 'key.pem'
 		cert_path = current_dir / 'cert.pem'
@@ -225,6 +225,6 @@ async def runcommand(cmd, *args):
 
 async def openbrowser(url):
 				await runcommand("xdg-open", url)
-
+ 
 if __name__ == '__main__':
 		main()

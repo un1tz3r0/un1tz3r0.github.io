@@ -1,43 +1,46 @@
-<html><head>
+<html>
+  <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width">
     <title>un1tz3r0</title>
     <style type="text/css">
 
-@import url('https://fonts.googleapis.com/css2?family=Dosis:wght@200;300;400;500;700&display=swap');
+      @import url('https://fonts.googleapis.com/css2?family=Dosis:wght@200;300;400;500;700&display=swap');
 
-html, body, div {
-  font-family: 'Dosis', sans-serif;
-  font-weight: 100;
-  overflow: hide;
-}
+      html, body, div {
+        font-family: 'Dosis', sans-serif;
+        font-weight: 100;
+        overflow: hide;
+      }
 
-h1, h2, h3, h4, h5, h6, dt {
-  font-family: 'Dosis', sans-serif;
-  font-weight: bold;
-}
+      h1, h2, h3, h4, h5, h6, dt {
+        font-family: 'Dosis', sans-serif;
+        font-weight: bold;
+      }
 
-/*p {
-  font-family: 'IBM Plex Serif', serif;
-}*/
+      /*p {
+        font-family: 'IBM Plex Serif', serif;
+      }*/
 
-code, pre {
-  font-family: 'Dosis', monospace;
-  font-weight: 100;
-}
-
+      code, pre {
+        font-family: 'Dosis', monospace;
+        font-weight: 100;
+      }
 
       * {
         box-sizing: border-box;
       }
+
       body, #container, div, dl, dt, dd {
         padding: 0;
         margin: 0;
       }
+      
       h2 {
         font-size: 2cm;
         transform: rotate(180deg);
       }
+      
       body {
         /* text-stroke: hsl(0deg 0% 92%);
 	      stroke-color: hsl(0deg 0% 10%);
@@ -53,6 +56,7 @@ code, pre {
         font-family: sans-serif;
         font-size: 1.5em;
       }
+      
       div#container {
         width: 100vw;
         /*min-height: 100vh;*/
@@ -62,10 +66,12 @@ code, pre {
         grid-gap: 2ex;
         grid-template-columns: auto 1fr auto;
       }
+      
       body, div#container, div#content, div#header, div#footer {
         margin: 0px;
         padding: 0px;
       }
+      
       dl {
         display: grid;
         grid-auto-flow: column;
@@ -76,6 +82,7 @@ code, pre {
         grid-auto-rows: 1fr;
         grid-gap: 1ex;
       }
+      
       dl {
       	padding-right: 0.5ex;
         padding-bottom: 0.5ex;
@@ -84,15 +91,19 @@ code, pre {
         border-style: none solid solid none;
         box-sizing: border-box;
       }
+      
       dl:nth-child(3n+1) {
         border-color: hsl(60deg, 66%, 60%) !important;
       }
+      
       dl:nth-child(3n+2) {
         border-color: hsl(15deg, 66%, 60%) !important;
       }
+      
       dl:nth-child(3n+3) {
         border-color: hsl(210deg, 66%, 60%) !important;
       }
+      
       dt a {
         color: hsl(30deg 30% 75%);
         place-self: stretch;
@@ -103,18 +114,20 @@ code, pre {
         border-radius: 1ex;
         border: 0.5ex solid hsl(30deg, 15%, 45%);
       }
+
       dt a:hover {
         color: hsl(30deg 15% 12%);
         background-color: hsl(30deg, 15%, 45%);
       }
+
       dt {
         margin: 0;
         padding: 0;
         display: grid;
       	text-indent: none;
         grid-column: 2/3;
-
       }
+
       dd {
         max-width: 10em;
         display: grid;
@@ -123,27 +136,33 @@ code, pre {
         padding: 0;
         grid-column: 1/2;
       }
+
       div#header div div div {
         font-size: 2cm;
       }
+
       div#footer {
         font-size: smaller;
       }
+
       .vertical, h1, dt {
         writing-mode: vertical-rl;
         text-orientation: sideways-right;
       }
+
       #container {
         grid-gap: 3ex;
         display: grid;
         grid-template-columns: auto auto auto;
       }
+
       #content {
         display: grid;
         grid-auto-flow: row;
         grid-gap: 3ex;
         place-self: space-around;
       }
+
       #cards {
         place-self: stretch;
         display: grid;
@@ -151,6 +170,7 @@ code, pre {
         grid-gap: 1ex;
         grid-template-columns: repeat(auto-fill, minmax(10em, 1fr));
       }
+
       h2 {
         /*width: auto;*/
         place-self: stretch;
@@ -185,7 +205,7 @@ code, pre {
             border-bottom-right-radius: 3ex;
             padding: 2ex 2ex 2ex 0px;
           }
-          &.right { 
+          &.right {
             border-style: solid none solid solid;
             border-top-left-radius: 3ex;
             border-bottom-left-radius: 3ex;
@@ -212,8 +232,8 @@ code, pre {
   <body style="min-height: 100vh; width: 100vw; overflow-x: hidden;">
     <div id="container">
       <div id="header">
-        <div class="left tab outer">  
-          <div class="left tab inner">  
+        <div class="left tab outer">
+          <div class="left tab inner">
             <!--
             &lt;svg width="48pt" height="100vh"&lt;&gt;g style="stroke: #999; fill: #ccc; stroke-width: 0.5;" transform="rotate(90, 10, 10) scale(2,2)"&gt;&lt;textun1tz3r0.github.io&lt;/text&gt;&lt;/g&gt;&lt;/svg&gt;
             -->
@@ -236,7 +256,11 @@ code, pre {
             <dd><p>A fluid, randomly looping ambient soundscape.</p></dd>
           </dl>
         </div>
-        <h2><span style="border: 1ex; padding: 1ex;"><a style="font-size: 1.25cm">Demos</a></span></h2>
+        <h2>
+          <span style="border: 1ex; padding: 1ex;">
+            <a style="font-size: 1.25cm">Demos</a>
+          </span>
+        </h2>
       </div>
       <div id="footer">
         <div class="right tab outer">
@@ -254,5 +278,16 @@ code, pre {
       </div>
     </div>
   
+    <svg xmlns="http://www.w3.org/2000/svg" style="display: none">
+      <!-- example usage: -->
+      <!-- <svg viewbox="0 0 24 24" width="24px" height="24px" xmlns="http://www.w3.org/2000/svg">
+        <use href="#av_volume_off_materialiconsround" x="0" y="0" style="opacity:1.0" />
+      </svg> -->
+7      <defs>
+        <symbol id="av_volume_off_materialiconsround" height="24" viewBox="0 0 24 24" width="24"></symbol>
+      </defs>
+    </svg>
+    
 
-</body></html>
+  </body>
+</html>
