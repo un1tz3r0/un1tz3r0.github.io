@@ -1,0 +1,11 @@
+# sitekit settings for this site. See tools/README.md.
+
+[github]
+user = "un1tz3r0"
+# Matched against "Name <email>" of every commit; only matching commits count.
+author = "un1tz3r0|Victor Condino"
+forks = true
+# Repos left off the timeline and the feed, by name or owner/name.
+ignore = []
+# Repos the API listing misses: other people's repos you commit to, or local checkouts (counted, never named in the feed).
+repos = ["jfischoff/next-pose-control-net", "appostasy-io/appostasy.io"]

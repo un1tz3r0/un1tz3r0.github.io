@@ -1,0 +1,3 @@
+{"month": "2025-07", "entries": [
+{"id":"gh:un1tz3r0/gitingest-cf-remote-mcp-server:2025-07-05","time":"2025-07-06T02:52:51Z","kind":"commits","source":"github","repo":"un1tz3r0/gitingest-cf-remote-mcp-server","url":"https://github.com/un1tz3r0/gitingest-cf-remote-mcp-server/commit/02f068f488291c434d3dbca423e8cf139bb14c75","count":5,"items":["fix import for gitingest module","update package-lock","fixed version of gitingest dependency","fix npm package name for gitingest","Initial commit, 100% written by claude.ai. Fingers crossed."]}
+]}

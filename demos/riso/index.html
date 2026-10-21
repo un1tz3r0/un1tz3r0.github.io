@@ -1,0 +1,2795 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Riso separation lab</title>
+<script>
+{
+  const mq = matchMedia('(prefers-color-scheme: dark)'), html = document.documentElement;
+  let pinned = null;
+  try { pinned = localStorage.getItem('riso-theme'); } catch {}
+  const apply = () => { html.dataset.theme = pinned ?? (mq.matches ? 'dark' : 'light'); dispatchEvent(new Event('themechange')); };
+  mq.addEventListener('change', apply);
+  apply();
+  window.toggleTheme = () => {
+    const next = html.dataset.theme === 'dark' ? 'light' : 'dark';
+    pinned = next === (mq.matches ? 'dark' : 'light') ? null : next;
+    try { pinned ? localStorage.setItem('riso-theme', pinned) : localStorage.removeItem('riso-theme'); } catch {}
+    apply();
+  };
+}
+</script>
+<style>/*<![CDATA[*/
+:root {
+  color-scheme: light; --canvas: #d6d6d3; --surface: #fbfbfa; --fg: #1f2023;
+  --shadow: 0 1px 2px rgb(0 0 0 / .12), 0 6px 20px rgb(0 0 0 / .08);
+}
+:root[data-theme=dark] {
+  color-scheme: dark; --canvas: #161618; --surface: #26272a; --fg: #e6e6e8;
+  --shadow: 0 1px 2px rgb(0 0 0 / .5), 0 8px 24px rgb(0 0 0 / .35);
+}
+html, body { margin: 0; height: 100%; overflow: hidden; background: var(--canvas); color: var(--fg); font: 14px/1.4 system-ui, sans-serif; }
+body.busy, body.busy * { cursor: progress !important; }
+.inspect-veil { position: fixed; inset: 0; z-index: 7; cursor: help; }
+:root {
+  --field: color-mix(in srgb, var(--fg) 7%, transparent); --field-h: color-mix(in srgb, var(--fg) 10%, transparent);
+  --field-f: color-mix(in srgb, var(--fg) 13%, transparent); --line: color-mix(in srgb, var(--fg) 16%, transparent);
+  --button: color-mix(in srgb, var(--fg) 10%, var(--surface)); --button-h: color-mix(in srgb, var(--fg) 16%, var(--surface));
+  --row-h: 24px; --radius-s: 6px; --pad-s: 6px;
+}
+@media (max-width: 640px) { settings-panel { left: 8px; right: 8px; top: 8px; width: auto !important; max-height: 50dvh; } }
+/*]]>*/</style>
+</head>
+<body>
+<riso-viewer></riso-viewer>
+<settings-panel></settings-panel>
+<riso-toolbar></riso-toolbar>
+<preset-browser></preset-browser>
+<status-line></status-line>
+<docs-drawer></docs-drawer>
+<help-highlight></help-highlight>
+
+<script type="module">
+//<![CDATA[
+
+const KINDS = ['image', 'solid', 'gradient'], GRADS = ['linear', 'radial', 'conic', 'hue wheel'];
+const EDGES = ['blank', 'clamp', 'repeat', 'mirror'], RANGES = ['clip', 'wrap', 'mirror'];
+const MODES = ['hue', 'key', 'luma', 'unmix'];
+const PATTERNS = ['round', 'square', 'diamond', 'cross', 'line', 'bayer', 'blue noise', 'white noise'];
+const SIZES = { A6: [105, 148], A5: [148, 210], A4: [210, 297], A3: [297, 420], Letter: [215.9, 279.4], Tabloid: [279.4, 431.8] };
+const ANGLES = [15, 75, 0, 45, 30, 60, 90, 105];
+const ALL_LAYERS = { stage: 3, solo: -1, gray: false };
+
+const rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255);
+const hue = ([r, g, b]) => {
+  const M = Math.max(r, g, b), d = M - Math.min(r, g, b);
+  if (!d) return 0;
+  const h = M === r ? (g - b) / d : M === g ? 2 + (b - r) / d : 4 + (r - g) / d;
+  return ((h / 6) % 1 + 1) % 1;
+};
+const mat3 = m => [m.a, m.b, 0, m.c, m.d, 0, m.e, m.f, 1];
+const I3 = mat3(new DOMMatrix());
+const pad = (a, z) => [...a, ...Array(8 - a.length).fill(z)];
+const rnd = (seed, k) => { const x = Math.sin(seed * 12.9898 + k * 78.233) * 43758.5453; return (x - Math.floor(x)) * 2 - 1; };
+const opts = a => Object.fromEntries(a.map(v => [v, v]));
+const esc = s => String(s).replace(/[&<>"]/g, c => `&#${c.charCodeAt(0)};`);
+const at = (o, path) => path.split('.').reduce((a, k) => a?.[k], o);
+const put = (o, path, v) => { const ks = path.split('.'), last = ks.pop(); ks.reduce((a, k) => a[k], o)[last] = v; };
+const pick = (o, ref) => Object.fromEntries(Object.keys(ref).filter(k => k in o).map(k => [k, o[k]]));
+const canvasBg = () => rgb(getComputedStyle(document.documentElement).getPropertyValue('--canvas').trim());
+const workSize = (S, m) => {
+  const a = S.page.width / S.page.height;
+  return a >= 1 ? [m, Math.max(1, Math.round(m / a))] : [Math.max(1, Math.round(m * a)), m];
+};
+
+/* ---------- schema ---------- */
+
+// Declarative UI tree, the single description of every control. Value nodes bind `key`, a dotted path relative to
+// the enclosing `scope`. Shared fields: id, label, icon, help (one line for the status line), when(scopeObject, S) → visible,
+// get(S)/set(S, v) to bind something other than a plain path, def (default value, used by filter params).
+const node = (type, key, label, o = {}) => ({ type, key, label, ...o });
+const num = (key, label, min, max, o) => node('num', key, label, { min, max, ...o });
+const point = (key, label, min, max, o) => node('point', key, label, { min, max, ...o });
+const choice = (key, label, options, o) => node('choice', key, label, { options, ...o });
+const toggle = (key, label, o) => node('toggle', key, label, o);
+const color = (key, label, o) => node('color', key, label, o);
+const ink = (key, label, o) => node('ink', key, label, o);
+const action = (id, label, run, o) => node('action', null, label, { id, run, ...o });
+const group = (id, label, children, o) => node('group', null, label, { id, children, ...o });
+const page = (id, label, icon, children, o) => ({ id, label, icon, children, ...o });
+const custom = (id, label, build, o) => node('custom', null, label, { id, build, ...o });
+const HELP = new Map();   // id → { label, icon, help }, filled as the UI is built
+const rich = text => esc(text).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/::([a-z_]+)::/g, (m, k) => ICONS[k] ? icon(k) : m)
+  .replace(/\[\[([\w.]+)\|([^\]]+)\]\]/g, '<a href="#" data-goto="$1">$2</a>');
+// Panel and reference derive ids the same way: an explicit id, or the enclosing id plus the key's last segment.
+const nodeId = (n, ctx) => n.id ?? join(ctx.id, n.key?.split('.').pop());
+
+/* ---------- filters ---------- */
+
+const CHANNELS = ['luma', 'average', 'max', 'min', 'red', 'green', 'blue'], NOISES = ['gaussian', 'uniform', 'salt & pepper'];
+const radius = (def, max, help, min = 0) => num('radius', 'Radius', min, max, { def, unit: 'mm', help });
+const softness = (def, max) => num('softness', 'Softness', 0, max, { def, help: 'Width of the grey transition at the cut-off.' });
+const morph = (label, help, seq) => ({
+  label, cat: 'Morphology', icon: 'morph', help,
+  params: [radius(.2, 5, 'Size of the neighbourhood.'),
+    choice('shape', 'Shape', ['square', 'disk'], { def: 'square', help: 'Square is fast; disk is round and slower.' })],
+  run(f, x, c) {
+    const r = c.mm(f.radius), m = (a, max, keep) => f.shape === 'disk'
+      ? c.run(c.P.morph, { uR: r, uMax: max, uDisk: 1, uDir: [0, 0] }, a, a, keep)
+      : c.sep(c.P.morph, a, { uR: r, uMax: max, uDisk: 0 }, keep);
+    return seq(m, x, c);
+  },
+});
+// Each filter: catalog info, params (schema nodes with defaults), and run(f, x, c) → buffer, where `c` is the stack
+// context from Renderer.stack. Filters flagged `color` only apply to the RGB source, never to single-channel ink layers.
+const FILTERS = {
+  brightness: { label: 'Brightness / contrast', cat: 'Tone', icon: 'exposure', help: 'Shift and stretch tones around mid-grey.',
+    params: [num('brightness', 'Brightness', -1, 1, { def: 0, help: 'Added to every value.' }),
+      num('contrast', 'Contrast', 0, 4, { def: 1, help: 'Stretches values away from mid-grey; below 1 flattens.' })],
+    run: (f, x, c) => c.point(x, 0, [f.brightness, f.contrast, 0, 0]) },
+  levels: { label: 'Levels', cat: 'Tone', icon: 'tonality', help: 'Remap the input range onto the output range, with a midtone gamma.',
+    params: [num('black', 'In black', 0, 1, { def: 0, help: 'Input value that becomes the output black.' }),
+      num('white', 'In white', 0, 1, { def: 1, help: 'Input value that becomes the output white.' }),
+      num('gamma', 'Gamma', .2, 5, { def: 1, help: 'Above 1 lightens midtones, below 1 darkens them.' }),
+      num('outBlack', 'Out black', 0, 1, { def: 0, help: 'Darkest output value.' }),
+      num('outWhite', 'Out white', 0, 1, { def: 1, help: 'Lightest output value.' })],
+    run: (f, x, c) => c.point(x, 1, [f.black, f.white, f.gamma, f.outBlack], [f.outWhite, 0, 0, 0]) },
+  gamma: { label: 'Gamma', cat: 'Tone', icon: 'tonality', help: 'Lighten or darken midtones without moving black and white.',
+    params: [num('gamma', 'Gamma', .2, 5, { def: 1, help: 'Above 1 lightens midtones, below 1 darkens them.' })],
+    run: (f, x, c) => c.point(x, 2, [f.gamma, 0, 0, 0]) },
+  invert: { label: 'Invert', cat: 'Tone', icon: 'invert', help: 'Swap light and dark.', params: [], run: (f, x, c) => c.point(x, 3) },
+  posterize: { label: 'Posterize', cat: 'Tone', icon: 'tonality', help: 'Reduce to a few flat tone steps.',
+    params: [num('levels', 'Levels', 2, 32, { def: 4, step: 1, help: 'Number of tone steps.' })],
+    run: (f, x, c) => c.point(x, 4, [f.levels, 0, 0, 0]) },
+  normalize: { label: 'Normalize (auto levels)', cat: 'Tone', icon: 'tonality', help: 'Stretch the darkest and lightest values out to full black and white.',
+    params: [num('low', 'Clip low', 0, 20, { def: .5, unit: '%', help: 'Share of the darkest pixels allowed to clip to black.' }),
+      num('high', 'Clip high', 0, 20, { def: .5, unit: '%', help: 'Share of the lightest pixels allowed to clip to white.' }),
+      toggle('perChannel', 'Per channel', { def: false, color: true, help: 'Stretch red, green and blue separately, which also removes colour casts.' })],
+    run(f, x, c) {
+      const d = c.probe(x), n = d.length / 4;
+      const q = (k, p) => Float32Array.from({ length: n }, (_, i) => k < 3 ? d[i * 4 + k] : .2126 * d[i * 4] + .7152 * d[i * 4 + 1] + .0722 * d[i * 4 + 2])
+        .sort()[Math.round(p * (n - 1))];
+      const ks = f.perChannel && !c.mono ? [0, 1, 2] : [3, 3, 3];
+      return c.point(x, 11, [...ks.map(k => q(k, f.low / 100)), 0], [...ks.map(k => q(k, 1 - f.high / 100)), 0]);
+    } },
+  range: { label: 'Clip / wrap', cat: 'Tone', icon: 'tonality', help: 'Decide what happens to values pushed outside the 0 to 1 range.',
+    params: [choice('mode', 'Mode', RANGES, { def: 'clip', help: 'Clip flattens, wrap repeats from the other end, mirror folds back.' })],
+    run: (f, x, c) => c.point(x, 5, [RANGES.indexOf(f.mode), 0, 0, 0]) },
+  hue: { label: 'Hue rotate', cat: 'Color', color: true, icon: 'color', help: 'Rotate every colour around the colour wheel.',
+    params: [num('degrees', 'Degrees', -180, 180, { def: 0, unit: '°', help: 'How far to rotate the hues.' })],
+    run: (f, x, c) => c.point(x, 6, [f.degrees / 360, 0, 0, 0]) },
+  saturation: { label: 'Saturation', cat: 'Color', color: true, icon: 'color', help: 'Make colours more vivid or more grey.',
+    params: [num('amount', 'Amount', 0, 4, { def: 1, help: '0 is grey, 1 is unchanged, above 1 is more vivid.' })],
+    run: (f, x, c) => c.point(x, 7, [f.amount, 0, 0, 0]) },
+  grayscale: { label: 'Grayscale / channel', cat: 'Color', color: true, icon: 'extract', help: 'Turn the image grey, or pull out a single channel.',
+    params: [choice('channel', 'Channel', CHANNELS, { def: 'luma', help: 'Which brightness measure or colour channel becomes the grey value.' })],
+    run: (f, x, c) => c.point(x, 8, [CHANNELS.indexOf(f.channel), 0, 0, 0]) },
+  blur: { label: 'Gaussian blur', cat: 'Blur & detail', icon: 'blur', help: 'Soften the image evenly.',
+    params: [radius(.5, 10, 'Blur size on the printed page.')],
+    run: (f, x, c) => c.blur(x, c.mm(f.radius)) },
+  sharpen: { label: 'Unsharp mask', cat: 'Blur & detail', icon: 'sharpen', help: 'Crisp up edges by exaggerating local contrast.',
+    params: [radius(.4, 5, 'Size of the detail being sharpened.'), num('amount', 'Amount', 0, 5, { def: 1, help: 'Strength of the effect.' })],
+    run: (f, x, c) => c.combine(x, c.blur(x, c.mm(f.radius)), 1, [f.amount, 0, 0, 0]) },
+  denoise: { label: 'Denoise (bilateral)', cat: 'Blur & detail', icon: 'denoise', help: 'Smooth out noise while keeping edges sharp.',
+    params: [radius(.5, 5, 'How far to look for similar pixels.'),
+      num('strength', 'Strength', .01, .5, { def: .1, help: 'Tone difference treated as noise rather than as an edge.' })],
+    run: (f, x, c) => c.sep(c.P.bilateral, x, { uSigma: Math.max(c.mm(f.radius), .01), uRange: f.strength }) },
+  median: { label: 'Median', cat: 'Blur & detail', icon: 'denoise', help: 'Remove specks and dust while keeping edges.',
+    params: [radius(.2, 3, 'Size of the neighbourhood.')],
+    run: (f, x, c) => c.run(c.P.median, { uR: c.mm(f.radius) }, x) },
+  kuwahara: { label: 'Kuwahara (painterly)', cat: 'Blur & detail', icon: 'brush', help: 'Flatten areas into painterly patches with crisp edges.',
+    params: [radius(.4, 4, 'Size of the brush patches.')],
+    run: (f, x, c) => c.run(c.P.kuwahara, { uR: c.mm(f.radius) }, x) },
+  threshold: { label: 'Threshold', cat: 'Threshold', icon: 'threshold', help: 'Split into pure black and white at a cut-off.',
+    params: [num('level', 'Level', 0, 1, { def: .5, help: 'Brightness where black turns to white.' }), softness(.02, .5)],
+    run: (f, x, c) => c.point(x, 9, [f.level, f.softness, 0, 0]) },
+  adaptive: { label: 'Adaptive threshold', cat: 'Threshold', icon: 'threshold', help: 'Black and white with a local cut-off, so uneven lighting still works.',
+    params: [radius(2, 20, 'Size of the neighbourhood used as the local cut-off.', .1),
+      num('offset', 'Offset', -.3, .3, { def: .02, help: 'Bias toward white (positive) or black (negative).' }), softness(.02, .3)],
+    run: (f, x, c) => c.combine(x, c.blur(x, c.mm(f.radius)), 2, [f.offset, f.softness, 0, 0]) },
+  edges: { label: 'Edge detect (Sobel)', cat: 'Edges', icon: 'edges', help: 'Keep only the outlines.',
+    params: [radius(.1, 2, 'Sampling distance; larger finds broader edges.'), num('gain', 'Gain', 0, 10, { def: 2, help: 'Strength of the outlines.' }),
+      toggle('invert', 'Dark lines', { def: true, help: 'Dark lines on white. Turn off on ink layers, where a higher value means more ink.' })],
+    run: (f, x, c) => c.run(c.P.sobel, { uR: c.mm(f.radius), uGain: f.gain, uInv: f.invert }, x) },
+  xdog: { label: 'Ink sketch (XDoG)', cat: 'Edges', icon: 'brush', help: 'Stylised ink drawing built from edges and shading.',
+    params: [radius(.3, 3, 'Line weight.', .05), num('strength', 'Strength', 0, 100, { def: 20, help: 'How strongly edges are emphasised.' }),
+      num('threshold', 'Threshold', 0, 1, { def: .5, help: 'Brightness below which areas turn to ink.' }),
+      num('sharpness', 'Sharpness', 1, 200, { def: 40, help: 'How hard the ink edges are.' })],
+    run(f, x, c) {
+      const r = c.mm(f.radius), b1 = c.blur(x, r);
+      return c.combine(b1, c.blur(x, r * 1.6, [b1]), 3, [f.strength, f.threshold, f.sharpness, 0]);
+    } },
+  noise: { label: 'Add noise', cat: 'Noise', icon: 'noise', help: 'Add grain, fixed to the page so the preview and the print match.',
+    params: [num('amount', 'Amount', 0, 1, { def: .15, help: 'Strength of the grain.' }),
+      num('grain', 'Grain', .01, 2, { def: .05, unit: 'mm', help: 'Size of each grain.' }),
+      choice('kind', 'Type', NOISES, { def: 'gaussian', help: 'Gaussian is soft, uniform is even, salt & pepper is black and white specks.' }),
+      toggle('mono', 'Monochrome', { def: true, color: true, help: 'Use the same grain in every colour channel.' }),
+      num('seed', 'Seed', 0, 999, { def: 1, step: 1, help: 'Pick a different random pattern.' })],
+    run: (f, x, c) => c.point(x, 10, [f.amount, f.grain, f.seed, NOISES.indexOf(f.kind)], [+(f.mono || c.mono), 0, 0, 0]) },
+  erode: morph('Erode (min)', 'Take the darkest nearby value: dark areas grow, and on an ink layer the ink shrinks.', (m, x) => m(x, 0)),
+  dilate: morph('Dilate (max)', 'Take the lightest nearby value: light areas grow, and on an ink layer the ink spreads.', (m, x) => m(x, 1)),
+  open: morph('Open', 'Erode then dilate: removes small light specks.', (m, x) => m(m(x, 0), 1)),
+  close: morph('Close', 'Dilate then erode: fills small dark gaps.', (m, x) => m(m(x, 1), 0)),
+  smooth: morph('Smooth (open, then close)', 'Removes both light specks and dark gaps.', (m, x) => m(m(m(m(x, 0), 1), 1), 0)),
+  gradient: morph('Morphological gradient', 'Outline shapes with the difference between dilate and erode.', (m, x, c) => { const d = m(x, 1); return c.combine(d, m(x, 0, [d]), 4); }),
+};
+const filterSummary = (f, d = FILTERS[f.type]) => {
+  const p = d.params[0], v = p && f[p.key];
+  const t = typeof v === 'number' ? `${+v.toFixed(2)}${p.unit ? ` ${p.unit}` : ''}` : typeof v === 'string' ? v : '';
+  return f.mix < 1 ? `${t} ${Math.round(f.mix * 100)}%`.trim() : t;
+};
+const filterMenu = mono => Object.entries(Object.groupBy(Object.entries(FILTERS).filter(([, d]) => !(mono && d.color)), ([, d]) => d.cat))
+  .map(([cat, list]) => [cat, list.map(([type, d]) => [type, d.label, d.icon])]);
+
+/* ---------- state ---------- */
+
+let uid = 0;
+const makeFilter = type => ({ id: uid++, type, on: true, mix: 1, ...Object.fromEntries(FILTERS[type].params.map(p => [p.key, p.def])) });
+const normStack = list => (list ?? []).filter(f => FILTERS[f?.type]).map(f => ({ ...makeFilter(f.type), ...structuredClone(f), id: uid++ }));
+const sepDefaults = () => ({ on: true, ink: '#000000', mode: 'key', opacity: .9, opaque: 0, hueShift: 0, hueWidth: 1, filters: [] });
+const screenDefaults = i => ({
+  pattern: 'round', lpi: 50, grain: 1, angle: ANGLES[i % 8], shift: { x: 0, y: 0 }, stretch: { x: 1, y: 1 }, skew: 0,
+  mis: { x: 0, y: 0 }, misRot: 0, misScale: 1, jitter: 0, seed: 1,
+});
+const makeLayer = (sep, i, screen) => ({
+  id: uid++,
+  sep: { ...sepDefaults(), ...structuredClone(sep), filters: normStack(sep.filters) },
+  screen: { ...screenDefaults(i), ...structuredClone(screen) },
+});
+const defaults = () => ({
+  view: { stage: 3, solo: -1, gray: false },
+  render: { preview: 1600, exportRes: 3072 },
+  page: { width: 148, height: 210, dpi: 600 },
+  paper: { color: '#fbfaf6' },
+  source: {
+    input: { kind: 'gradient', fit: 'cover', solid: '#808080', grad: 'hue wheel', a: '#000000', b: '#ffffff' },
+    transform: { scale: 1, rotate: 0, offset: { x: 0, y: 0 }, flipX: false, flipY: false, edge: 'blank' },
+    filters: [],
+  },
+  layers: ['#ff48b0', '#0078bf', '#ffe800'].map((ink, i) => makeLayer({ ink, mode: 'hue' }, i)),
+});
+const DEF = defaults();
+
+/* ---------- presets ---------- */
+
+const pathGroup = (label, title, path) => ({
+  label, title, get: S => at(S, path),
+  apply: (S, v) => put(S, path, { ...structuredClone(at(DEF, path)), ...structuredClone(v) }),
+});
+const GROUPS = {
+  input: pathGroup('Source', 'Source input', 'source.input'),
+  transform: pathGroup('Transform', 'Source transform', 'source.transform'),
+  filters: { label: 'Filters', title: 'Source filters', get: S => S.source.filters, apply: (S, v) => S.source.filters = normStack(v) },
+  inks: {
+    label: 'Inks', title: 'Inks & separation, with layer filters (replaces the layer stack)', get: S => S.layers.map(L => L.sep),
+    apply: (S, v) => S.layers = v.slice(0, 8).map((sep, i) => makeLayer(sep, i, S.layers[i]?.screen)),
+  },
+  screens: {
+    label: 'Screens', title: 'Halftone & registration (by layer position)', get: S => S.layers.map(L => L.screen),
+    apply: (S, v) => S.layers.forEach((L, i) => { if (v[i]) L.screen = { ...screenDefaults(i), ...structuredClone(v[i]) }; }),
+  },
+  paper: pathGroup('Paper', 'Paper color', 'paper'),
+  page: pathGroup('Page', 'Page size & DPI', 'page'),
+};
+const capture = (S, keys) => Object.fromEntries(keys.map(k => [k, structuredClone(GROUPS[k].get(S))]));
+function applyPreset(S, p) {
+  for (const k in GROUPS) if (p.data[k]) GROUPS[k].apply(S, p.data[k]);
+  if (S.view.solo >= S.layers.length) S.view.solo = -1;
+  return S;
+}
+
+// Older formats kept tone and blur/sharpen as fixed fields; they become an equivalent filter stack, in the old order.
+const legacyFilters = o => [
+  o.hue && { type: 'hue', degrees: o.hue },
+  (o.saturation ?? 1) !== 1 && { type: 'saturation', amount: o.saturation },
+  (o.gamma ?? 1) !== 1 && { type: 'gamma', gamma: o.gamma },
+  ((o.contrast ?? 1) !== 1 || (o.brightness ?? 0) !== 0) && { type: 'brightness', brightness: o.brightness ?? 0, contrast: o.contrast ?? 1 },
+  o.invert && { type: 'invert' },
+  o.filter === 'blur' && { type: 'blur', radius: o.radius },
+  o.filter === 'sharpen' && { type: 'sharpen', radius: o.radius, amount: o.amount },
+  o.range && o.range !== 'clip' && { type: 'range', mode: o.range },
+].filter(Boolean);
+const legacySep = L => ({ ...pick(L, sepDefaults()), filters: L.filters ?? legacyFilters(L) });
+function migrate(P) {
+  const s = P.source ?? {}, Ls = P.layers ?? [];
+  const data = { ...(P.data ?? {
+    input: pick(s, DEF.source.input), transform: pick(s, DEF.source.transform), filters: legacyFilters(s),
+    inks: Ls, screens: Ls.map((L, i) => pick(L, screenDefaults(i))),
+    paper: { color: typeof P.paper === 'string' ? P.paper : DEF.paper.color }, page: pick(P.doc ?? {}, DEF.page),
+  }) };
+  if (data.adjust || data.filter) {
+    data.filters = legacyFilters({ ...data.adjust, ...data.filter });
+    delete data.adjust; delete data.filter;
+  }
+  if (data.inks) data.inks = data.inks.map(legacySep);
+  return { name: P.name ?? (P.data ? 'Untitled' : 'Imported session'), data };
+}
+
+const BUILTINS = [
+  { name: 'Fluoro pink, blue and yellow', data: {
+    inks: ['#ff48b0', '#0078bf', '#ffe800'].map(ink => ({ ink, mode: 'hue' })),
+    screens: [15, 75, 0].map(angle => ({ angle })) } },
+  { name: 'Teal and orange duotone', data: { inks: ['#00838a', '#ff7477'].map(ink => ({ ink, mode: 'hue' })) } },
+  { name: 'Four-ink unmix', data: { inks: ['#ff48b0', '#0078bf', '#ffe800', '#000000'].map(ink => ({ ink, mode: 'unmix' })) } },
+  { name: 'Black only', data: { inks: [{ ink: '#000000', mode: 'luma', opacity: 1 }] } },
+  { name: 'Blue-noise grain', data: {
+    screens: ANGLES.map((angle, i) => ({ pattern: 'blue noise', grain: 2, angle, shift: { x: i * 1.7, y: i * 2.3 } })) } },
+  { name: 'Coarse zine dots, loose registration', data: {
+    screens: [15, 75, 0, 45].map((angle, i) => ({ lpi: 24, angle, jitter: .5, seed: i * 7 + 3 })) } },
+  { name: 'Line screens', data: { screens: [45, 135, 90, 0].map(angle => ({ pattern: 'line', lpi: 40, angle })) } },
+  { name: 'Soft focus', data: { filters: [{ type: 'gamma', gamma: 1.1 }, { type: 'brightness', contrast: 1.1 }, { type: 'blur', radius: .8 }] } },
+  { name: 'Punchy', data: { filters: [{ type: 'saturation', amount: 1.4 }, { type: 'brightness', contrast: 1.25 }, { type: 'sharpen', radius: .4, amount: 1.5 }] } },
+  { name: 'Ink sketch', data: { filters: [{ type: 'denoise', radius: .4 }, { type: 'xdog' }] } },
+  { name: 'Painterly posterize', data: { filters: [{ type: 'kuwahara', radius: .6 }, { type: 'posterize', levels: 5 }] } },
+  { name: 'Film grain', data: { filters: [{ type: 'noise', amount: .12, grain: .06 }] } },
+  { name: 'Hue wheel test chart', data: { input: { kind: 'gradient', grad: 'hue wheel' }, transform: {} } },
+  { name: 'Kraft paper', data: { paper: { color: '#d9c4a1' } } },
+];
+
+class PresetStore extends EventTarget {
+  static KEY = 'riso-presets';
+  constructor(builtins) {
+    super();
+    this.builtins = builtins.map((p, i) => ({ ...p, id: `example-${i}`, builtin: true }));
+    try { this.user = (JSON.parse(localStorage.getItem(PresetStore.KEY)) ?? []).map(p => ({ ...migrate(p), id: p.id })); }
+    catch { this.user = []; }
+  }
+  get all() { return [...this.builtins, ...this.user]; }
+  find(id) { return this.all.find(p => p.id === id); }
+  #persist() {
+    try { localStorage.setItem(PresetStore.KEY, JSON.stringify(this.user)); } catch {}
+    this.dispatchEvent(new Event('change'));
+  }
+  #unique(name, id) {
+    const taken = new Set(this.all.filter(p => p.id !== id).map(p => p.name));
+    let n = name, k = 2;
+    while (taken.has(n)) n = `${name} (${k++})`;
+    return n;
+  }
+  put({ id, name, data }, persist = true) {
+    id ??= crypto.randomUUID?.() ?? Math.random().toString(36).slice(2);
+    const p = { id, name: this.#unique(name, id), data }, i = this.user.findIndex(u => u.id === id);
+    i < 0 ? this.user.push(p) : this.user[i] = p;
+    if (persist) this.#persist();
+    return p;
+  }
+  remove(id) { this.user = this.user.filter(p => p.id !== id); this.#persist(); }
+  import(text) {
+    const J = JSON.parse(text), list = Array.isArray(J) ? J : J.presets ?? [J];
+    list.map(migrate).forEach(p => this.put(p, false));
+    this.#persist();
+    return list.length;
+  }
+  serialize(list) {
+    return new Blob([JSON.stringify({ format: 'riso-lab-presets', version: 3, presets: list.map(({ name, data }) => ({ name, data })) }, null, 1)]);
+  }
+}
+
+function hueRanges(seps) {
+  const hs = seps.flatMap((s, i) => s.mode === 'hue' ? [{ i, h: hue(rgb(s.ink)) }] : []).sort((a, b) => a.h - b.h);
+  const n = hs.length, out = {};
+  hs.forEach((e, k) => {
+    const l = (e.h - hs[(k + n - 1) % n].h + 1) % 1, r = (hs[(k + 1) % n].h - e.h + 1) % 1;
+    out[e.i] = { c: e.h, l: l || .5, r: r || .5 };
+  });
+  return out;
+}
+
+function blueNoise(N) {
+  const K = new Float32Array(N * N), E = new Float32Array(N * N).map(() => Math.random() * 1e-6), R = new Float32Array(N * N);
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const dx = Math.min(x, N - x), dy = Math.min(y, N - y);
+    K[y * N + x] = Math.exp(-(dx * dx + dy * dy) / 4.5);
+  }
+  for (let r = 0; r < N * N; r++) {
+    let m = 0;
+    for (let i = 1; i < N * N; i++) if (E[i] < E[m]) m = i;
+    R[m] = (r + .5) / (N * N); E[m] = Infinity;
+    const mx = m % N, my = (m / N) | 0;
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) E[y * N + x] += K[((y - my + N) % N) * N + (x - mx + N) % N];
+  }
+  return R;
+}
+
+/* ---------- GLSL ---------- */
+
+const VS = `#version 300 es
+void main() { vec2 p = vec2((gl_VertexID << 1) & 2, gl_VertexID & 2); gl_Position = vec4(p * 2. - 1., 0, 1); }`;
+
+const HEAD = `#version 300 es
+precision highp float; precision highp int; precision highp sampler2D; precision highp sampler2DArray;
+out vec4 o;
+vec3 rgb2hsv(vec3 c) {
+  vec4 K = vec4(0., -1. / 3., 2. / 3., -1.);
+  vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));
+  vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));
+  float d = q.x - min(q.w, q.y);
+  return vec3(abs(q.z + (q.w - q.y) / (6. * d + 1e-10)), d / (q.x + 1e-10), q.x);
+}
+vec3 hsv2rgb(vec3 c) { vec3 p = abs(fract(c.xxx + vec3(1., 2. / 3., 1. / 3.)) * 6. - 3.); return c.z * mix(vec3(1), clamp(p - 1., 0., 1.), c.y); }
+float fold(float v, int m) { return m == 0 ? clamp(v, 0., 1.) : m == 1 ? (v < 0. || v > 1. ? fract(v) : v) : 1. - abs(1. - mod(v, 2.)); }
+vec4 fold(vec4 v, int m) { return vec4(fold(v.x, m), fold(v.y, m), fold(v.z, m), fold(v.w, m)); }
+`;
+
+const SAMPLE = `
+uniform sampler2D uImg; uniform int uKind, uGrad, uEdge; uniform mat3 uXf; uniform vec3 uSolid, uA, uB; uniform vec2 uSize;
+vec3 gen(vec2 u) {
+  if (uKind == 0) return texture(uImg, u).rgb;
+  if (uKind == 1) return uSolid;
+  vec2 c = u - .5; float a = atan(c.y, c.x) / 6.2831853 + .5, r = length(c) * 2.;
+  if (uGrad == 3) return hsv2rgb(vec3(a, clamp(r, 0., 1.), 1));
+  return mix(uA, uB, clamp(uGrad == 0 ? u.x : uGrad == 1 ? r : a, 0., 1.));
+}
+void main() {
+  vec2 u = (uXf * vec3(gl_FragCoord.xy / uSize, 1)).xy;
+  vec3 c = vec3(1);
+  if (uEdge > 0 || all(equal(clamp(u, 0., 1.), u)))
+    c = gen(uEdge == 1 ? clamp(u, 0., 1.) : uEdge == 2 ? fract(u) : uEdge == 3 ? 1. - abs(1. - mod(u, 2.)) : u);
+  o = vec4(c, 1);
+}`;
+
+const EXTRACT = `
+uniform sampler2DArray uSrc; uniform vec2 uSize; uniform int uMode, uN, uI; uniform vec3 uPaper, uAbs[8];
+uniform float uInv[8], uHueC, uHueL, uHueR, uChroma;
+void main() {
+  vec3 c = clamp(texture(uSrc, vec3(gl_FragCoord.xy / uSize, 0)).rgb, 0., 1.);
+  float hi = max(c.r, max(c.g, c.b)), lo = min(c.r, min(c.g, c.b)), d = 0.;
+  if (uMode == 0) {
+    float dh = fract(rgb2hsv(c).x - uHueC + .5) - .5;
+    d = clamp(dh < 0. ? 1. + dh / uHueL : 1. - dh / uHueR, 0., 1.) * (hi - lo) / uChroma;
+  } else if (uMode == 1) d = 1. - hi;
+  else if (uMode == 2) d = 1. - dot(c, vec3(.2126, .7152, .0722));
+  else if (uI >= 0) {
+    vec3 r = -max(-log(max(c / uPaper, 1e-3)), 0.);
+    float x[8] = float[8](0., 0., 0., 0., 0., 0., 0., 0.);
+    for (int k = 0; k < 32; k++) for (int i = 0; i < 8; i++) {
+      if (i >= uN) break;
+      float n = clamp(x[i] - dot(r, uAbs[i]) * uInv[i], 0., 1.);
+      r += (n - x[i]) * uAbs[i]; x[i] = n;
+    }
+    d = x[uI];
+  }
+  o = vec4(d);
+}`;
+
+// Filter passes read inputs A and B, each an (array texture, layer) pair. uMono spreads a single-channel ink density to gray,
+// so every filter sees an RGB value and writes .r back for ink layers.
+const FHEAD = `
+uniform sampler2DArray uA, uB; uniform float uLA, uLB; uniform vec2 uSize, uPage; uniform bool uMono;
+vec4 rd(sampler2DArray t, float l, vec2 uv) { vec4 c = texture(t, vec3(uv, l)); return uMono ? vec4(c.rrr, 1) : c; }
+vec4 A(vec2 uv) { return rd(uA, uLA, uv); }
+vec4 B(vec2 uv) { return rd(uB, uLB, uv); }
+float lum(vec3 c) { return dot(c, vec3(.2126, .7152, .0722)); }
+vec2 UV() { return gl_FragCoord.xy / uSize; }
+`;
+
+const POINT = `
+uniform int uOp; uniform vec4 uP, uQ;
+vec3 rand3(vec2 cell, float seed) {
+  uvec3 v = uvec3(ivec3(ivec2(cell), int(seed))) * 1664525u + 1013904223u;
+  v.x += v.y * v.z; v.y += v.z * v.x; v.z += v.x * v.y; v ^= v >> 16u;
+  v.x += v.y * v.z; v.y += v.z * v.x; v.z += v.x * v.y;
+  return vec3(v) / 4294967295.;
+}
+void main() {
+  vec4 c = A(UV()); vec3 v = c.rgb;
+  if (uOp == 0) v = (v - .5) * uP.y + .5 + uP.x;                                                          // brightness / contrast
+  else if (uOp == 1) v = mix(vec3(uP.w), vec3(uQ.x), pow(clamp((v - uP.x) / max(uP.y - uP.x, 1e-4), 0., 1.), vec3(1. / uP.z)));  // levels
+  else if (uOp == 2) v = pow(max(v, 0.), vec3(1. / uP.x));                                               // gamma
+  else if (uOp == 3) v = 1. - v;                                                                         // invert
+  else if (uOp == 4) v = floor(clamp(v, 0., .9999) * uP.x) / (uP.x - 1.);                                // posterize
+  else if (uOp == 5) { int m = int(uP.x); v = vec3(fold(v.r, m), fold(v.g, m), fold(v.b, m)); }         // clip / wrap / mirror
+  else if (uOp == 6) { vec3 h = rgb2hsv(clamp(v, 0., 1.)); v = hsv2rgb(vec3(fract(h.x + uP.x), h.yz)); } // hue rotate
+  else if (uOp == 7) v = mix(vec3(lum(v)), v, uP.x);                                                     // saturation
+  else if (uOp == 8) {                                                                                   // grayscale / channel
+    int k = int(uP.x);
+    v = vec3(k == 0 ? lum(v) : k == 1 ? (v.r + v.g + v.b) / 3. : k == 2 ? max(v.r, max(v.g, v.b)) : k == 3 ? min(v.r, min(v.g, v.b)) : v[k - 4]);
+  }
+  else if (uOp == 9) v = vec3(smoothstep(uP.x - uP.y - 1e-4, uP.x + uP.y + 1e-4, lum(v)));               // threshold
+  else if (uOp == 10) {                                                                                  // noise, seeded on page position
+    vec2 cell = floor(UV() * uPage / uP.y);
+    vec3 r1 = rand3(cell, uP.z), r2 = rand3(cell, uP.z + 7919.);
+    if (uQ.x > .5) { r1 = r1.xxx; r2 = r2.xxx; }
+    if (uP.w == 2.) v = mix(v, step(.5, r2), step(r1, vec3(uP.x)));
+    else v += uP.x * (uP.w == 0. ? .35 * sqrt(-2. * log(max(r1, 1e-7))) * cos(6.2831853 * r2) : r1 * 2. - 1.);
+  }
+  else if (uOp == 11) v = (v - uP.rgb) / max(uQ.rgb - uP.rgb, 1e-4);                                    // normalize
+  o = vec4(v, c.a);
+}`;
+
+const COMBINE = `
+uniform int uOp; uniform vec4 uP;
+void main() {
+  vec2 uv = UV(); vec3 a = A(uv).rgb, b = B(uv).rgb, v;
+  if (uOp == 0) v = mix(a, b, uP.x);                                                                     // mix / copy
+  else if (uOp == 1) v = a + uP.x * (a - b);                                                             // unsharp
+  else if (uOp == 2) v = vec3(smoothstep(-uP.y - 1e-4, uP.y + 1e-4, lum(a) - lum(b) + uP.x));            // adaptive threshold
+  else if (uOp == 3) {                                                                                   // XDoG
+    float d = (1. + uP.x) * lum(a) - uP.x * lum(b);
+    v = vec3(d >= uP.y ? 1. : 1. + tanh(uP.z * (d - uP.y)));
+  }
+  else v = abs(a - b);                                                                                   // difference
+  o = vec4(v, 1);
+}`;
+
+const BLUR = `
+uniform vec2 uDir; uniform float uSigma;
+void main() {
+  vec2 uv = UV(); vec4 b = A(uv);
+  if (uSigma >= .3) {
+    float st = max(1., uSigma * 3. / 32.), ws = 1.;
+    for (int i = 1; i <= 32; i++) {
+      float x = float(i) * st;
+      if (x > uSigma * 3. + st) break;
+      float w = exp(-.5 * x * x / (uSigma * uSigma)); vec2 d = uDir * x / uSize;
+      b += w * (A(uv + d) + A(uv - d)); ws += 2. * w;
+    }
+    b /= ws;
+  }
+  o = b;
+}`;
+
+const BILATERAL = `
+uniform vec2 uDir; uniform float uSigma, uRange;
+void main() {
+  vec2 uv = UV(); vec4 c = A(uv), acc = c; float ws = 1., st = max(1., uSigma * 2. / 16.);
+  for (int i = 1; i <= 16; i++) {
+    float x = float(i) * st;
+    if (x > uSigma * 2. + st) break;
+    for (int s = -1; s <= 1; s += 2) {
+      vec4 t = A(uv + uDir * float(s) * x / uSize); vec3 d = t.rgb - c.rgb;
+      float w = exp(-.5 * x * x / (uSigma * uSigma) - dot(d, d) / (2. * uRange * uRange));
+      acc += w * t; ws += w;
+    }
+  }
+  o = acc / ws;
+}`;
+
+// Grayscale-ordered min/max: the darkest or brightest neighbor wins with its whole color, so RGB never fringes.
+const MORPH = `
+uniform vec2 uDir; uniform float uR; uniform bool uMax, uDisk;
+void main() {
+  vec2 uv = UV(); vec4 best = A(uv); float bl = lum(best.rgb), sg = uMax ? 1. : -1.;
+  if (uDisk) {
+    float st = max(1., uR / 8.);
+    for (int y = -8; y <= 8; y++) for (int x = -8; x <= 8; x++) {
+      vec2 d = vec2(x, y) * st;
+      if (dot(d, d) > uR * uR + .5) continue;
+      vec4 t = A(uv + d / uSize); float l = lum(t.rgb);
+      if (sg * (l - bl) > 0.) { best = t; bl = l; }
+    }
+  } else {
+    float st = max(1., uR / 24.);
+    for (int i = -24; i <= 24; i++) {
+      float x = float(i) * st;
+      if (abs(x) > uR + .5) continue;
+      vec4 t = A(uv + uDir * x / uSize); float l = lum(t.rgb);
+      if (sg * (l - bl) > 0.) { best = t; bl = l; }
+    }
+  }
+  o = best;
+}`;
+
+const MEDIAN = `
+uniform float uR;
+void main() {
+  vec2 uv = UV(); float st = max(1., uR / 2.); vec4 s[25]; float l[25];
+  for (int y = 0; y < 5; y++) for (int x = 0; x < 5; x++) {
+    int k = y * 5 + x;
+    s[k] = A(uv + vec2(x - 2, y - 2) * st / uSize); l[k] = lum(s[k].rgb);
+  }
+  o = s[12];
+  for (int i = 0; i < 25; i++) {
+    int lt = 0, le = 0;
+    for (int j = 0; j < 25; j++) { lt += int(l[j] < l[i]); le += int(l[j] <= l[i]); }
+    if (lt <= 12 && le > 12) { o = s[i]; break; }
+  }
+}`;
+
+const KUWAHARA = `
+uniform float uR;
+void main() {
+  vec2 uv = UV(); int n = int(clamp(ceil(uR), 1., 6.)); float st = max(1., uR / 6.), bv = 1e9; vec3 best = A(uv).rgb;
+  for (int q = 0; q < 4; q++) {
+    vec2 sg = vec2((q & 1) == 1 ? 1. : -1., (q & 2) == 2 ? 1. : -1.);
+    vec3 s = vec3(0); float a = 0., a2 = 0., c = 0.;
+    for (int y = 0; y <= 6; y++) for (int x = 0; x <= 6; x++) {
+      if (x > n || y > n) continue;
+      vec3 t = A(uv + sg * vec2(x, y) * st / uSize).rgb; float l = lum(t);
+      s += t; a += l; a2 += l * l; c += 1.;
+    }
+    float var = a2 / c - a * a / (c * c);
+    if (var < bv) { bv = var; best = s / c; }
+  }
+  o = vec4(best, 1);
+}`;
+
+const SOBEL = `
+uniform float uR, uGain; uniform bool uInv;
+float L(vec2 uv, float x, float y) { return lum(A(uv + vec2(x, y) * max(uR, 1.) / uSize).rgb); }
+void main() {
+  vec2 uv = UV();
+  float gx = L(uv, 1., -1.) + 2. * L(uv, 1., 0.) + L(uv, 1., 1.) - L(uv, -1., -1.) - 2. * L(uv, -1., 0.) - L(uv, -1., 1.);
+  float gy = L(uv, -1., 1.) + 2. * L(uv, 0., 1.) + L(uv, 1., 1.) - L(uv, -1., -1.) - 2. * L(uv, 0., -1.) - L(uv, 1., -1.);
+  float m = clamp(length(vec2(gx, gy)) * uGain * .25, 0., 1.);
+  o = vec4(vec3(uInv ? 1. - m : m), 1);
+}`;
+
+const VIEW = `
+uniform sampler2DArray uSrc, uOrig, uRaw, uFilt; uniform sampler2D uBlue; uniform float uSplit;
+uniform mat3 uToDoc, uMis[8], uScr[8]; uniform vec2 uDoc, uRes; uniform float uZoom, uCell[8], uOpacity[8], uOpaque[8];
+uniform int uN, uStage, uSolo, uPat[8], uOn[8]; uniform bool uGray, uExport, uFlip; uniform vec3 uPaper, uBg, uInk[8];
+float roundArea(float r) {
+  float a = 3.14159265 * r * r;
+  if (r > .5) a -= 4. * (r * r * acos(.5 / r) - .5 * sqrt(r * r - .25));
+  return clamp(a, 0., 1.);
+}
+float spot(int p, vec2 q) {
+  vec2 f = abs(fract(q) - .5);
+  if (p == 0) return roundArea(length(f));
+  if (p == 1) { float m = 2. * max(f.x, f.y); return m * m; }
+  if (p == 2) { float t = f.x + f.y; return t < .5 ? 2. * t * t : 1. - 2. * (1. - t) * (1. - t); }
+  if (p == 3) { float w = 1. - 2. * min(f.x, f.y); return 1. - w * w; }
+  return 2. * f.y;
+}
+float thresh(int p, vec2 q) {
+  ivec2 c = ivec2(floor(q));
+  if (p == 5) {
+    ivec2 m = c & 7; int z = m.x ^ m.y;
+    return (float(((z & 1) << 5) | ((m.x & 1) << 4) | ((z & 2) << 2) | ((m.x & 2) << 1) | ((z & 4) >> 1) | ((m.x & 4) >> 2)) + .5) / 64.;
+  }
+  if (p == 6) return texelFetch(uBlue, c & 63, 0).r;
+  uint h = uint(c.x) * 73856093u ^ uint(c.y) * 19349663u;
+  h = (h ^ (h >> 16)) * 0x45d9f3bu; h = (h ^ (h >> 16)) * 0x45d9f3bu;
+  return float(h ^ (h >> 16)) / 4294967295.;
+}
+float cover(int i, vec2 lp, float d) {
+  vec2 q = (uScr[i] * vec3(lp, 1)).xy;
+  float px = uCell[i] * uZoom, c;
+  if (uPat[i] < 5) {
+    float s = spot(uPat[i], q);
+    c = uExport ? step(s, d) : mix(d, clamp((d - s) / max(fwidth(s), 1e-4) + .5, 0., 1.), smoothstep(1.5, 4., px));
+  } else {
+    c = step(thresh(uPat[i], q), d);
+    if (!uExport) c = mix(d, c, smoothstep(.6, 1.5, px));
+  }
+  return d < .002 ? 0. : d > .998 ? 1. : c;
+}
+void main() {
+  vec2 s = vec2(gl_FragCoord.x, uFlip ? uRes.y - gl_FragCoord.y : gl_FragCoord.y), p = (uToDoc * vec3(s, 1)).xy;
+  vec2 e = max(max(-p, p - uDoc), 0.);
+  if (e.x + e.y > 0.) { o = vec4(uBg * (1. - .22 * exp(-length(e) * uZoom / 14.)), 1); return; }
+  if (s.x < uSplit) { o = vec4(clamp(texture(uOrig, vec3(p / uDoc, 0)).rgb, 0., 1.), 1); return; }
+  if (uStage == 0) { o = vec4(clamp(texture(uSrc, vec3(p / uDoc, 0)).rgb, 0., 1.), 1); return; }
+  bool solo = uSolo >= 0, gray = solo && uGray;
+  vec3 col = gray ? vec3(1) : uPaper;
+  for (int i = 0; i < 8; i++) {
+    if (i >= uN) break;
+    if (solo ? i != uSolo : uOn[i] == 0) continue;
+    vec2 lp = uStage == 1 ? p : (uMis[i] * vec3(p, 1)).xy, lu = lp / uDoc;
+    float d = all(equal(clamp(lu, 0., 1.), lu))
+      ? clamp((uStage == 1 ? texture(uRaw, vec3(lu, float(i))) : texture(uFilt, vec3(lu, float(i)))).r, 0., 1.) : 0.;
+    float c = uStage == 3 ? cover(i, lp, d) : d;
+    vec3 ink = gray ? vec3(0) : uInk[i];
+    col = mix(col, mix(col * ink, ink, gray ? 0. : uOpaque[i]), c * (gray ? 1. : uOpacity[i]));
+  }
+  o = vec4(col, 1);
+}`;
+
+/* ---------- WebGL ---------- */
+
+const flat = v => [v].flat(3).map(Number);
+
+class Program {
+  constructor(gl, fs) {
+    const shader = (type, src) => {
+      const s = gl.createShader(type);
+      gl.shaderSource(s, src); gl.compileShader(s);
+      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+      return s;
+    };
+    const p = this.p = gl.createProgram();
+    this.gl = gl;
+    gl.attachShader(p, shader(gl.VERTEX_SHADER, VS));
+    gl.attachShader(p, shader(gl.FRAGMENT_SHADER, HEAD + fs));
+    gl.linkProgram(p);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+    gl.useProgram(p);
+    const vec = { [gl.FLOAT]: 'uniform1fv', [gl.FLOAT_VEC2]: 'uniform2fv', [gl.FLOAT_VEC3]: 'uniform3fv', [gl.FLOAT_VEC4]: 'uniform4fv', [gl.INT]: 'uniform1iv', [gl.BOOL]: 'uniform1iv' };
+    this.u = {};
+    let unit = 0;
+    for (let i = 0; i < gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS); i++) {
+      const { name, type } = gl.getActiveUniform(p, i), loc = gl.getUniformLocation(p, name), key = name.replace(/\[0\]$/, '');
+      if (type === gl.SAMPLER_2D || type === gl.SAMPLER_2D_ARRAY) {
+        const u = unit++, target = type === gl.SAMPLER_2D ? gl.TEXTURE_2D : gl.TEXTURE_2D_ARRAY;
+        gl.uniform1i(loc, u);
+        this.u[key] = t => { gl.activeTexture(gl.TEXTURE0 + u); gl.bindTexture(target, t); };
+      } else if (type === gl.FLOAT_MAT3) this.u[key] = v => gl.uniformMatrix3fv(loc, false, flat(v));
+      else this.u[key] = v => gl[vec[type]](loc, flat(v));
+    }
+  }
+  use(vals) {
+    this.gl.useProgram(this.p);
+    for (const k in vals) this.u[k]?.(vals[k]);
+    return this;
+  }
+}
+
+class Renderer {
+  constructor(canvas) {
+    const gl = this.gl = canvas.getContext('webgl2', { antialias: false, alpha: false });
+    if (!gl) throw new Error('WebGL2 is not available in this browser.');
+    this.hdr = !!gl.getExtension('EXT_color_buffer_float');
+    this.maxTex = gl.getParameter(gl.MAX_TEXTURE_SIZE);
+    gl.bindVertexArray(gl.createVertexArray());
+    this.fb = gl.createFramebuffer();
+    const shaders = { sample: SAMPLE, extract: EXTRACT, view: VIEW, point: FHEAD + POINT, combine: FHEAD + COMBINE, blur: FHEAD + BLUR,
+      bilateral: FHEAD + BILATERAL, morph: FHEAD + MORPH, median: FHEAD + MEDIAN, kuwahara: FHEAD + KUWAHARA, sobel: FHEAD + SOBEL };
+    this.P = Object.fromEntries(Object.entries(shaders).map(([k, s]) => [k, new Program(gl, s)]));
+    this.img = this.tex2d(1, 1, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([255, 255, 255, 255]));
+    this.blue = this.tex2d(64, 64, gl.R32F, gl.RED, gl.FLOAT, blueNoise(64), gl.NEAREST, gl.REPEAT);
+    this.imgSize = null;
+    this.imgVersion = 0;
+    this.sets = new Map();
+  }
+  tex2d(w, h, ifmt, fmt, type, data, filter = this.gl.LINEAR, wrap = this.gl.CLAMP_TO_EDGE) {
+    const gl = this.gl, t = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.texImage2D(gl.TEXTURE_2D, 0, ifmt, w, h, 0, fmt, type, data);
+    for (const [k, v] of [[gl.TEXTURE_MIN_FILTER, filter], [gl.TEXTURE_MAG_FILTER, filter], [gl.TEXTURE_WRAP_S, wrap], [gl.TEXTURE_WRAP_T, wrap]])
+      gl.texParameteri(gl.TEXTURE_2D, k, v);
+    return t;
+  }
+  setImage(bmp) {
+    const gl = this.gl;
+    gl.bindTexture(gl.TEXTURE_2D, this.img);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, bmp);
+    gl.generateMipmap(gl.TEXTURE_2D);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    this.imgSize = [bmp.width, bmp.height];
+    this.imgVersion++;
+  }
+  // One set of working textures per role ('view', 'thumb', 'export'), so roles never evict each other.
+  // The four-buffer pool is shared by the source stack and each layer stack in turn.
+  targets(role, w, h, n) {
+    const gl = this.gl, key = `${w}x${h}x${n}`, old = this.sets.get(role);
+    if (old?.key === key) return old;
+    this.release(role);
+    const [c4, c1] = this.hdr ? [gl.RGBA16F, gl.R16F] : [gl.RGBA8, gl.R8];
+    const arr = (fmt, depth) => {
+      const t = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D_ARRAY, t);
+      gl.texStorage3D(gl.TEXTURE_2D_ARRAY, 1, fmt, w, h, depth);
+      for (const [k, v] of [[gl.TEXTURE_MIN_FILTER, gl.LINEAR], [gl.TEXTURE_MAG_FILTER, gl.LINEAR], [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]])
+        gl.texParameteri(gl.TEXTURE_2D_ARRAY, k, v);
+      return t;
+    };
+    const set = {
+      key, size: [w, h], layers: [], coverage: [],
+      t: { srcIn: arr(c4, 1), srcF: arr(c4, 1), raw: arr(c1, n), filt: arr(c1, n) },
+      pool: [0, 1, 2, 3].map(() => ({ tex: arr(c4, 1), layer: 0 })),
+    };
+    this.sets.set(role, set);
+    return set;
+  }
+  release(role) {
+    const s = this.sets.get(role);
+    if (!s) return;
+    [...Object.values(s.t), ...s.pool.map(b => b.tex)].forEach(t => this.gl.deleteTexture(t));
+    this.sets.delete(role);
+  }
+  pass(tex, layer, [w, h]) {
+    const gl = this.gl;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.fb);
+    gl.framebufferTextureLayer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, tex, 0, layer);
+    gl.viewport(0, 0, w, h);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+  }
+  // Small CPU readback of a buffer (64×64 point samples) for statistics: auto levels and ink coverage.
+  probe(buf, mono) {
+    const gl = this.gl, N = 64, hdr = this.hdr;
+    if (!this.probeFb) {
+      this.probeTex = hdr ? this.tex2d(N, N, gl.RGBA32F, gl.RGBA, gl.FLOAT, null, gl.NEAREST) : this.tex2d(N, N, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, null, gl.NEAREST);
+      this.probeFb = gl.createFramebuffer();
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.probeFb);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.probeTex, 0);
+    }
+    this.P.combine.use({ uOp: 0, uP: [0, 0, 0, 0], uA: buf.tex, uLA: buf.layer, uB: buf.tex, uLB: buf.layer, uSize: [N, N], uPage: [1, 1], uMono: mono });
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.probeFb);
+    gl.viewport(0, 0, N, N);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    const out = hdr ? new Float32Array(N * N * 4) : new Uint8Array(N * N * 4);
+    gl.readPixels(0, 0, N, N, gl.RGBA, hdr ? gl.FLOAT : gl.UNSIGNED_BYTE, out);
+    return hdr ? out : Float32Array.from(out, v => v / 255);
+  }
+  // Runs a filter stack from `input` into `out`. Filters allocate pool buffers through `c.run`, which never
+  // overwrites the filter's own input, the buffers it reads, or any it asks to `keep`.
+  stack(filters, input, out, { mono, ppm, size, page, pool }) {
+    const Z = [0, 0, 0, 0], base = { uSize: size, uPage: page, uMono: mono };
+    const c = {
+      P: this.P, mono, x: input,
+      mm: v => v * ppm,
+      run: (prog, u, a, b = a, keep = []) => {
+        const dst = pool.find(p => p !== a && p !== b && p !== c.x && !keep.includes(p));
+        prog.use({ ...base, ...u, uA: a.tex, uLA: a.layer, uB: b.tex, uLB: b.layer });
+        this.pass(dst.tex, dst.layer, size);
+        return dst;
+      },
+      point: (a, op, P = Z, Q = Z) => c.run(this.P.point, { uOp: op, uP: P, uQ: Q }, a),
+      combine: (a, b, op, P = Z, keep) => c.run(this.P.combine, { uOp: op, uP: P }, a, b, keep),
+      sep: (prog, a, u, keep = []) => {
+        const h = c.run(prog, { ...u, uDir: [1, 0] }, a, a, keep);
+        return c.run(prog, { ...u, uDir: [0, 1] }, h, h, keep);
+      },
+      blur: (a, sigma, keep) => c.sep(this.P.blur, a, { uSigma: sigma }, keep),
+      probe: a => this.probe(a, mono),
+    };
+    let x = input;
+    for (const f of filters) {
+      const def = FILTERS[f.type];
+      if (!f.on || !def || (mono && def.color)) continue;
+      c.x = x;
+      let y = def.run(f, x, c);
+      if (f.mix < 1) y = c.combine(x, y, 0, [f.mix, 0, 0, 0]);
+      x = y;
+    }
+    this.P.combine.use({ ...base, uOp: 0, uP: Z, uA: x.tex, uLA: x.layer, uB: x.tex, uLB: x.layer });
+    this.pass(out.tex, out.layer, size);
+  }
+  // Re-renders only stages whose inputs changed, judged by serialized keys: the source, then each layer.
+  // Screens, opacity and visibility only affect drawing, so they never trigger work here.
+  run(S, maxSide, role) {
+    const size = workSize(S, Math.min(maxSide, this.maxTex)), set = this.targets(role, ...size, Math.max(1, S.layers.length)), t = set.t;
+    const { input: si, transform: st, filters } = S.source, page = [S.page.width, S.page.height];
+    const opt = { size, page, ppm: size[0] / S.page.width, pool: set.pool }, key = JSON.stringify;
+    const src = key([si, st, filters, page, this.imgVersion]);
+    if (set.src !== src) {
+      const kind = KINDS.indexOf(si.kind), da = page[0] / page[1];
+      const ia = kind === 0 && this.imgSize ? this.imgSize[0] / this.imgSize[1] : 1;
+      const k = si.fit === 'cover' ? Math.max(1, da / ia) : Math.min(1, da / ia);
+      const xf = new DOMMatrix().translate(.5, .5).scale(1 / (ia * k), 1 / k).scale(st.flipX ? -1 : 1, st.flipY ? -1 : 1)
+        .scale(1 / st.scale).rotate(-st.rotate).translate(-st.offset.x * da, -st.offset.y).scale(da, 1).translate(-.5, -.5);
+      this.P.sample.use({ uImg: this.img, uKind: kind, uGrad: GRADS.indexOf(si.grad), uEdge: EDGES.indexOf(st.edge), uXf: mat3(xf),
+        uSolid: rgb(si.solid), uA: rgb(si.a), uB: rgb(si.b), uSize: size });
+      this.pass(t.srcIn, 0, size);
+      this.stack(filters, { tex: t.srcIn, layer: 0 }, { tex: t.srcF, layer: 0 }, { ...opt, mono: false });
+      set.src = src;
+    }
+    const seps = S.layers.map(L => L.sep), ctx = key([src, seps.map(s => [s.ink, s.mode]), S.paper.color]);
+    const paper = rgb(S.paper.color).map(c => Math.max(c, 1e-3)), hues = hueRanges(seps), unmix = seps.filter(s => s.mode === 'unmix');
+    const abs = unmix.map(s => rgb(s.ink).map((c, j) => Math.max(0, -Math.log(Math.max(c / paper[j], 1e-3)))));
+    seps.forEach((s, i) => {
+      const k = key([ctx, s.hueShift, s.hueWidth, s.filters]);
+      if (set.layers[i] === k) return;
+      const c = rgb(s.ink), h = hues[i] ?? { c: 0, l: .5, r: .5 };
+      this.P.extract.use({ uSrc: t.srcF, uSize: size, uMode: MODES.indexOf(s.mode), uPaper: paper,
+        uHueC: h.c + s.hueShift / 360, uHueL: Math.max(h.l * s.hueWidth, 1e-3), uHueR: Math.max(h.r * s.hueWidth, 1e-3),
+        uChroma: Math.max(Math.max(...c) - Math.min(...c), .05),
+        uN: abs.length, uI: unmix.indexOf(s), uAbs: pad(abs, [0, 0, 0]),
+        uInv: pad(abs.map(a => 1 / Math.max(a[0] ** 2 + a[1] ** 2 + a[2] ** 2, 1e-6)), 0) });
+      this.pass(t.raw, i, size);
+      this.stack(s.filters, { tex: t.raw, layer: i }, { tex: t.filt, layer: i }, { ...opt, mono: true });
+      set.layers[i] = k;
+      if (role === 'view') {
+        const d = this.probe({ tex: t.filt, layer: i }, true);
+        let sum = 0;
+        for (let j = 0; j < d.length; j += 4) sum += Math.min(Math.max(d[j], 0), 1);
+        set.coverage[i] = sum / (d.length / 4);
+      }
+    });
+    set.layers.length = set.coverage.length = seps.length;
+    return set;
+  }
+  draw(S, set, { toDoc, zoom, res, flip, exp = false, bg = [0, 0, 0], split = -1, stage, solo, gray }, fb = null) {
+    const gl = this.gl, n = S.layers.length, cx = S.page.width / 2, cy = S.page.height / 2;
+    const ls = S.layers.map(({ sep: s, screen: c }) => {
+      const p = PATTERNS.indexOf(c.pattern), cell = p < 5 ? 25.4 / c.lpi : 25.4 * c.grain / S.page.dpi;
+      const j = k => c.jitter * rnd(c.seed, k);
+      return {
+        mis: mat3(new DOMMatrix().translate(cx, cy).scale(1 / c.misScale).rotate(-c.misRot).translate(-cx - c.mis.x - j(0), -cy - c.mis.y - j(1))),
+        scr: mat3(new DOMMatrix().translate(c.shift.x, c.shift.y).rotate(c.angle).skewX(c.skew).scale(c.stretch.x * cell, c.stretch.y * cell).inverse()),
+        cell, pat: p, ink: rgb(s.ink), op: s.opacity, cov: s.opaque, on: +s.on,
+      };
+    });
+    const col = (k, z) => pad(ls.map(l => l[k]), z);
+    this.P.view.use({ uSrc: set.t.srcF, uOrig: set.t.srcIn, uRaw: set.t.raw, uFilt: set.t.filt, uBlue: this.blue,
+      uToDoc: mat3(toDoc), uDoc: [S.page.width, S.page.height], uRes: res, uZoom: zoom, uN: n, uStage: stage, uSplit: split,
+      uSolo: solo < n ? solo : -1, uGray: gray, uExport: exp, uFlip: flip, uPaper: rgb(S.paper.color), uBg: bg,
+      uMis: col('mis', I3), uScr: col('scr', I3), uCell: col('cell', 1), uPat: col('pat', 0), uInk: col('ink', [0, 0, 0]),
+      uOpacity: col('op', 0), uOpaque: col('cov', 0), uOn: col('on', 0) });
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+    gl.viewport(0, 0, ...res);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+  }
+  // Renders a W×H pixel window starting at `origin` (mm) at `zoom` px/mm into a 2D canvas, in tiles.
+  renderCanvas(S, set, view, { zoom, W, H, origin = [0, 0], exp = false, canvas = document.createElement('canvas') }) {
+    const gl = this.gl, T = 2048, tw = Math.min(T, W), th = Math.min(T, H);
+    const tile = this.tex2d(tw, th, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, null), fb = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tile, 0);
+    if (canvas.width !== W || canvas.height !== H) Object.assign(canvas, { width: W, height: H });
+    const ctx = canvas.getContext('2d'), buf = new Uint8ClampedArray(tw * th * 4);
+    for (let y = 0; y < H; y += T) for (let x = 0; x < W; x += T) {
+      const w = Math.min(T, W - x), h = Math.min(T, H - y);
+      this.draw(S, set, { ...view, toDoc: new DOMMatrix().translate(...origin).scale(1 / zoom).translate(x, y), zoom, res: [w, h], flip: false, exp }, fb);
+      gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, buf);
+      ctx.putImageData(new ImageData(buf.subarray(0, w * h * 4), w, h), x, y);
+    }
+    gl.deleteFramebuffer(fb); gl.deleteTexture(tile);
+    return canvas;
+  }
+}
+
+/* ---------- shared UI bits ---------- */
+
+// Material Symbols Outlined 400, Apache-2.0, https://github.com/google/material-design-icons
+const ICONS = {
+  open: 'M140-160q-23 0-41.5-18.5T80-220v-520q0-23 18.5-41.5T140-800h281l60 60h339q23 0 41.5 18.5T880-680H455l-60-60H140v520l102-400h698L833-206q-6 24-22 35t-41 11H140Zm63-60h572l84-340H287l-84 340Zm0 0 84-340-84 340Zm-63-460v-60 60Z',
+  fit: 'M820-610v-130H690v-60h130q24 0 42 18t18 42v130h-60Zm-740 0v-130q0-24 18-42t42-18h130v60H140v130H80Zm610 450v-60h130v-130h60v130q0 24-18 42t-42 18H690Zm-550 0q-24 0-42-18t-18-42v-130h60v130h130v60H140Zm60-120v-400h560v400H200Zm60-60h440v-280H260v280Zm0 0v-280 280Z',
+  theme: 'M324-111.5Q251-143 197-197t-85.5-127Q80-397 80-480t31.5-156Q143-709 197-763t127-85.5Q397-880 480-880t156 31.5Q709-817 763-763t85.5 127Q880-563 880-480t-31.5 156Q817-251 763-197t-127 85.5Q563-80 480-80t-156-31.5ZM500-140q137-10 228.5-106T820-480q0-138-91.5-234T500-820v680Z',
+  export: 'M480-313 287-506l43-43 120 120v-371h60v371l120-120 43 43-193 193ZM220-160q-24 0-42-18t-18-42v-143h60v143h520v-143h60v143q0 24-18 42t-42 18H220Z',
+  import: 'M450-313v-371L330-564l-43-43 193-193 193 193-43 43-120-120v371h-60ZM220-160q-24 0-42-18t-18-42v-143h60v143h520v-143h60v143q0 24-18 42t-42 18H220Z',
+  presets: 'M160-80v-581q0-24.75 17.63-42.38Q195.25-721 220-721h360q24.75 0 42.38 17.62Q640-685.75 640-661v581L400-199 160-80Zm60-97 180-89 180 89v-484H220v484Zm520-62v-582H284v-60h456q24.75 0 42.38 17.62Q800-845.75 800-821v582h-60ZM220-661h360-360Z',
+  add: 'M450-450H200v-60h250v-250h60v250h250v60H510v250h-60v-250Z',
+  edit: 'M180-180h44l472-471-44-44-472 471v44Zm-60 60v-128l575-574q8-8 19-12.5t23-4.5q11 0 22 4.5t20 12.5l44 44q9 9 13 20t4 22q0 11-4.5 22.5T823-694L248-120H120Zm659-617-41-41 41 41Zm-105 64-22-22 44 44-22-22Z',
+  dup: 'M300-200q-24 0-42-18t-18-42v-560q0-24 18-42t42-18h440q24 0 42 18t18 42v560q0 24-18 42t-42 18H300Zm0-60h440v-560H300v560ZM180-80q-24 0-42-18t-18-42v-620h60v620h500v60H180Zm120-180v-560 560Z',
+  delete: 'M261-120q-24.75 0-42.37-17.63Q201-155.25 201-180v-570h-41v-60h188v-30h264v30h188v60h-41v570q0 24-18 42t-42 18H261Zm438-630H261v570h438v-570ZM367-266h60v-399h-60v399Zm166 0h60v-399h-60v399ZM261-750v570-570Z',
+  close: 'm249-207-42-42 231-231-231-231 42-42 231 231 231-231 42 42-231 231 231 231-42 42-231-231-231 231Z',
+  grid: 'M120-510v-330h330v330H120Zm0 390v-330h330v330H120Zm390-390v-330h330v330H510Zm0 390v-330h330v330H510ZM180-570h210v-210H180v210Zm390 0h210v-210H570v210Zm0 390h210v-210H570v210Zm-390 0h210v-210H180v210Zm390-390Zm0 180Zm-180 0Zm0-180Z',
+  list: 'M350-220h470v-137H350v137ZM140-603h150v-137H140v137Zm0 187h150v-127H140v127Zm0 196h150v-137H140v137Zm210-196h470v-127H350v127Zm0-187h470v-137H350v137ZM140-160q-24 0-42-18t-18-42v-520q0-24 18-42t42-18h680q24 0 42 18t18 42v520q0 24-18 42t-42 18H140Z',
+  undo: 'M259-200v-60h310q70 0 120.5-46.5T740-422q0-69-50.5-115.5T569-584H274l114 114-42 42-186-186 186-186 42 42-114 114h294q95 0 163.5 64T800-422q0 94-68.5 158T568-200H259Z',
+  redo: 'M392-200q-95 0-163.5-64T160-422q0-94 68.5-158T392-644h294L572-758l42-42 186 186-186 186-42-42 114-114H391q-70 0-120.5 46.5T220-422q0 69 50.5 115.5T391-260h310v60H392Z',
+  compare: 'M422-40v-80H180q-24 0-42-18t-18-42v-600q0-24 18-42t42-18h242v-80h60v880h-60ZM180-222h242v-277L180-222Zm362 102v-375l238 273v-558H542v-60h238q24 0 42 18t18 42v600q0 24-18 42t-42 18H542Z',
+  drag: 'M349.91-160q-28.91 0-49.41-20.59-20.5-20.59-20.5-49.5t20.59-49.41q20.59-20.5 49.5-20.5t49.41 20.59q20.5 20.59 20.5 49.5t-20.59 49.41q-20.59 20.5-49.5 20.5Zm260 0q-28.91 0-49.41-20.59-20.5-20.59-20.5-49.5t20.59-49.41q20.59-20.5 49.5-20.5t49.41 20.59q20.5 20.59 20.5 49.5t-20.59 49.41q-20.59 20.5-49.5 20.5Zm-260-250q-28.91 0-49.41-20.59-20.5-20.59-20.5-49.5t20.59-49.41q20.59-20.5 49.5-20.5t49.41 20.59q20.5 20.59 20.5 49.5t-20.59 49.41q-20.59 20.5-49.5 20.5Zm260 0q-28.91 0-49.41-20.59-20.5-20.59-20.5-49.5t20.59-49.41q20.59-20.5 49.5-20.5t49.41 20.59q20.5 20.59 20.5 49.5t-20.59 49.41q-20.59 20.5-49.5 20.5Zm-260-250q-28.91 0-49.41-20.59-20.5-20.59-20.5-49.5t20.59-49.41q20.59-20.5 49.5-20.5t49.41 20.59q20.5 20.59 20.5 49.5t-20.59 49.41q-20.59 20.5-49.5 20.5Zm260 0q-28.91 0-49.41-20.59-20.5-20.59-20.5-49.5t20.59-49.41q20.59-20.5 49.5-20.5t49.41 20.59q20.5 20.59 20.5 49.5t-20.59 49.41q-20.59 20.5-49.5 20.5Z',
+  chevron: 'M530-481 332-679l43-43 241 241-241 241-43-43 198-198Z',
+  more: 'M479.86-160Q460-160 446-174.14t-14-34Q432-228 446.14-242t34-14Q500-256 514-241.86t14 34Q528-188 513.86-174t-34 14Zm0-272Q460-432 446-446.14t-14-34Q432-500 446.14-514t34-14Q500-528 514-513.86t14 34Q528-460 513.86-446t-34 14Zm0-272Q460-704 446-718.14t-14-34Q432-772 446.14-786t34-14Q500-800 514-785.86t14 34Q528-732 513.86-718t-34 14Z',
+  visible: 'M600.5-379.5Q650-429 650-500t-49.5-120.5Q551-670 480-670t-120.5 49.5Q310-571 310-500t49.5 120.5Q409-330 480-330t120.5-49.5Zm-200-41Q368-453 368-500t32.5-79.5Q433-612 480-612t79.5 32.5Q592-547 592-500t-32.5 79.5Q527-388 480-388t-79.5-32.5ZM216-283Q98-366 40-500q58-134 176-217t264-83q146 0 264 83t176 217q-58 134-176 217t-264 83q-146 0-264-83Zm264-217Zm222.5 174.5Q804-391 857-500q-53-109-154.5-174.5T480-740q-121 0-222.5 65.5T102-500q54 109 155.5 174.5T480-260q121 0 222.5-65.5Z',
+  hidden: 'm629-419-44-44q26-71-27-118t-115-24l-44-44q17-11 38-16t43-5q71 0 120.5 49.5T650-500q0 22-5.5 43.5T629-419Zm129 129-40-40q49-36 85.5-80.5T857-500q-50-111-150-175.5T490-740q-42 0-86 8t-69 19l-46-47q35-16 89.5-28T485-800q143 0 261.5 81.5T920-500q-26 64-67 117t-95 93Zm58 226L648-229q-35 14-79 21.5t-89 7.5q-146 0-265-81.5T40-500q20-52 55.5-101.5T182-696L56-822l42-43 757 757-39 44ZM223-654q-37 27-71.5 71T102-500q51 111 153.5 175.5T488-260q33 0 65-4t48-12l-64-64q-11 5-27 7.5t-30 2.5q-70 0-120-49t-50-121q0-15 2.5-30t7.5-27l-97-97Zm305 142Zm-116 58Z',
+  check: 'm419-321 289-289-43-43-246 246-119-119-43 43 162 162ZM180-120q-24 0-42-18t-18-42v-600q0-24 18-42t42-18h600q24 0 42 18t18 42v600q0 24-18 42t-42 18H180Zm0-60h600v-600H180v600Zm0-600v600-600Z',
+  uncheck: 'M180-120q-24 0-42-18t-18-42v-600q0-24 18-42t42-18h600q24 0 42 18t18 42v600q0 24-18 42t-42 18H180Zm0-60h600v-600H180v600Z',
+  help: 'M511-258q11-11 11-27t-11-27q-11-11-27-11t-27 11q-11 11-11 27t11 27q11 11 27 11t27-11Zm-62-135h59q0-26 6.5-47.5T555-490q31-26 44-51t13-55q0-53-34.5-85T486-713q-49 0-86.5 24.5T345-621l53 20q11-28 33-43.5t52-15.5q34 0 55 18.5t21 47.5q0 22-13 41.5T508-512q-30 26-44.5 51.5T449-393Zm31 313q-82 0-155-31.5t-127.5-86Q143-252 111.5-325T80-480q0-83 31.5-156t86-127Q252-817 325-848.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 82-31.5 155T763-197.5q-54 54.5-127 86T480-80Zm0-60q142 0 241-99.5T820-480q0-142-99-241t-241-99q-141 0-240.5 99T140-480q0 141 99.5 240.5T480-140Zm0-340Z',
+  paste: 'M180-120q-26 0-43-17t-17-43v-600q0-26 17-43t43-17h202q7-35 34.5-57.5T480-920q36 0 63.5 22.5T578-840h202q26 0 43 17t17 43v600q0 26-17 43t-43 17H180Zm0-60h600v-600h-60v90H240v-90h-60v600Zm328.5-611.5Q520-803 520-820t-11.5-28.5Q497-860 480-860t-28.5 11.5Q440-837 440-820t11.5 28.5Q463-780 480-780t28.5-11.5Z',
+  image: 'M180-120q-24 0-42-18t-18-42v-600q0-24 18-42t42-18h600q24 0 42 18t18 42v600q0 24-18 42t-42 18H180Zm0-60h600v-600H180v600Zm56-97h489L578-473 446-302l-93-127-117 152Zm-56 97v-600 600Z',
+  transform: 'M640-40 488-192l42-42 80 80v-139H350q-26 0-43-17t-17-43v-254H80v-60h210v-139l-80 80-42-42 152-152 152 152-42 42-80-80v453h530v60H670v139l80-80 42 42L640-40Zm-30-373v-194H410v-60h200q26 0 43 17t17 43v194h-60Z',
+  tune: 'M427-120v-225h60v83h353v60H487v82h-60Zm-307-82v-60h247v60H120Zm187-166v-82H120v-60h187v-84h60v226h-60Zm120-82v-60h413v60H427Zm166-165v-225h60v82h187v60H653v83h-60Zm-473-83v-60h413v60H120Z',
+  layers: 'M480-130 120-410l50-37 310 241 310-241 50 37-360 280Zm0-152L120-562l360-280 360 280-360 280Zm0-301Zm0 225 262-204-262-204-262 204 262 204Z',
+  palette: 'M480-80q-82 0-155-31.5t-127.5-86Q143-252 111.5-325T80-480q0-85 32-158t87.5-127q55.5-54 130-84.5T489-880q79 0 150 26.5T763.5-780q53.5 47 85 111.5T880-527q0 108-63 170.5T650-294h-75q-18 0-31 14t-13 31q0 27 14.5 46t14.5 44q0 38-21 58.5T480-80Zm0-400Zm-198 11q15-15 15-35t-15-35q-15-15-35-15t-35 15q-15 15-15 35t15 35q15 15 35 15t35-15Zm126-170q15-15 15-35t-15-35q-15-15-35-15t-35 15q-15 15-15 35t15 35q15 15 35 15t35-15Zm214 0q15-15 15-35t-15-35q-15-15-35-15t-35 15q-15 15-15 35t15 35q15 15 35 15t35-15Zm131 170q15-15 15-35t-15-35q-15-15-35-15t-35 15q-15 15-15 35t15 35q15 15 35 15t35-15ZM480-140q11 0 15.5-4.5T500-159q0-14-14.5-26T471-238q0-46 30-81t76-35h73q76 0 123-44.5T820-527q0-132-100-212.5T489-820q-146 0-247.5 98.5T140-480q0 141 99.5 240.5T480-140Z',
+  print: 'M658-648v-132H302v132h-60v-192h476v192h-60Zm-518 60h680-680Zm599 95q12 0 21-9t9-21q0-12-9-21t-21-9q-12 0-21 9t-9 21q0 12 9 21t21 9Zm-81 313v-192H302v192h356Zm60 60H242v-176H80v-246q0-45.05 30.5-75.53Q141-648 186-648h588q45.05 0 75.53 30.47Q880-587.05 880-542v246H718v176Zm102-236v-186.21Q820-562 806.78-575q-13.23-13-32.78-13H186q-19.55 0-32.77 13.22Q140-561.55 140-542v186h102v-76h476v76h102Z',
+  page: 'M319-250h322v-60H319v60Zm0-170h322v-60H319v60ZM220-80q-24 0-42-18t-18-42v-680q0-24 18-42t42-18h361l219 219v521q0 24-18 42t-42 18H220Zm331-554v-186H220v680h520v-494H551ZM220-820v186-186 680-680Z',
+  halftone: 'M106-387q-6-6-6-15t6-15q6-6 15-6t15 6q6 6 6 15t-6 15q-6 6-15 6t-15-6Zm0-156q-6-6-6-15t6-15q6-6 15-6t15 6q6 6 6 15t-6 15q-6 6-15 6t-15-6Zm107 330q-11-11-11-27t11-27q11-11 27-11t27 11q11 11 11 27t-11 27q-11 11-27 11t-27-11Zm0-162q-11-11-11-27t11-27q11-11 27-11t27 11q11 11 11 27t-11 27q-11 11-27 11t-27-11Zm0-156q-11-11-11-27t11-27q11-11 27-11t27 11q11 11 11 27t-11 27q-11 11-27 11t-27-11Zm0-162q-11-11-11-27t11-27q11-11 27-11t27 11q11 11 11 27t-11 27q-11 11-27 11t-27-11Zm150.5 329.5Q348-379 348-402t15.5-38.5Q379-456 402-456t38.5 15.5Q456-425 456-402t-15.5 38.5Q425-348 402-348t-38.5-15.5Zm0-156Q348-535 348-558t15.5-38.5Q379-612 402-612t38.5 15.5Q456-581 456-558t-15.5 38.5Q425-504 402-504t-38.5-15.5ZM375-213q-11-11-11-27t11-27q11-11 27-11t27 11q11 11 11 27t-11 27q-11 11-27 11t-27-11Zm0-480q-11-11-11-27t11-27q11-11 27-11t27 11q11 11 11 27t-11 27q-11 11-27 11t-27-11Zm12 587q-6-6-6-15t6-15q6-6 15-6t15 6q6 6 6 15t-6 15q-6 6-15 6t-15-6Zm0-718q-6-6-6-15t6-15q6-6 15-6t15 6q6 6 6 15t-6 15q-6 6-15 6t-15-6Zm132.5 460.5Q504-379 504-402t15.5-38.5Q535-456 558-456t38.5 15.5Q612-425 612-402t-15.5 38.5Q581-348 558-348t-38.5-15.5Zm0-156Q504-535 504-558t15.5-38.5Q535-612 558-612t38.5 15.5Q612-581 612-558t-15.5 38.5Q581-504 558-504t-38.5-15.5ZM531-213q-11-11-11-27t11-27q11-11 27-11t27 11q11 11 11 27t-11 27q-11 11-27 11t-27-11Zm0-480q-11-11-11-27t11-27q11-11 27-11t27 11q11 11 11 27t-11 27q-11 11-27 11t-27-11Zm18 587q-6-6-6-15t6-15q6-6 15-6t15 6q6 6 6 15t-6 15q-6 6-15 6t-15-6Zm-6-718q-6-6-6-15t6-15q6-6 15-6t15 6q6 6 6 15t-6 15q-6 6-15 6t-15-6Zm150 611q-11-11-11-27t11-27q11-11 27-11t27 11q11 11 11 27t-11 27q-11 11-27 11t-27-11Zm0-162q-11-11-11-27t11-27q11-11 27-11t27 11q11 11 11 27t-11 27q-11 11-27 11t-27-11Zm0-156q-11-11-11-27t11-27q11-11 27-11t27 11q11 11 11 27t-11 27q-11 11-27 11t-27-11Zm0-162q-11-11-11-27t11-27q11-11 27-11t27 11q11 11 11 27t-11 27q-11 11-27 11t-27-11Zm131 306q-6-6-6-15t6-15q6-6 15-6t15 6q6 6 6 15t-6 15q-6 6-15 6t-15-6Zm0-156q-6-6-6-15t6-15q6-6 15-6t15 6q6 6 6 15t-6 15q-6 6-15 6t-15-6Z',
+  move: 'M480-80 317-243l44-44 89 89v-189h60v189l89-89 44 44L480-80ZM238-322 80-480l159-159 44 44-85 85h189v60H198l84 84-44 44Zm484 0-44-44 84-84H574v-60h188l-84-84 44-44 158 158-158 158ZM450-574v-188l-84 84-44-44 158-158 158 158-44 44-84-84v188h-60Z',
+  extract: 'M780-120H180q-24 0-42-18t-18-42v-600q0-24 18-42t42-18h600q24 0 42 18t18 42v600q0 24-18 42t-42 18Zm-600-60h300v-342l300 342v-600H480v258L180-180Z',
+  stage: 'M480-410 41-645l439-235 440 235-440 235Zm0 165L65-467l63-34 352 188 353-188 63 34-416 222Zm0 165L65-302l63-34 352 188 353-188 63 34L480-80Zm0-399 315-166-315-166-314 166 314 166Zm1-166Z',
+  aspect: 'M577-274h191v-194h-60v134H577v60ZM193-492h60v-134h131v-60H193v194Zm-53 332q-24 0-42-18t-18-42v-520q0-24 18-42t42-18h680q24 0 42 18t18 42v520q0 24-18 42t-42 18H140Zm0-60h680v-520H140v520Zm0 0v-520 520Z',
+  swap: 'M273-160 80-353l193-193 42 42-121 121h316v60H194l121 121-42 42Zm414-254-42-42 121-121H450v-60h316L645-758l42-42 193 193-193 193Z',
+  invert: 'M480-120q-132 0-226-91.5T160-435q0-66 25-122.5T254-658l226-222 226 222q44 44 69 100.5T800-435q0 131-93.5 223T480-120Zm0-60v-616L294-613q-36 36-55 80t-19 98q0 107 76.5 181T480-180Z',
+  gradient: 'M437-438v-86h85v86h-85Zm-86 86v-86h86v86h-86Zm171 0v-86h86v86h-86Zm86-86v-86h86v86h-86Zm-342 0v-86h85v86h-85Zm-86 318q-24.75 0-42.37-17.63Q120-155.25 120-180v-600q0-24.75 17.63-42.38Q155.25-840 180-840h600q24.75 0 42.38 17.62Q840-804.75 840-780v600q0 24.75-17.62 42.37Q804.75-120 780-120H180Zm86-60h85v-86h-85v86Zm171 0h85v-86h-85v86Zm343 0v-86 86Zm-600-86h86v-86h85.33v86h85.34v-86H522v86h86v-86h86v86h86v-86h-86v-86h86v-342H180v342h86v86h-86v86Zm0 86v-600 600Zm600-258v86-86ZM608-266v86h86v-86h-86Z',
+  colorize: 'M120-120v-168l377-377-72-72 41-41 92 92 142-142q5-5 11-8t12-3q6 0 12 3t12 8l81 81q5 6 8 12t3 12q0 6-3 12t-8 11L686-558l92 92-41 41-72-72-377 377H120Zm60-60h87l355-355-87-87-355 355v87Zm463-420 124-124-43-43-124 124 43 43Zm0 0-43-43 43 43Z',
+  rotate: 'M527-80v-60q35-6 69-19.5t66-37.5l43 44q-40 30-85 48t-93 25Zm-90 0q-137-21-226-122t-89-241q0-75 28-140.5T227-698q49-49 114.5-77T482-803h20l-79-79 44-44 153 153-153 153-44-44 79-79h-20q-127 0-213.5 86.5T182-443q0 117 72.5 199.5T437-140v60Zm331-136-44-44q23-30 36.5-65t18.5-73h61q-7 51-25.5 97.5T768-216Zm72-272h-61q-5-35-18.5-70T724-626l44-43q29 40 47 85.5t25 95.5Z',
+  flip: 'M349-120H180q-24.75 0-42.37-17.63Q120-155.25 120-180v-600q0-24.75 17.63-42.38Q155.25-840 180-840h169v60H180v600h169v60Zm103 80v-880h60v880h-60Zm163-80v-60h60v60h-60Zm0-660v-60h60v60h-60Zm165 660v-60h60q0 25-17.62 42.5Q804.75-120 780-120Zm0-165v-60h60v60h-60Zm0-165v-60h60v60h-60Zm0-165v-60h60v60h-60Zm0-165v-60q24.75 0 42.38 17.62Q840-804.75 840-780h-60Z',
+  opacity: 'M253.5-210.5Q160-301 160-434q0-66 25.5-123T255-658l225-222 225 222q44 44 69.5 101T800-434q0 133-93.5 223.5T480-120q-133 0-226.5-90.5ZM223-400h514q13-69-15-127t-56-85L480-795 294-612q-28 27-56 85t-15 127Z',
+  texture: 'M161-120q-18-8-26-17.5T120-165l678-675q15 5 26.5 16.5T840-796L161-120Zm-41-278v-86l356-356h86L120-398Zm0-320v-62q0-24 18-42t42-18h62L120-718Zm598 598 122-122v62q0 24-18 42t-42 18h-62Zm-320 0 442-442v86L484-120h-86Z',
+  grain: 'M229.91-160q-28.91 0-49.41-20.59-20.5-20.59-20.5-49.5t20.59-49.41q20.59-20.5 49.5-20.5t49.41 20.59q20.5 20.59 20.5 49.5t-20.59 49.41q-20.59 20.5-49.5 20.5Zm335 0q-28.91 0-49.41-20.59-20.5-20.59-20.5-49.5t20.59-49.41q20.59-20.5 49.5-20.5t49.41 20.59q20.5 20.59 20.5 49.5t-20.59 49.41q-20.59 20.5-49.5 20.5Zm-170-165q-28.91 0-49.41-20.59-20.5-20.59-20.5-49.5t20.59-49.41q20.59-20.5 49.5-20.5t49.41 20.59q20.5 20.59 20.5 49.5t-20.59 49.41q-20.59 20.5-49.5 20.5Zm335 0q-28.91 0-49.41-20.59-20.5-20.59-20.5-49.5t20.59-49.41q20.59-20.5 49.5-20.5t49.41 20.59q20.5 20.59 20.5 49.5t-20.59 49.41q-20.59 20.5-49.5 20.5Zm-500-170q-28.91 0-49.41-20.59-20.5-20.59-20.5-49.5t20.59-49.41q20.59-20.5 49.5-20.5t49.41 20.59q20.5 20.59 20.5 49.5t-20.59 49.41q-20.59 20.5-49.5 20.5Zm335 0q-28.91 0-49.41-20.59-20.5-20.59-20.5-49.5t20.59-49.41q20.59-20.5 49.5-20.5t49.41 20.59q20.5 20.59 20.5 49.5t-20.59 49.41q-20.59 20.5-49.5 20.5Zm-170-165q-28.91 0-49.41-20.59-20.5-20.59-20.5-49.5t20.59-49.41q20.59-20.5 49.5-20.5t49.41 20.59q20.5 20.59 20.5 49.5t-20.59 49.41q-20.59 20.5-49.5 20.5Zm335 0q-28.91 0-49.41-20.59-20.5-20.59-20.5-49.5t20.59-49.41q20.59-20.5 49.5-20.5t49.41 20.59q20.5 20.59 20.5 49.5t-20.59 49.41q-20.59 20.5-49.5 20.5Z',
+  straighten: 'M140-240q-24 0-42-18t-18-42v-360q0-23 18-41.5t42-18.5h680q24 0 42 18.5t18 41.5v360q0 24-18 42t-42 18H140Zm0-60h680v-360H690v180h-60v-180H510v180h-60v-180H330v180h-60v-180H140v360Zm130-180h60-60Zm180 0h60-60Zm180 0h60-60Zm-150 0Z',
+  settings: 'm388-80-20-126q-19-7-40-19t-37-25l-118 54-93-164 108-79q-2-9-2.5-20.5T185-480q0-9 .5-20.5T188-521L80-600l93-164 118 54q16-13 37-25t40-18l20-127h184l20 126q19 7 40.5 18.5T669-710l118-54 93 164-108 77q2 10 2.5 21.5t.5 21.5q0 10-.5 21t-2.5 21l108 78-93 164-118-54q-16 13-36.5 25.5T592-206L572-80H388Zm48-60h88l14-112q33-8 62.5-25t53.5-41l106 46 40-72-94-69q4-17 6.5-33.5T715-480q0-17-2-33.5t-7-33.5l94-69-40-72-106 46q-23-26-52-43.5T538-708l-14-112h-88l-14 112q-34 7-63.5 24T306-642l-106-46-40 72 94 69q-4 17-6.5 33.5T245-480q0 17 2.5 33.5T254-413l-94 69 40 72 106-46q24 24 53.5 41t62.5 25l14 112Zm44-210q54 0 92-38t38-92q0-54-38-92t-92-38q-54 0-92 38t-38 92q0 54 38 92t92 38Zm0-130Z',
+  view: 'M600.5-379.5Q650-429 650-500t-49.5-120.5Q551-670 480-670t-120.5 49.5Q310-571 310-500t49.5 120.5Q409-330 480-330t120.5-49.5Zm-200-41Q368-453 368-500t32.5-79.5Q433-612 480-612t79.5 32.5Q592-547 592-500t-32.5 79.5Q527-388 480-388t-79.5-32.5ZM216-283Q98-366 40-500q58-134 176-217t264-83q146 0 264 83t176 217q-58 134-176 217t-264 83q-146 0-264-83Zm264-217Zm222.5 174.5Q804-391 857-500q-53-109-154.5-174.5T480-740q-121 0-222.5 65.5T102-500q54 109 155.5 174.5T480-260q121 0 222.5-65.5Z',
+  input: 'M345-377h391L609-548 506-413l-68-87-93 123Zm-85 177q-24 0-42-18t-18-42v-560q0-24 18-42t42-18h560q24 0 42 18t18 42v560q0 24-18 42t-42 18H260Zm0-60h560v-560H260v560ZM140-80q-24 0-42-18t-18-42v-620h60v620h620v60H140Zm120-740v560-560Z',
+  ruler: 'M140-240q-24 0-42-18t-18-42v-360q0-23 18-41.5t42-18.5h680q24 0 42 18.5t18 41.5v360q0 24-18 42t-42 18H140Zm0-60h680v-360H690v180h-60v-180H510v180h-60v-180H330v180h-60v-180H140v360Zm130-180h60-60Zm180 0h60-60Zm180 0h60-60Zm-150 0Z',
+  speed: 'M473.5-303.5Q517-305 537-336l216-339-335 219q-30 20-32 64t21 67q23 23 66.5 21.5ZM478-799q57 0 119 18.5T716-717l-52 37q-45-30-96.5-44.5T477.98-739q-140.47 0-239.23 100.22Q140-538.57 140-396.02 140-351 152.5-305q12.5 46 35.5 85h579q22-36 35-84t13-94q0-42-12.5-90.5T758-578l39-52q38 56 57 112.5T875-404q2 60-12 113t-41 98q-12 23-25.5 28t-33.5 5H192q-17 0-33.5-8.5T134-193q-26-48-40-97.5T80-396q0-83 31.5-156.5t85.5-128Q251-735 323.68-767T478-799Zm-9 331Z',
+  tonality: 'M324-111.5Q251-143 197-197t-85.5-127Q80-397 80-480t31.5-156Q143-709 197-763t127-85.5Q397-880 480-880t156 31.5Q709-817 763-763t85.5 127Q880-563 880-480t-31.5 156Q817-251 763-197t-127 85.5Q563-80 480-80t-156-31.5ZM450-141v-678q-132 14-221 110.5T140-480q0 132 89 228t221 111Zm60 0q38-4 74-16t70-31H510v47Zm0-107h219q14-17 27.5-34t24.5-37H510v71Zm0-131h294q8-17 10-35t3-36H510v71Zm0-131h307q-1-18-3-36t-10-35H510v71Zm0-131h271q-10-20-24-37l-28-34H510v71Zm0-131h144q-34-19-70-31.5T510-819v47Zm-60 292Z',
+  exposure: 'M180-120q-24 0-42-18t-18-42v-600q0-24 18-42t42-18h600q24 0 42 18t18 42v600q0 24-18 42t-42 18H180Zm0-60h600v-600L180-180Zm414-48v-88h-88v-50h88v-88h50v88h88v50h-88v88h-50ZM228-638h202v-50H228v50Z',
+  blur: 'M237.5-278.5Q255-296 255-319t-17.5-40.5Q220-377 197-377t-40.5 17.5Q139-342 139-319t17.5 40.5Q174-261 197-261t40.5-17.5ZM387-456q11-11 11-27t-11-27q-11-11-27-11t-27 11q-11 11-11 27t11 27q11 11 27 11t27-11Zm0-164q11-11 11-27t-11-27q-11-11-27-11t-27 11q-11 11-11 27t11 27q11 11 27 11t27-11ZM120-120v-60h720v60H120Zm117.5-486.5Q255-624 255-647t-17.5-40.5Q220-705 197-705t-40.5 17.5Q139-670 139-647t17.5 40.5Q174-589 197-589t40.5-17.5Zm0 164Q255-460 255-483t-17.5-40.5Q220-541 197-541t-40.5 17.5Q139-506 139-483t17.5 40.5Q174-425 197-425t40.5-17.5ZM387-288q11-11 11-27t-11-27q-11-11-27-11t-27 11q-11 11-11 27t11 27q11 11 27 11t27-11Zm322-15q7-7 7-16t-7-16q-7-7-16-7t-16 7q-7 7-7 16t7 16q7 7 16 7t16-7ZM120-780v-60h720v60H120Zm589 149q7-7 7-16t-7-16q-7-7-16-7t-16 7q-7 7-7 16t7 16q7 7 16 7t16-7Zm0 164q7-7 7-16t-7-16q-7-7-16-7t-16 7q-7 7-7 16t7 16q7 7 16 7t16-7ZM552-620q11-11 11-27t-11-27q-11-11-27-11t-27 11q-11 11-11 27t11 27q11 11 27 11t27-11Zm0 164q11-11 11-27t-11-27q-11-11-27-11t-27 11q-11 11-11 27t11 27q11 11 27 11t27-11Zm0 168q11-11 11-27t-11-27q-11-11-27-11t-27 11q-11 11-11 27t11 27q11 11 27 11t27-11ZM120-180v-600 600Z',
+  sharpen: 'm80-120 400-720 400 720H80Zm102-60h268v-482L182-180Zm328 0h268L510-662v482Z',
+  threshold: 'M780-120H180q-24 0-42-18t-18-42v-600q0-24 18-42t42-18h600q24 0 42 18t18 42v600q0 24-18 42t-42 18Zm-600-60h300v-342l300 342v-600H480v258L180-180Z',
+  edges: 'M120-160v-60h60v60h-60Zm0-120v-60h209v60H120Zm0-120v-60h330v60H120Zm0-120v-280h720v280H120Zm165 360v-60h60v60h-60Zm90-120v-60h210v60H375Zm75 120v-60h60v60h-60Zm60-240v-60h330v60H510Zm105 240v-60h60v60h-60Zm16-120v-60h209v60H631Zm149 120v-60h60v60h-60Z',
+  morph: 'M640-260q92 0 156-64.49 64-64.5 64-156Q860-572 796-636q-64-64-156-64-30.51 0-59.33 8.04Q551.86-683.93 527-669q34 38 53.5 86T600-480q0 55-19.5 103T527-291q24.86 14.93 53.67 22.96Q609.49-260 640-260Zm-160-69q28-29 44-68.25t16-83Q540-524 524-563t-44-68q-28 29-44 68.25t-16 83Q420-436 436-397t44 68Zm-160 69q30.51 0 59.33-8.04Q408.14-276.07 433-291q-34-38-53.5-86T360-480q0-55 19.5-103t53.5-86q-24.86-14.93-53.67-22.96Q350.51-700 320-700q-91.3 0-155.65 64Q100-572 100-480.49q0 91.5 64.35 156Q228.7-260 320-260Zm0 60q-117 0-198.5-81.5T40-480q0-117 81.5-198.5T320-760q45 0 85.5 13t74.5 37q34-24 74.5-37t85.5-13q117 0 198.5 81.5T920-480q0 117-81.5 198.5T640-200q-45 0-85.5-13T480-250q-34 24-74.5 37T320-200Z',
+  noise: 'M229.91-160q-28.91 0-49.41-20.59-20.5-20.59-20.5-49.5t20.59-49.41q20.59-20.5 49.5-20.5t49.41 20.59q20.5 20.59 20.5 49.5t-20.59 49.41q-20.59 20.5-49.5 20.5Zm335 0q-28.91 0-49.41-20.59-20.5-20.59-20.5-49.5t20.59-49.41q20.59-20.5 49.5-20.5t49.41 20.59q20.5 20.59 20.5 49.5t-20.59 49.41q-20.59 20.5-49.5 20.5Zm-170-165q-28.91 0-49.41-20.59-20.5-20.59-20.5-49.5t20.59-49.41q20.59-20.5 49.5-20.5t49.41 20.59q20.5 20.59 20.5 49.5t-20.59 49.41q-20.59 20.5-49.5 20.5Zm335 0q-28.91 0-49.41-20.59-20.5-20.59-20.5-49.5t20.59-49.41q20.59-20.5 49.5-20.5t49.41 20.59q20.5 20.59 20.5 49.5t-20.59 49.41q-20.59 20.5-49.5 20.5Zm-500-170q-28.91 0-49.41-20.59-20.5-20.59-20.5-49.5t20.59-49.41q20.59-20.5 49.5-20.5t49.41 20.59q20.5 20.59 20.5 49.5t-20.59 49.41q-20.59 20.5-49.5 20.5Zm335 0q-28.91 0-49.41-20.59-20.5-20.59-20.5-49.5t20.59-49.41q20.59-20.5 49.5-20.5t49.41 20.59q20.5 20.59 20.5 49.5t-20.59 49.41q-20.59 20.5-49.5 20.5Zm-170-165q-28.91 0-49.41-20.59-20.5-20.59-20.5-49.5t20.59-49.41q20.59-20.5 49.5-20.5t49.41 20.59q20.5 20.59 20.5 49.5t-20.59 49.41q-20.59 20.5-49.5 20.5Zm335 0q-28.91 0-49.41-20.59-20.5-20.59-20.5-49.5t20.59-49.41q20.59-20.5 49.5-20.5t49.41 20.59q20.5 20.59 20.5 49.5t-20.59 49.41q-20.59 20.5-49.5 20.5Z',
+  color: 'M480-80q-82 0-155-31.5t-127.5-86Q143-252 111.5-325T80-480q0-85 32-158t87.5-127q55.5-54 130-84.5T489-880q79 0 150 26.5T763.5-780q53.5 47 85 111.5T880-527q0 108-63 170.5T650-294h-75q-18 0-31 14t-13 31q0 27 14.5 46t14.5 44q0 38-21 58.5T480-80Zm0-400Zm-198 11q15-15 15-35t-15-35q-15-15-35-15t-35 15q-15 15-15 35t15 35q15 15 35 15t35-15Zm126-170q15-15 15-35t-15-35q-15-15-35-15t-35 15q-15 15-15 35t15 35q15 15 35 15t35-15Zm214 0q15-15 15-35t-15-35q-15-15-35-15t-35 15q-15 15-15 35t15 35q15 15 35 15t35-15Zm131 170q15-15 15-35t-15-35q-15-15-35-15t-35 15q-15 15-15 35t15 35q15 15 35 15t35-15ZM480-140q11 0 15.5-4.5T500-159q0-14-14.5-26T471-238q0-46 30-81t76-35h73q76 0 123-44.5T820-527q0-132-100-212.5T489-820q-146 0-247.5 98.5T140-480q0 141 99.5 240.5T480-140Z',
+  brush: 'M215-117q-33.83 0-66.92-11.5Q115-140 90-166q35-12 50-35t15-62q0-43.75 30.68-74.38Q216.35-368 260.18-368q43.82 0 74.32 30.62Q365-306.75 365-263q0 64-43.5 105T215-117Zm0-60q35 0 62.5-25t27.5-61q0-20-12.5-32.5T260-308q-20 0-32.5 12.5T215-263q0 39-8.5 57.5T175-183q6 1 20 3.5t20 2.5Zm230-177-90-95 376-376q14-14 31-14.5t32 14.5l29 29q15 15 14.5 32.5T823-732L445-354Zm-185 91Z',
+  collapse: 'M411-481 213-679l42-42 240 240-240 240-42-42 198-198Zm253 0L466-679l42-42 240 240-240 240-42-42 198-198Z',
+  expand: 'M453-241 213-481l240-240 42 42-198 198 198 198-42 42Zm253 0L466-481l240-240 42 42-198 198 198 198-42 42Z',
+  inspect: 'm300-347 109-153h218L300-757v410ZM560-84 412-401 240-160v-720l560 440H505l145 314-90 42ZM409-500Z',
+  search: 'M796-121 533-384q-30 26-70 40.5T378-329q-108 0-183-75t-75-181q0-106 75-181t182-75q106 0 180.5 75T632-585q0 43-14 83t-42 75l264 262-44 44ZM377-389q81 0 138-57.5T572-585q0-81-57-138.5T377-781q-82 0-139.5 57.5T180-585q0 81 57.5 138.5T377-389Z',
+  book: 'M560-574v-48q33-14 67.5-21t72.5-7q26 0 51 4t49 10v44q-24-9-48.5-13.5T700-610q-38 0-73 9.5T560-574Zm0 220v-49q33-13.5 67.5-20.25T700-430q26 0 51 4t49 10v44q-24-9-48.5-13.5T700-390q-38 0-73 9t-67 27Zm0-110v-48q33-14 67.5-21t72.5-7q26 0 51 4t49 10v44q-24-9-48.5-13.5T700-500q-38 0-73 9.5T560-464ZM248-300q53.57 0 104.28 12.5Q403-275 452-250v-427q-45-30-97.62-46.5Q301.76-740 248-740q-38 0-74.5 9.5T100-707v434q31-14 70.5-20.5T248-300Zm264 50q50-25 98-37.5T712-300q38 0 78.5 6t69.5 16v-429q-34-17-71.82-25-37.82-8-76.18-8-54 0-104.5 16.5T512-677v427Zm-30 90q-51-38-111-58.5T248-239q-36.54 0-71.77 9T106-208q-23.1 11-44.55-3Q40-225 40-251v-463q0-15 7-27.5T68-761q42-20 87.39-29.5 45.4-9.5 92.61-9.5 63 0 122.5 17T482-731q51-35 109.5-52T712-800q46.87 0 91.93 9.5Q849-781 891-761q14 7 21.5 19.5T920-714v463q0 27.89-22.5 42.45Q875-194 853-208q-34-14-69.23-22.5Q748.54-239 712-239q-63 0-121 21t-109 58ZM276-489Z',
+  school: 'M479-120 189-279v-240L40-600l439-240 441 240v317h-60v-282l-91 46v240L479-120Zm0-308 315-172-315-169-313 169 313 172Zm0 240 230-127v-168L479-360 249-485v170l230 127Zm1-240Zm-1 74Zm0 0Z',
+  denoise: 'M213-375q-11-11-11-27t11-27q11-11 27-11t27 11q11 11 11 27t-11 27q-11 11-27 11t-27-11Zm0 162q-11-11-11-27t11-27q11-11 27-11t27 11q11 11 11 27t-11 27q-11 11-27 11t-27-11Zm0-318q-11-11-11-27t11-27q11-11 27-11t27 11q11 11 11 27t-11 27q-11 11-27 11t-27-11Zm-107-12q-6-6-6-15t6-15q6-6 15-6t15 6q6 6 6 15t-6 15q-6 6-15 6t-15-6Zm107-150q-11-11-11-27t11-27q11-11 27-11t27 11q11 11 11 27t-11 27q-11 11-27 11t-27-11ZM106-387q-6-6-6-15t6-15q6-6 15-6t15 6q6 6 6 15t-6 15q-6 6-15 6t-15-6Zm281 281q-6-6-6-15t6-15q6-6 15-6t15 6q6 6 6 15t-6 15q-6 6-15 6t-15-6Zm0-718q-6-6-6-15t6-15q6-6 15-6t15 6q6 6 6 15t-6 15q-6 6-15 6t-15-6Zm-12 131q-11-11-11-27t11-27q11-11 27-11t27 11q11 11 11 27t-11 27q-11 11-27 11t-27-11Zm-11.5 329.5Q348-379 348-402t15.5-38.5Q379-456 402-456t38.5 15.5Q456-425 456-402t-15.5 38.5Q425-348 402-348t-38.5-15.5Zm0-156Q348-535 348-558t15.5-38.5Q379-612 402-612t38.5 15.5Q456-581 456-558t-15.5 38.5Q425-504 402-504t-38.5-15.5ZM375-213q-11-11-11-27t11-27q11-11 27-11t27 11q11 11 11 27t-11 27q-11 11-27 11t-27-11Zm115 83v-60q117-5 198.5-88.5T770-480q0-118-81.5-201.5T490-770v-60q71 2 132.5 30.5t108 75.5q46.5 47 73 110T830-480q0 71-26.5 134t-73 110q-46.5 47-108 75.5T490-130Zm0-350Z',
+};
+const sprite = keys => `<svg hidden>${keys.map(k => `<symbol id="${k}" viewBox="0 -960 960 960"><path d="${ICONS[k]}"/></symbol>`).join('')}</svg>`;
+const icon = k => `<svg><use href="#${k}"/></svg>`;
+const BASE = new CSSStyleSheet();
+BASE.replaceSync(`
+  :where([hidden]) { display: none !important; }
+  :where(button) { all: unset; box-sizing: border-box; cursor: pointer; }
+  :where(button:focus-visible) { outline: 2px solid currentColor; outline-offset: 1px; }
+  :where(button:disabled) { opacity: .4; cursor: default; }
+  .icon { display: inline-grid; place-items: center; width: var(--icon-box, 32px); height: var(--icon-box, 32px); border-radius: 50%; }
+  .icon:hover:not(:disabled) { background: color-mix(in srgb, currentColor 10%, transparent); }
+  .icon svg, .txt svg { width: 20px; height: 20px; fill: currentColor; flex: none; }
+  .txt { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 8px; font-weight: 500; }
+  .txt:hover:not(:disabled) { background: color-mix(in srgb, currentColor 9%, transparent); }
+`);
+const shadow = (el, html) => {
+  const r = el.attachShadow({ mode: 'open' });
+  r.adoptedStyleSheets = [BASE];
+  r.innerHTML = html;
+  customElements.upgrade(r);
+  return r;
+};
+
+class ViewToggle extends HTMLElement {
+  static #mem = (() => { try { return JSON.parse(localStorage.getItem('riso-views')) ?? {}; } catch { return {}; } })();
+  constructor() {
+    super();
+    shadow(this, `<style>:host { display: inline-block; }</style>${sprite(['grid', 'list'])}<button class="icon"><svg><use/></svg></button>`)
+      .querySelector('button').onclick = () => this.value = this.value === 'grid' ? 'list' : 'grid';
+    this.#render();
+  }
+  get value() { return ViewToggle.#mem[this.getAttribute('key')] ?? 'grid'; }
+  set value(v) {
+    ViewToggle.#mem[this.getAttribute('key')] = v;
+    try { localStorage.setItem('riso-views', JSON.stringify(ViewToggle.#mem)); } catch {}
+    this.#render();
+    this.dispatchEvent(new Event('change'));
+  }
+  #render() {
+    const b = this.shadowRoot.querySelector('button'), next = this.value === 'grid' ? 'list' : 'grid';
+    b.title = b.ariaLabel = `Show as ${next}`;
+    b.querySelector('use').setAttribute('href', `#${next}`);
+  }
+}
+
+/* ---------- viewer & toolbar ---------- */
+
+class RisoViewer extends HTMLElement {
+  #split = null;
+  constructor() {
+    super();
+    const root = shadow(this, `<style>
+      :host { position: fixed; inset: 0; display: block; }
+      canvas { width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; }
+      canvas:active { cursor: grabbing; }
+      p { margin: 0; position: absolute; inset: 0; display: grid; place-items: center; padding: 32px; text-align: center; }
+      .split { position: absolute; top: 0; bottom: 0; left: var(--x, 50%); width: 0; touch-action: none; }
+      .split i { position: absolute; top: 0; bottom: 0; left: -6px; width: 12px; cursor: ew-resize;
+        background: linear-gradient(to right, transparent 5px, var(--surface) 5px 7px, transparent 7px); filter: drop-shadow(0 0 2px rgb(0 0 0 / .45)); }
+      .split button { position: absolute; top: 50%; left: 0; translate: -50% -50%; display: grid; place-items: center; width: 40px; height: 40px;
+        border-radius: 50%; background: var(--surface); color: var(--fg); box-shadow: var(--shadow); cursor: ew-resize; }
+      .split svg { width: 20px; height: 20px; fill: currentColor; }
+      .split b { position: absolute; top: max(16px, env(safe-area-inset-top)); padding: 4px 10px; border-radius: 999px; white-space: nowrap; pointer-events: none;
+        background: var(--surface); color: var(--fg); box-shadow: var(--shadow); font: 500 12px system-ui, sans-serif; }
+      .l { right: 14px; }
+      .r { left: 14px; }
+    </style>${sprite(['compare'])}<canvas data-help="viewer"></canvas>
+    <div class="split" data-help="viewer.split" hidden><i></i><button aria-label="Drag to compare">${icon('compare')}</button><b class="l">Original</b><b class="r">Result</b></div>`);
+    const c = this.canvas = root.querySelector('canvas'), dpr = () => devicePixelRatio;
+    try { this.r = new Renderer(c); }
+    catch (e) { root.innerHTML += `<p>${esc(e.message)}</p>`; return; }
+    Object.assign(this, { zoom: 1, pan: [0, 0], needRun: true, fitPending: true });
+    new ResizeObserver(() => this.invalidate(false)).observe(this);
+    c.addEventListener('pointerdown', e => { c.setPointerCapture(e.pointerId); this.drag = [e.clientX, e.clientY]; });
+    c.addEventListener('pointermove', e => {
+      if (!this.drag) return;
+      this.pan = [this.pan[0] + (e.clientX - this.drag[0]) * dpr(), this.pan[1] + (e.clientY - this.drag[1]) * dpr()];
+      this.drag = [e.clientX, e.clientY];
+      this.invalidate(false);
+    });
+    for (const t of ['pointerup', 'pointercancel']) c.addEventListener(t, () => this.drag = null);
+    c.addEventListener('wheel', e => {
+      e.preventDefault();
+      this.zoomAt(this.zoom * Math.exp(-e.deltaY * (e.ctrlKey ? .01 : .0015)), [e.offsetX * dpr(), e.offsetY * dpr()]);
+    }, { passive: false });
+    c.addEventListener('dblclick', () => this.fit());
+    const sp = this.splitEl = root.querySelector('.split');
+    sp.addEventListener('pointerdown', e => { sp.setPointerCapture(e.pointerId); this.splitDrag = true; });
+    sp.addEventListener('pointermove', e => {
+      if (!this.splitDrag) return;
+      const b = this.getBoundingClientRect();
+      this.split = Math.min(Math.max((e.clientX - b.left) / b.width, 0), 1);
+    });
+    for (const t of ['pointerup', 'pointercancel']) sp.addEventListener(t, () => this.splitDrag = false);
+    for (const t of ['dragover', 'drop']) this.addEventListener(t, e => {
+      e.preventDefault();
+      const f = e.dataTransfer?.files[0];
+      if (t === 'drop' && f) this.dispatchEvent(new CustomEvent('file', { detail: f }));
+    });
+  }
+  // Fraction of the width left of the before/after divider, or null when comparison is off.
+  get split() { return this.#split; }
+  set split(v) {
+    this.#split = v;
+    this.splitEl.hidden = v == null;
+    this.splitEl.style.setProperty('--x', `${(v ?? .5) * 100}%`);
+    this.invalidate(false);
+  }
+  invalidate(run = true) {
+    if (!this.r) return;
+    this.needRun ||= run;
+    this.raf ||= requestAnimationFrame(() => this.frame());
+  }
+  zoomAt(z, [x, y] = [this.canvas.width / 2, this.canvas.height / 2]) {
+    const f = z / this.zoom;
+    this.pan = [x - (x - this.pan[0]) * f, y - (y - this.pan[1]) * f];
+    this.zoom = z;
+    this.invalidate(false);
+  }
+  fit() { this.fitPending = true; this.invalidate(false); }
+  frame() {
+    this.raf = 0;
+    const c = this.canvas, S = this.state, dpr = devicePixelRatio;
+    const w = Math.max(1, Math.round(c.clientWidth * dpr)), h = Math.max(1, Math.round(c.clientHeight * dpr));
+    if (c.width !== w || c.height !== h) Object.assign(c, { width: w, height: h });
+    if (this.fitPending) {
+      const side = (this.insetRight ?? 0) * dpr, m = 40 * dpr;
+      this.zoom = Math.max(1e-3, Math.min((w - side - 2 * m) / S.page.width, (h - 2 * m) / S.page.height));
+      this.pan = [(w - side - S.page.width * this.zoom) / 2, (h - S.page.height * this.zoom) / 2];
+      this.fitPending = false;
+    }
+    if (this.needRun || !this.set) { this.set = this.r.run(S, S.render.preview, 'view'); this.needRun = false; }
+    this.r.draw(S, this.set, { ...S.view, toDoc: new DOMMatrix().scale(1 / this.zoom).translate(-this.pan[0], -this.pan[1]),
+      zoom: this.zoom, res: [w, h], flip: true, bg: canvasBg(), split: this.#split == null ? -1 : this.#split * w });
+    const cov = this.set.coverage.join();
+    if (cov !== this.cov) { this.cov = cov; this.dispatchEvent(new Event('coverage')); }
+    this.dispatchEvent(new Event('view'));
+  }
+}
+
+class RisoToolbar extends HTMLElement {
+  constructor() {
+    super();
+    const btn = (a, label, body = label) => `<button data-a="${a}" data-help="tool.${a}" title="${label}" aria-label="${label}">${body}</button>`;
+    const root = shadow(this, `<style>
+      :host { position: fixed; z-index: 2; left: 16px; bottom: max(16px, env(safe-area-inset-bottom)); }
+      .bar { display: flex; align-items: center; gap: 2px; padding: 6px; border-radius: 26px; background: var(--surface); box-shadow: var(--shadow); }
+      button { display: grid; place-items: center; min-width: 40px; height: 40px; padding: 0 10px; border-radius: 20px;
+        color: var(--fg); font: 500 13px/1 system-ui, sans-serif; }
+      button:hover:not(:disabled), [aria-pressed=true] { background: color-mix(in srgb, var(--fg) 10%, transparent); }
+      svg { width: 20px; height: 20px; fill: currentColor; }
+      output { min-width: 52px; text-align: center; font: 12px system-ui, sans-serif; opacity: .7; }
+      hr { width: 1px; height: 24px; margin: 0 4px; border: 0; background: color-mix(in srgb, var(--fg) 14%, transparent); }
+      #ex { anchor-name: --ex; }
+      #menu { position-anchor: --ex; position-area: top span-left; inset: auto; margin: 0 0 10px; padding: 6px; border: 0;
+        min-width: 240px; border-radius: 14px; background: var(--surface); color: var(--fg); box-shadow: var(--shadow); }
+      @supports not (anchor-name: --a) { #menu { left: 16px; bottom: 72px; } }
+      #menu button { display: block; width: 100%; height: 36px; line-height: 36px; border-radius: 8px; }
+    </style>
+    ${sprite(['open', 'fit', 'theme', 'export', 'presets', 'undo', 'redo', 'compare', 'help'])}
+    <div class="bar">
+      ${btn('open', 'Open image', icon('open'))}${btn('fit', 'Fit page', icon('fit'))}${btn('one', 'Show actual print dots', '1:1')}
+      <output title="Zoom relative to print resolution"></output>
+      ${btn('compare', 'Compare with original', icon('compare'))}<hr>
+      ${btn('undo', 'Undo (Ctrl/Cmd+Z)', icon('undo'))}${btn('redo', 'Redo (Shift+Ctrl/Cmd+Z)', icon('redo'))}<hr>
+      ${btn('presets', 'Presets', icon('presets'))}${btn('help', 'Help', icon('help'))}${btn('theme', 'Switch light or dark', icon('theme'))}
+      <button id="ex" popovertarget="menu" data-help="tool.export" title="Export" aria-label="Export">${icon('export')}</button>
+    </div>
+    <div id="menu" popover>
+      ${btn('composite', 'Composite PNG')}${btn('masters', 'Halftone masters (zip)')}${btn('contone', 'Grayscale separations (zip)')}
+    </div>`);
+    const menu = root.getElementById('menu');
+    root.addEventListener('click', e => {
+      const b = e.target.closest('[data-a]');
+      if (!b) return;
+      if (menu.matches(':popover-open')) menu.hidePopover();
+      this.dispatchEvent(new CustomEvent('action', { detail: b.dataset.a }));
+    });
+  }
+  set zoom(text) { this.shadowRoot.querySelector('output').textContent = text; }
+  set state({ undo, redo, compare, help }) {
+    const q = a => this.shadowRoot.querySelector(`[data-a=${a}]`);
+    q('undo').disabled = !undo;
+    q('redo').disabled = !redo;
+    q('compare').ariaPressed = String(compare);
+    q('help').ariaPressed = String(help);
+  }
+}
+
+/* ---------- ink palette ---------- */
+
+const RISO_INKS = [['Black','#000000'],['Burgundy','#914e72'],['Blue','#0078bf'],['Green','#00a95c'],['Medium Blue','#3255a4'],['Bright Red','#f15060'],['RisoFederal Blue','#3d5588'],['Purple','#765ba7'],['Teal','#00838a'],['Flat Gold','#bb8b41'],['Hunter Green','#407060'],['Red','#ff665e'],['Brown','#925f52'],['Yellow','#ffe800'],['Marine Red','#d2515e'],['Orange','#ff6c2f'],['Fluorescent Pink','#ff48b0'],['Light Gray','#88898a'],['Metallic Gold','#ac936e'],['Crimson','#e45d50'],['Fluorescent Orange','#ff7477'],['Cornflower','#62a8e5'],['Sky Blue','#4982cf'],['Sea Blue','#0074a2'],['Lake','#235ba8'],['Indigo','#484d7a'],['Midnight','#435060'],['Mist','#d5e4c0'],['Granite','#a5aaa8'],['Charcoal','#70747c'],['Smoky Teal','#5f8289'],['Steel','#375e77'],['Slate','#5e695e'],['Turquoise','#00aa93'],['Emerald','#19975d'],['Grass','#397e58'],['Forest','#516e5a'],['Spruce','#4a635d'],['Moss','#68724d'],['Sea Foam','#62c2b1'],['Kelly Green','#67b346'],['Light Teal','#009da5'],['Ivy','#169b62'],['Pine','#237e74'],['Lagoon','#2f6165'],['Violet','#9d7ad2'],['Orchid','#aa60bf'],['Plum','#845991'],['Raisin','#775d7a'],['Grape','#6c5d80'],['Scarlet','#f65058'],['Tomato','#d2515e'],['Cranberry','#d1517a'],['Maroon','#9e4c6e'],['Raspberry Red','#d1517a'],['Brick','#a75154'],['Light Lime','#e3ed55'],['Sunflower','#ffb511'],['Melon','#ffae3b'],['Apricot','#f6a04d'],['Paprika','#ee7f4b'],['Pumpkin','#ff6f4c'],['Bright Olive Green','#b49f29'],['Bright Gold','#ba8032'],['Copper','#bd6439'],['Mahogany','#8e595a'],['Bisque','#f2cdcf'],['Bubble Gum','#f984ca'],['Light Mauve','#e6b5c9'],['Dark Mauve','#bd8ca6'],['Wine','#914e72'],['Gray','#928d88'],['White','#ffffff'],['Aqua','#5ec8e5'],['Mint','#82d8d5'],['Fluorescent Yellow','#ffe900'],['Fluorescent Red','#ff4c65'],['Fluorescent Green','#44d62c']];
+const inkName = (hex, inks = RISO_INKS) => inks.find(([, h]) => h === hex.toLowerCase())?.[0];
+
+class InkPalette extends HTMLElement {
+  #value = '#000000';
+  #inks = RISO_INKS;
+  #anchor = null;
+  constructor() {
+    super();
+    const r = shadow(this, `<style>
+      :host { display: block; }
+      :where(button:focus-visible) { outline-color: var(--fg, CanvasText); }
+      .head { display: flex; gap: 4px; anchor-name: --head; }
+      .sw { flex: none; width: var(--row-h, 20px); height: var(--row-h, 20px); border-radius: var(--radius-s, 2px); }
+      .sw, i { box-shadow: inset 0 0 0 1px rgb(0 0 0 / .14); }
+      input { flex: 1; min-width: 0; height: var(--row-h, 20px); padding: 0 var(--pad-s, 4px); border: 0; outline: 0;
+        border-radius: var(--radius-s, 2px); background: var(--field, Field); color: var(--fg, FieldText); font: inherit; }
+      input:hover { background: var(--field-h, Field); }
+      input:focus { background: var(--field-f, Field); }
+      [popover] { inset: auto; border: 0; font: inherit; }
+      #panel { position-anchor: --head; position-area: bottom span-left; position-try: most-height flip-block; margin: 4px 0;
+        width: 272px; max-height: min(440px, 100% - 8px); overflow: auto; padding: 8px; border-radius: 8px;
+        background: var(--surface, Canvas); color: var(--fg, CanvasText); box-shadow: 0 4px 18px rgb(0 0 0 / .28); }
+      @supports not (anchor-name: --a) { #panel { inset: 0; margin: auto; } }
+      .bar { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; --icon-box: 24px; }
+      .bar svg { width: 16px; height: 16px; }
+      .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .list button:hover { background: var(--field-h, color-mix(in srgb, currentColor 10%, transparent)); }
+      i { display: block; border-radius: 4px; background: var(--c); }
+      [aria-selected=true] i { box-shadow: 0 0 0 2px var(--surface, Canvas), 0 0 0 3.5px var(--fg, CanvasText); }
+      .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(22px, 1fr)); gap: 5px; }
+      .grid button { aspect-ratio: 1; }
+      .grid i { width: 100%; height: 100%; }
+      .grid span, .grid small { display: none; }
+      .list { display: grid; gap: 1px; }
+      .list button { display: flex; align-items: center; gap: 8px; height: 24px; padding: 0 6px; border-radius: 4px; }
+      .list i { flex: none; width: 16px; height: 16px; border-radius: 3px; }
+      .list span { flex: 1; }
+      .list small { opacity: .5; font: inherit; }
+      #tip { position-anchor: --tip; position-area: top; margin: 0 0 6px; padding: 3px 6px; border-radius: 4px; white-space: nowrap;
+        pointer-events: none; background: var(--fg, CanvasText); color: var(--surface, Canvas); }
+    </style>
+    <div class="head"><button class="sw" popovertarget="panel" aria-label="Choose ink"></button><input spellcheck="false" aria-label="Ink"></div>
+    <div id="panel" popover>
+      <div class="bar"><span class="name"></span><view-toggle key="inks" class="mode"></view-toggle></div>
+      <div class="inks" role="listbox"></div>
+    </div>
+    <div id="tip" popover="manual" role="tooltip"></div>`);
+    const $ = this.$ = Object.fromEntries(['sw', 'input', 'panel', 'name', 'mode', 'inks', 'tip'].map(k => [k, r.querySelector(`.${k}, #${k}, ${k}`)]));
+    const { input } = $;
+    input.addEventListener('focus', () => { input.value = this.#value; input.select(); });
+    input.addEventListener('change', () => this.#commit(this.#parse(input.value)));
+    input.addEventListener('blur', () => this.#render());
+    input.addEventListener('keydown', e => e.key === 'Enter' && input.blur());
+    $.mode.addEventListener('change', () => { this.#tip(null); this.#render(); });
+    $.inks.addEventListener('click', e => { const b = e.target.closest('button'); if (b) this.#commit(b.dataset.hex); });
+    for (const t of ['pointerover', 'focusin']) $.inks.addEventListener(t, e => this.#tip(e.target.closest('button')));
+    for (const t of ['pointerleave', 'focusout']) $.inks.addEventListener(t, () => this.#tip(null));
+    $.panel.addEventListener('toggle', e => e.newState === 'closed' && this.#tip(null));
+    this.#build();
+  }
+  get value() { return this.#value; }
+  set value(v) { this.#value = String(v).toLowerCase(); this.#render(); }
+  get inks() { return this.#inks; }
+  set inks(list) { this.#inks = list; this.#build(); }
+  get view() { return this.$.mode.value; }
+  #parse(text) {
+    const s = text.trim().toLowerCase(), named = this.#inks.find(([n]) => n.toLowerCase() === s);
+    if (named) return named[1];
+    const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/.exec(s)?.[1];
+    return m && '#' + (m.length === 3 ? [...m].map(c => c + c).join('') : m);
+  }
+  #commit(hex) {
+    if (hex && hex !== this.#value) { this.#value = hex; this.dispatchEvent(new Event('change', { bubbles: true })); }
+    this.#render();
+  }
+  #tip(b) {
+    const { tip } = this.$;
+    this.#anchor?.style.removeProperty('anchor-name');
+    this.#anchor = b;
+    if (!b || this.view !== 'grid') return tip.hidePopover();
+    b.style.setProperty('anchor-name', '--tip');
+    tip.textContent = b.dataset.name;
+    if (!tip.matches(':popover-open')) tip.showPopover();
+    if (!CSS.supports('anchor-name: --a')) {
+      const r = b.getBoundingClientRect();
+      Object.assign(tip.style, { left: `${r.left + r.width / 2}px`, top: `${r.top - 6}px`, translate: '-50% -100%' });
+    }
+  }
+  #build() {
+    this.$.inks.innerHTML = this.#inks.map(([n, h]) =>
+      `<button role="option" data-hex="${h}" data-name="${esc(n)}" aria-label="${esc(n)}" style="--c:${h}"><i></i><span>${esc(n)}</span><small>${h}</small></button>`).join('');
+    this.#render();
+  }
+  #render() {
+    const { sw, input, name, inks } = this.$, n = inkName(this.#value, this.#inks);
+    sw.style.background = this.#value;
+    if (this.shadowRoot.activeElement !== input) input.value = n ?? this.#value;
+    name.textContent = `${n ?? 'Custom'} ${this.#value}`;
+    inks.className = `inks ${this.view}`;
+    for (const b of inks.children) b.ariaSelected = b.dataset.hex === this.#value;
+  }
+}
+
+/* ---------- fields ---------- */
+
+// Light-DOM value widgets, styled by the panel that hosts them. Each emits `value` events: { value, last },
+// where `last` marks the end of a gesture (slider release, Enter, picker close).
+const autoStep = (min, max) => 10 ** Math.floor(Math.log10((max - min) / 100));
+const decimals = step => Math.max(0, -Math.floor(Math.log10(step) + 1e-9));
+const textInput = (label, extra = '') => `<input class="txt" inputmode="decimal" spellcheck="false" autocomplete="off" aria-label="${esc(label)}" ${extra}>`;
+
+class Field extends HTMLElement {
+  static create(n, ...a) { return document.createElement(this.tag).setup(n, ...a); }
+  emit(value, last) {
+    this.value = value;
+    this.dispatchEvent(new CustomEvent('value', { detail: { value, last } }));
+  }
+  // Typed text is left alone while the user edits it; Enter or blur commits, arrow keys step.
+  numeric(t, step, commit, nudge) {
+    t.addEventListener('focus', () => t.select());
+    t.addEventListener('input', () => this.typing = true);
+    t.addEventListener('change', () => { this.typing = false; const v = parseFloat(t.value); isFinite(v) ? commit(v) : this.value = this.value; });
+    t.addEventListener('blur', () => { this.typing = false; this.value = this.value; });
+    t.addEventListener('keydown', e => {
+      if (e.key === 'Enter') return t.blur();
+      const d = { ArrowUp: 1, ArrowDown: -1 }[e.key];
+      if (!d) return;
+      e.preventDefault();
+      this.typing = false;
+      nudge(d * step * (e.shiftKey ? 10 : 1));
+    });
+  }
+}
+
+class NumField extends Field {
+  static tag = 'num-field';
+  setup(n) {
+    const { min, max, unit = '' } = n, step = n.step ?? autoStep(min, max), dec = decimals(step);
+    const snap = v => +(Math.round(v / step) * step).toFixed(dec);
+    Object.assign(this, { min, max, fmt: v => v.toFixed(dec) + (unit && ` ${unit}`) });
+    this.innerHTML = `<input type="range" min="${min}" max="${max}" step="any" tabindex="-1" aria-hidden="true">${textInput(n.label, 'role="spinbutton"')}`;
+    const [r, t] = this.children;
+    Object.assign(this, { r, t });
+    r.addEventListener('input', () => this.emit(snap(+r.value), false));
+    r.addEventListener('change', () => this.emit(snap(+r.value), true));
+    this.numeric(t, step, v => this.emit(v, true), d => this.emit(snap(this.v + d), true));
+    return this;
+  }
+  get value() { return this.v; }
+  set value(v) {
+    this.v = v;
+    this.r.value = v;
+    this.r.style.setProperty('--p', `${Math.min(Math.max((v - this.min) / (this.max - this.min), 0), 1) * 100}%`);
+    this.t.ariaValueNow = v;
+    if (!this.typing) this.t.value = this.fmt(v);
+  }
+}
+
+class PointField extends Field {
+  static tag = 'point-field';
+  setup(n) {
+    const { min, max } = n, step = n.step ?? autoStep(min, max), dec = decimals(step);
+    const snap = v => +(Math.round(v / step) * step).toFixed(dec), set = (a, v, last) => this.emit({ ...this.v, [a]: v }, last);
+    this.fmt = v => v.toFixed(dec);
+    this.innerHTML = ['x', 'y'].map(a => `<label><span title="Drag to adjust">${a}</span>${textInput(`${n.label} ${a}`, `data-a="${a}"`)}</label>`).join('');
+    for (const t of this.querySelectorAll('input')) {
+      const a = t.dataset.a, s = t.previousElementSibling;
+      this.numeric(t, step, v => set(a, v, true), d => set(a, snap(this.v[a] + d), true));
+      s.addEventListener('pointerdown', e => {
+        s.setPointerCapture(e.pointerId);
+        const x0 = e.clientX, v0 = this.v[a];
+        s.onpointermove = ev => set(a, Math.min(Math.max(snap(v0 + Math.round((ev.clientX - x0) / 2) * step), min), max), false);
+        s.onpointerup = () => { s.onpointermove = null; set(a, this.v[a], true); };
+      });
+    }
+    return this;
+  }
+  get value() { return this.v; }
+  set value(v) {
+    this.v = { ...v };
+    if (!this.typing) for (const t of this.querySelectorAll('input')) t.value = this.fmt(v[t.dataset.a]);
+  }
+}
+
+class ChoiceField extends Field {
+  static tag = 'choice-field';
+  setup(n, options) {
+    this.opts = options.map(o => Array.isArray(o) ? o : [o, String(o)]);
+    this.innerHTML = `<select aria-label="${esc(n.label)}">${this.opts.map(([, l], i) => `<option value="${i}">${esc(l)}</option>`).join('')}</select>${icon('chevron')}`;
+    this.sel = this.firstElementChild;
+    this.sel.addEventListener('change', () => this.emit(this.opts[this.sel.value][0], true));
+    return this;
+  }
+  get value() { return this.v; }
+  set value(v) { this.v = v; this.sel.value = this.opts.findIndex(([o]) => o === v); }
+}
+
+class ToggleField extends Field {
+  static tag = 'toggle-field';
+  setup(n) {
+    this.innerHTML = `<input type="checkbox" role="switch" aria-label="${esc(n.label)}">`;
+    this.box = this.firstElementChild;
+    this.box.addEventListener('change', () => this.emit(this.box.checked, true));
+    return this;
+  }
+  get value() { return this.box.checked; }
+  set value(v) { this.box.checked = !!v; }
+}
+
+class ColorField extends Field {
+  static tag = 'color-field';
+  setup(n) {
+    this.innerHTML = `<label><input type="color" aria-label="${esc(n.label)}"></label><input class="txt" spellcheck="false" autocomplete="off" aria-label="${esc(n.label)} hex">`;
+    const [sw, t] = this.children, pick = sw.firstElementChild;
+    Object.assign(this, { sw, t, pick });
+    pick.addEventListener('input', () => this.emit(pick.value, false));
+    pick.addEventListener('change', () => this.emit(pick.value, true));
+    t.addEventListener('change', () => {
+      const m = /^#?([0-9a-f]{6})$/i.exec(t.value.trim());
+      m ? this.emit(`#${m[1].toLowerCase()}`, true) : this.value = this.v;
+    });
+    return this;
+  }
+  get value() { return this.v; }
+  set value(v) { this.v = v; this.pick.value = v; this.t.value = v; this.sw.style.setProperty('--c', v); }
+}
+
+const inkField = () => {
+  const el = document.createElement('ink-palette');
+  el.addEventListener('change', () => el.dispatchEvent(new CustomEvent('value', { detail: { value: el.value, last: true } })));
+  return el;
+};
+const FIELDS = { num: n => NumField.create(n), point: n => PointField.create(n), choice: (n, o) => ChoiceField.create(n, o),
+  toggle: n => ToggleField.create(n), color: n => ColorField.create(n), ink: inkField };
+
+/* ---------- list editor ---------- */
+
+// Ordered, selectable list: drag the grip (or Alt+↑/↓) to reorder, toggle button, row actions menu, remove, add.
+// config: { id, name(item, i), meta?(item, i), swatch?(item), help?(item), toggle?: { label, get, set, on, off },
+//           actions?: [{ id, label, icon, disabled?(item) }], addLabel, addHelp, menu?() → [[group, [[value, label, icon]]]], max, empty }
+// Events: change (detail: new array), select (detail: id), add (detail: menu value or null), action (detail: { id, item }).
+class ListEditor extends HTMLElement {
+  #items = [];
+  #anchor = null;
+  constructor() {
+    super();
+    const r = shadow(this, `<style>
+      :host { display: block; }
+      svg { width: 16px; height: 16px; fill: currentColor; flex: none; }
+      .rows { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; }
+      .row { display: flex; align-items: center; gap: 4px; min-width: 0; height: 30px; padding: 0 4px; border-radius: 8px; background: var(--field); cursor: pointer; outline: 0; }
+      .row:hover { background: var(--field-h); }
+      .row:focus-visible { box-shadow: inset 0 0 0 1.5px var(--fg); }
+      .row.sel { background: var(--fg); color: var(--surface); }
+      .row.off .name { opacity: .5; text-decoration: line-through; }
+      .row.drag { opacity: .5; }
+      .grip { display: grid; place-items: center; width: 16px; height: 100%; cursor: grab; opacity: .45; touch-action: none; }
+      .row .icon { --icon-box: 24px; opacity: .65; }
+      .row .icon:hover { opacity: 1; }
+      .sw { flex: none; width: 14px; height: 14px; margin: 0 2px; border-radius: 4px; background: var(--c); box-shadow: inset 0 0 0 1px rgb(0 0 0 / .15); }
+      .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+      .meta { opacity: .65; white-space: nowrap; font-variant-numeric: tabular-nums; }
+      .empty { margin: 0; padding: 6px 4px; opacity: .6; }
+      .add { display: flex; justify-content: center; align-items: center; gap: 6px; width: 100%; height: 28px; margin-top: 6px;
+        border-radius: 8px; background: var(--button); font-weight: 500; anchor-name: --add; }
+      .add:hover:not(:disabled) { background: var(--button-h); }
+      [popover] { inset: auto; margin: 4px 0; padding: 6px; border: 0; border-radius: 10px; font: inherit; overflow: auto;
+        background: var(--surface); color: var(--fg); box-shadow: 0 4px 18px rgb(0 0 0 / .28); }
+      #addmenu { position-anchor: --add; position-area: bottom span-left; position-try: most-height flip-block; width: 248px; max-height: min(480px, 100% - 8px); }
+      #rowmenu { position-anchor: --more; position-area: bottom span-left; position-try: most-height flip-block; min-width: 230px; }
+      @supports not (anchor-name: --a) { [popover] { inset: 0; margin: auto; height: fit-content; } }
+      h4 { margin: 8px 6px 2px; font-size: inherit; font-weight: 500; opacity: .55; }
+      [popover] button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 8px; border-radius: 6px; }
+      [popover] button:hover:not(:disabled), [popover] button:focus-visible { background: var(--field-h); outline: 0; }
+    </style>${sprite(Object.keys(ICONS))}
+    <div class="rows" role="listbox"></div><button class="add"></button><div id="addmenu" popover></div><div id="rowmenu" popover></div>`);
+    const $ = this.$ = { rows: r.querySelector('.rows'), add: r.querySelector('.add'), menu: r.getElementById('addmenu'), more: r.getElementById('rowmenu') };
+    const rowOf = e => e.target.closest('.row'), item = row => this.#items.find(x => String(this.c.id(x)) === row.dataset.id);
+    $.rows.addEventListener('click', e => {
+      const row = rowOf(e);
+      if (!row) return;
+      const it = item(row), b = e.target.closest('button');
+      if (b?.classList.contains('tg')) { this.c.toggle.set(it, !this.c.toggle.get(it)); return this.#emit([...this.#items]); }
+      if (b?.classList.contains('rm')) return this.#emit(this.#items.filter(x => x !== it));
+      if (b?.classList.contains('mo')) return this.#more(b, it);
+      this.#select(this.c.id(it));
+    });
+    $.rows.addEventListener('keydown', e => {
+      const row = rowOf(e);
+      if (!row || e.target !== row) return;
+      const it = item(row), i = this.#items.indexOf(it), d = { ArrowUp: -1, ArrowDown: 1 }[e.key];
+      if (d || ['Enter', ' ', 'Delete', 'Backspace'].includes(e.key)) e.preventDefault();
+      if (d && e.altKey && this.#items[i + d]) {
+        const l = [...this.#items];
+        [l[i], l[i + d]] = [l[i + d], l[i]];
+        this.#emit(l);
+        $.rows.children[i + d]?.focus();
+      } else if (d) $.rows.children[i + d]?.focus();
+      else if (e.key === 'Enter' || e.key === ' ') this.#select(this.c.id(it));
+      else if (e.key === 'Delete' || e.key === 'Backspace') this.#emit(this.#items.filter(x => x !== it));
+    });
+    $.rows.addEventListener('pointerdown', e => this.#drag(e));
+    $.add.addEventListener('click', () => this.c.menu || this.#fire('add', null));
+    $.menu.addEventListener('click', e => {
+      const b = e.target.closest('[data-value]');
+      if (b) { $.menu.hidePopover(); this.#fire('add', b.dataset.value); }
+    });
+    $.more.addEventListener('click', e => {
+      const b = e.target.closest('[data-act]');
+      if (b && !b.disabled) { $.more.hidePopover(); this.#fire('action', { id: b.dataset.act, item: this.moreItem }); }
+    });
+  }
+  get items() { return this.#items; }
+  set items(v) { this.#items = v; this.render(); }
+  set config(c) {
+    const { add, menu } = this.$;
+    this.c = { id: x => x.id, ...c };
+    add.innerHTML = `${icon('add')}<span>${esc(c.addLabel ?? 'Add')}</span>`;
+    add.dataset.help = c.addHelp ?? '';
+    if (c.menu) {
+      add.setAttribute('popovertarget', 'addmenu');
+      menu.innerHTML = c.menu().map(([g, xs]) => `<h4>${esc(g)}</h4>${xs.map(([v, l, ic]) =>
+        `<button data-value="${esc(v)}" data-help="${esc(c.menuHelp?.(v) ?? '')}">${ic ? icon(ic) : ''}<span>${esc(l)}</span></button>`).join('')}`).join('');
+    } else add.removeAttribute('popovertarget');
+    this.render();
+  }
+  #fire(type, detail) { this.dispatchEvent(new CustomEvent(type, { detail })); }
+  #emit(list) { this.#items = list; this.render(); this.#fire('change', list); }
+  #select(id) { this.selected = id; this.render(); this.#fire('select', id); }
+  #more(btn, it) {
+    const m = this.$.more;
+    this.#anchor?.style.removeProperty('anchor-name');
+    btn.style.setProperty('anchor-name', '--more');
+    this.#anchor = btn;
+    this.moreItem = it;
+    m.innerHTML = this.c.actions.map(a => `<button data-act="${a.id}" ${a.disabled?.(it) ? 'disabled' : ''}>${icon(a.icon)}<span>${esc(a.label)}</span></button>`).join('');
+    m.showPopover();
+  }
+  #drag(e) {
+    const grip = e.target.closest('.grip');
+    if (!grip) return;
+    e.preventDefault();
+    const row = grip.closest('.row'), rows = this.$.rows;
+    row.classList.add('drag');
+    const move = ev => {
+      const after = [...rows.children].find(r => r !== row && ev.clientY < r.getBoundingClientRect().top + r.offsetHeight / 2);
+      if (after !== row.nextElementSibling) rows.insertBefore(row, after ?? null);
+    };
+    const up = () => {
+      removeEventListener('pointermove', move);
+      removeEventListener('pointerup', up);
+      this.#emit([...rows.children].map(r => this.#items.find(x => String(this.c.id(x)) === r.dataset.id)));
+    };
+    addEventListener('pointermove', move);
+    addEventListener('pointerup', up);
+  }
+  render() {
+    const c = this.c;
+    if (!c) return;
+    this.$.add.disabled = this.#items.length >= (c.max ?? Infinity);
+    this.$.rows.innerHTML = this.#items.map((x, i) => {
+      const id = c.id(x), sel = id === this.selected, on = c.toggle?.get(x) ?? true;
+      return `<div class="row${sel ? ' sel' : ''}${on ? '' : ' off'}" data-id="${esc(id)}" data-help="${esc(c.help?.(x) ?? '')}" tabindex="0" role="option" aria-selected="${sel}">
+        <span class="grip" title="Drag to reorder (Alt+↑/↓)">${icon('drag')}</span>
+        ${c.toggle ? `<button class="icon tg" aria-pressed="${on}" title="${esc(c.toggle.label)}" aria-label="${esc(c.toggle.label)}">${icon(on ? c.toggle.on : c.toggle.off)}</button>` : ''}
+        ${c.swatch ? `<i class="sw" style="--c:${c.swatch(x)}"></i>` : ''}
+        <span class="name">${esc(c.name(x, i))}</span><span class="meta">${esc(c.meta?.(x, i) ?? '')}</span>
+        ${c.actions ? `<button class="icon mo" title="More actions" aria-label="More actions">${icon('more')}</button>` : ''}
+        <button class="icon rm" title="Remove" aria-label="Remove">${icon('close')}</button>
+      </div>`;
+    }).join('') || `<p class="empty">${esc(c.empty ?? 'Nothing here yet.')}</p>`;
+  }
+}
+
+/* ---------- settings panel ---------- */
+
+const join = (...parts) => parts.filter(p => p !== '' && p != null).join('.');
+const h = (tag, cls, html) => {
+  const el = document.createElement(tag);
+  if (cls) el.className = cls;
+  if (html != null) el.innerHTML = html;
+  return el;
+};
+const PANEL_CSS = `
+  :host { position: fixed; z-index: 2; top: max(16px, env(safe-area-inset-top)); right: 16px; width: var(--w, 380px); max-height: calc(100dvh - 32px);
+    display: flex; flex-direction: column; border-radius: 14px; background: var(--surface); color: var(--fg); box-shadow: var(--shadow);
+    font: 12.5px/1.35 system-ui, sans-serif; }
+  :host([collapsed]) .scroll { display: none; }
+  svg { width: 16px; height: 16px; fill: currentColor; flex: none; }
+  .resize { position: absolute; left: -5px; top: 14px; bottom: 14px; width: 10px; cursor: ew-resize; touch-action: none; }
+  .resize::after { content: ''; position: absolute; left: 4px; top: 0; bottom: 0; width: 2px; border-radius: 1px; background: var(--line); opacity: 0; transition: opacity .15s; }
+  .resize:hover::after, .resize.on::after { opacity: 1; }
+  header { display: flex; align-items: center; gap: 8px; padding: 8px 8px 4px 16px; }
+  .title { flex: 1; font-weight: 600; font-size: 13.5px; }
+  .fold svg { rotate: 90deg; transition: rotate .15s; }
+  :host([collapsed]) .fold svg { rotate: -90deg; }
+  .scroll { overflow: auto; padding: 0 12px 14px; scrollbar-width: thin; overscroll-behavior: contain; }
+  .tabs { position: sticky; top: 0; z-index: 2; display: flex; gap: 2px; margin: 8px 0 6px; padding: 3px; border-radius: 10px;
+    background: color-mix(in srgb, var(--fg) 7%, var(--surface)); box-shadow: 0 6px 6px -4px var(--surface); }
+  .tabs button { flex: 1; display: flex; justify-content: center; align-items: center; gap: 6px; height: 30px; border-radius: 8px; font-weight: 500; opacity: .7; }
+  .tabs button:hover { opacity: 1; }
+  .tabs button[aria-selected=true] { opacity: 1; background: var(--surface); box-shadow: 0 1px 3px rgb(0 0 0 / .18); }
+  details { margin: 4px 0; }
+  summary { display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 6px; border-radius: 8px; cursor: pointer; list-style: none; font-weight: 600; user-select: none; }
+  summary::-webkit-details-marker { display: none; }
+  summary:hover { background: var(--field); }
+  summary:focus-visible { outline: 2px solid var(--fg); outline-offset: -2px; }
+  summary > svg:first-child { opacity: .5; transition: rotate .15s; }
+  details[open] > summary > svg:first-child { rotate: 90deg; }
+  .tree { margin: 2px 0 6px 13px; padding: 6px 8px 6px 14px; border: 1px solid var(--line); border-radius: 4px 10px 10px 10px; }
+  .tree > * { position: relative; }
+  .tree > *::before { content: ''; position: absolute; left: -15px; top: 14px; width: 10px; border-top: 1px solid var(--line); pointer-events: none; }
+  .row { display: grid; grid-template-columns: minmax(84px, 36%) 1fr; align-items: center; gap: 8px; min-height: 28px; }
+  .row > label { display: flex; align-items: center; gap: 6px; min-width: 0; color: color-mix(in srgb, var(--fg) 78%, transparent); }
+  .row > label span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .action { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; height: 28px; margin: 3px 0;
+    border-radius: 8px; background: var(--button); font-weight: 500; }
+  .action:hover { background: var(--button-h); }
+  .txt { box-sizing: border-box; width: 100%; min-width: 0; height: 24px; padding: 0 6px; border: 0; border-radius: 6px; outline: 0;
+    background: var(--field); color: inherit; font: inherit; font-variant-numeric: tabular-nums; text-align: right; }
+  .txt:hover { background: var(--field-h); }
+  .txt:focus { background: var(--field-f); box-shadow: inset 0 0 0 1px var(--fg); }
+  num-field { display: grid; grid-template-columns: 1fr 74px; align-items: center; gap: 8px; }
+  input[type=range] { appearance: none; width: 100%; height: 20px; margin: 0; background: transparent; cursor: pointer;
+    --track: linear-gradient(to right, var(--fg) var(--p, 0%), var(--line) var(--p, 0%)); }
+  input[type=range]::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: var(--track); }
+  input[type=range]::-moz-range-track { height: 4px; border-radius: 2px; background: var(--track); }
+  input[type=range]::-webkit-slider-thumb { appearance: none; width: 14px; height: 14px; margin-top: -5px; border-radius: 50%;
+    background: var(--surface); box-shadow: 0 0 0 1.5px var(--fg), 0 1px 3px rgb(0 0 0 / .3); }
+  input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border: 0; border-radius: 50%;
+    background: var(--surface); box-shadow: 0 0 0 1.5px var(--fg), 0 1px 3px rgb(0 0 0 / .3); }
+  point-field { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  point-field label { display: flex; align-items: center; gap: 2px; }
+  point-field span { width: 14px; text-align: center; opacity: .6; cursor: ew-resize; user-select: none; touch-action: none; }
+  choice-field { position: relative; display: block; }
+  choice-field select { appearance: none; width: 100%; height: 24px; padding: 0 24px 0 8px; border: 0; border-radius: 6px; outline: 0;
+    background: var(--field); color: inherit; font: inherit; cursor: pointer; }
+  choice-field select:hover { background: var(--field-h); }
+  choice-field select:focus-visible { box-shadow: inset 0 0 0 1px var(--fg); }
+  choice-field svg { position: absolute; right: 4px; top: 4px; rotate: 90deg; pointer-events: none; opacity: .6; }
+  toggle-field { display: flex; }
+  toggle-field input { appearance: none; position: relative; width: 30px; height: 18px; margin: 0; border-radius: 9px; background: var(--line); cursor: pointer; transition: background .15s; }
+  toggle-field input::before { content: ''; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%;
+    background: var(--surface); box-shadow: 0 1px 2px rgb(0 0 0 / .3); transition: translate .15s; }
+  toggle-field input:checked { background: var(--fg); }
+  toggle-field input:checked::before { translate: 12px 0; }
+  toggle-field input:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+  color-field { display: flex; gap: 6px; }
+  color-field label { position: relative; flex: none; width: 24px; height: 24px; border-radius: 6px; background: var(--c);
+    box-shadow: inset 0 0 0 1px rgb(0 0 0 / .15); cursor: pointer; }
+  color-field input[type=color] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+  color-field .txt { text-align: left; }
+  .md-wrap { container-type: inline-size; }
+  .md { display: grid; gap: 10px; }
+  .md > * { min-width: 0; }
+  @container (min-width: 520px) { .md { grid-template-columns: minmax(180px, 40%) 1fr; align-items: start; } }
+  .detail:empty { display: none; }
+  .dhead { display: flex; align-items: center; gap: 8px; height: 28px; font-weight: 600; }
+  .dhead .sw { width: 14px; height: 14px; border-radius: 4px; background: var(--c); box-shadow: inset 0 0 0 1px rgb(0 0 0 / .15); }
+  .hint { margin: 4px 0; opacity: .6; }
+`;
+
+// Renders a schema into tabs, tree groups and rows. UI state (tab, open groups, selections, width) persists locally.
+// setup({ state, schema() → nodes, title, onChange({ id, path, value, last }) }); render() rebuilds, refresh() re-reads values.
+class SettingsPanel extends HTMLElement {
+  static KEY = 'riso-ui';
+  #updaters = [];
+  constructor() {
+    super();
+    const r = shadow(this, `<style>${PANEL_CSS}</style>${sprite(Object.keys(ICONS))}
+      <div class="resize" data-help="panel.resize"></div>
+      <header><span class="title"></span><button class="icon fold" data-help="panel.collapse" aria-label="Collapse panel">${icon('chevron')}</button></header>
+      <div class="scroll"></div>`);
+    let saved = {};
+    try { saved = JSON.parse(localStorage.getItem(SettingsPanel.KEY)) ?? {}; } catch {}
+    this.ui = { tab: null, open: {}, sel: {}, width: 380, collapsed: false, ...saved };
+    this.scroll = r.querySelector('.scroll');
+    r.querySelector('.fold').onclick = () => { this.ui.collapsed = !this.ui.collapsed; this.#layout(); this.save(); };
+    const grip = r.querySelector('.resize');
+    grip.addEventListener('pointerdown', e => {
+      grip.setPointerCapture(e.pointerId);
+      grip.classList.add('on');
+      const x0 = e.clientX, w0 = this.offsetWidth;
+      grip.onpointermove = ev => { this.ui.width = Math.round(Math.min(Math.max(w0 + x0 - ev.clientX, 300), innerWidth * .8)); this.#layout(); };
+      grip.onpointerup = () => { grip.onpointermove = null; grip.classList.remove('on'); this.save(); };
+    });
+    this.#layout();
+  }
+  #layout() {
+    this.style.setProperty('--w', `${this.ui.width}px`);
+    this.toggleAttribute('collapsed', this.ui.collapsed);
+    this.dispatchEvent(new Event('layout'));
+  }
+  save() { try { localStorage.setItem(SettingsPanel.KEY, JSON.stringify(this.ui)); } catch {} }
+  setup({ state, schema, title, onChange }) {
+    Object.assign(this, { S: state, schema, onChange });
+    this.shadowRoot.querySelector('.title').textContent = title;
+    this.render();
+  }
+  watch(fn) { this.#updaters.push(fn); fn(); }
+  refresh() { for (const fn of this.#updaters) fn(); }
+  render() {
+    const top = this.scroll.scrollTop;
+    this.#updaters = [];
+    this.scroll.replaceChildren(...this.buildAll(this.schema(), { scope: '', id: '' }));
+    this.scroll.scrollTop = top;
+  }
+  buildAll(nodes, ctx) { return nodes.map(n => this.build(n, ctx)); }
+  build(n, ctx) {
+    const scope = join(ctx.scope, n.scope), id = nodeId(n, ctx), c = { scope, id };
+    if (n.label) HELP.set(id, { label: n.label, icon: n.icon, help: n.help });
+    const el = n.type === 'tabs' ? this.#tabs(n, c) : n.type === 'group' ? this.#group(n, c) : n.type === 'custom' ? n.build(this, c)
+      : n.type === 'action' ? h('button', 'action', `${n.icon ? icon(n.icon) : ''}<span>${esc(n.label)}</span>`) : this.#row(n, c);
+    if (n.type === 'action') el.onclick = () => n.run();
+    el.dataset.help = id;
+    if (n.when) this.watch(() => el.hidden = !n.when(at(this.S, scope), this.S));
+    return el;
+  }
+  // For the docs: make an element visible by expanding the panel, switching tab and opening groups, then scroll to it.
+  reveal(el) {
+    if (this.ui.collapsed) { this.ui.collapsed = false; this.#layout(); }
+    for (let n = el; n && n !== this; n = n.parentNode ?? n.host) {
+      if (n.localName === 'details') n.open = true;
+      if (n.classList?.contains('page') && n.hidden) this.showTab(n.dataset.page);
+    }
+    el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+  snapshot() { return { tab: this.ui.tab, open: { ...this.ui.open }, collapsed: this.ui.collapsed, scroll: this.scroll.scrollTop }; }
+  restore(v) {
+    if (!v) return;
+    const { scroll, ...ui } = v;
+    Object.assign(this.ui, ui);
+    this.save();
+    this.#layout();
+    this.render();
+    this.scroll.scrollTop = scroll;
+  }
+  masterDetail(list, detail) {
+    const wrap = h('div', 'md-wrap'), md = h('div', 'md');
+    md.append(list, detail);
+    wrap.append(md);
+    return wrap;
+  }
+  #tabs(n, c) {
+    const el = h('div', 'tabbed'), bar = h('div', 'tabs');
+    const current = n.pages.some(p => p.id === this.ui.tab) ? this.ui.tab : n.pages[0].id;
+    bar.role = 'tablist';
+    const pages = n.pages.map(p => {
+      HELP.set(p.id, { label: p.label, icon: p.icon, help: p.help });
+      const b = h('button', '', `${icon(p.icon)}<span>${esc(p.label)}</span>`), body = h('div', 'page');
+      b.role = 'tab';
+      b.dataset.help = body.dataset.page = p.id;
+      b.onclick = () => this.showTab(p.id);
+      body.append(...this.buildAll(p.children, { scope: join(c.scope, p.scope), id: p.id }));
+      bar.append(b);
+      return body;
+    });
+    const show = id => n.pages.forEach((p, i) => { bar.children[i].ariaSelected = p.id === id; pages[i].hidden = p.id !== id; });
+    this.showTab = id => { this.ui.tab = id; this.save(); show(id); };
+    show(current);
+    el.append(bar, ...pages);
+    return el;
+  }
+  #group(n, c) {
+    const d = h('details', 'group', `<summary>${icon('chevron')}${n.icon ? icon(n.icon) : ''}<span>${esc(n.label)}</span></summary>`), tree = h('div', 'tree');
+    d.open = this.ui.open[c.id] ?? !!n.open;
+    tree.append(...this.buildAll(n.children, c));
+    d.append(tree);
+    d.addEventListener('toggle', () => { this.ui.open[c.id] = d.open; this.save(); });
+    return d;
+  }
+  #row(n, c) {
+    const row = h('div', 'row', `<label>${n.icon ? icon(n.icon) : ''}<span>${esc(n.label)}</span></label>`);
+    const path = n.key && join(c.scope, n.key), field = FIELDS[n.type](n, typeof n.options === 'function' ? n.options(this.S) : n.options);
+    row.append(field);
+    this.watch(() => field.value = n.get ? n.get(this.S) : at(this.S, path));
+    field.addEventListener('value', e => {
+      const { value, last } = e.detail;
+      n.set ? n.set(this.S, value) : put(this.S, path, value);
+      this.onChange({ id: c.id, path, value, last });
+    });
+    return row;
+  }
+}
+
+/* ---------- status line ---------- */
+
+// One consistent place for hover/focus help (low priority, fades) and notifications (high priority, optional action).
+class StatusLine extends HTMLElement {
+  #hint = null;
+  #note = null;
+  #hintTimer = 0;
+  #noteTimer = 0;
+  constructor() {
+    super();
+    shadow(this, `<style>
+      .s { inset: auto; left: var(--l, 16px); right: var(--r, 16px); bottom: max(16px, env(safe-area-inset-bottom)); margin: 0; border: 0;
+        box-sizing: border-box; min-height: 52px; align-items: center; gap: 10px; padding: 8px 8px 8px 16px; border-radius: 26px;
+        font: 13px/1.35 system-ui, sans-serif; background: var(--surface); color: var(--fg); box-shadow: var(--shadow); }
+      :host([stacked]) .s { bottom: calc(max(16px, env(safe-area-inset-bottom)) + 64px); }
+      .s:popover-open { display: flex; }
+      .s.note { background: var(--fg); color: var(--surface); }
+      svg { width: 18px; height: 18px; fill: currentColor; flex: none; opacity: .75; }
+      p { flex: 1; margin: 0; }
+      p svg { width: 15px; height: 15px; vertical-align: -3px; }
+      b { font-weight: 600; margin-right: 4px; }
+      button { padding: 7px 14px; border-radius: 18px; font-weight: 600; }
+      button:hover { background: color-mix(in srgb, currentColor 14%, transparent); }
+    </style>${sprite(Object.keys(ICONS))}<div class="s" popover="manual" role="status"><svg><use/></svg><p></p><button hidden></button></div>`);
+  }
+  hint(entry) {
+    clearTimeout(this.#hintTimer);
+    if (entry) { this.#hint = entry; this.#show(); }
+    else this.#hintTimer = setTimeout(() => { this.#hint = null; this.#show(); }, 1200);
+  }
+  notify(text, label, fn) {
+    clearTimeout(this.#noteTimer);
+    this.#note = { text, label, fn };
+    this.#show();
+    this.#noteTimer = setTimeout(() => { this.#note = null; this.#show(); }, 8000);
+  }
+  #show() {
+    const s = this.shadowRoot.querySelector('.s'), [svg, p, btn] = s.children, n = this.#note, e = this.#hint;
+    if (!n && !e) return s.hidePopover();
+    s.classList.toggle('note', !!n);
+    svg.style.display = !n && e.icon ? '' : 'none';
+    if (!n && e.icon) svg.firstElementChild.setAttribute('href', `#${e.icon}`);
+    p.innerHTML = n ? esc(n.text) : `<b>${esc(e.label)}</b>${rich(e.help ?? '')}`;
+    btn.hidden = !n?.label;
+    btn.textContent = n?.label ?? '';
+    btn.onclick = () => { this.#note = null; this.#show(); n.fn(); };
+    if (!s.matches(':popover-open')) s.showPopover();
+  }
+}
+
+/* ---------- help highlight ---------- */
+
+// A callout box that follows an element (anywhere, including inside shadow roots) while shown.
+class HelpHighlight extends HTMLElement {
+  #el = null;
+  #raf = 0;
+  constructor() {
+    super();
+    shadow(this, `<style>
+      :host { position: fixed; inset: 0; z-index: 8; pointer-events: none; }
+      .box { position: fixed; display: none; border-radius: 10px; transition: left .18s, top .18s, width .18s, height .18s;
+        box-shadow: 0 0 0 2px var(--fg), 0 0 0 6px color-mix(in srgb, var(--fg) 16%, transparent); }
+      .box.on { display: block; animation: pulse 1.4s ease-out; }
+      @keyframes pulse { from { box-shadow: 0 0 0 2px var(--fg), 0 0 0 16px color-mix(in srgb, var(--fg) 0%, transparent); } }
+      .tag { position: absolute; left: -2px; bottom: calc(100% + 7px); padding: 3px 8px; border-radius: 6px; white-space: nowrap;
+        background: var(--fg); color: var(--surface); font: 600 12px/1.4 system-ui, sans-serif; box-shadow: var(--shadow); }
+      .box.below .tag { bottom: auto; top: calc(100% + 7px); }
+    </style><div class="box"><span class="tag"></span></div>`);
+    this.box = this.shadowRoot.querySelector('.box');
+  }
+  show(el, label) {
+    const { box } = this, tag = box.firstElementChild;
+    if (el !== this.#el) { box.style.animation = 'none'; box.offsetWidth; box.style.animation = ''; }
+    this.#el = el;
+    tag.textContent = label ?? '';
+    tag.hidden = !label;
+    box.classList.add('on');
+    cancelAnimationFrame(this.#raf);
+    const follow = () => {
+      if (!this.#el) return;
+      const r = this.#el.getBoundingClientRect(), p = 4;
+      box.style.visibility = r.width || r.height ? '' : 'hidden';
+      Object.assign(box.style, { left: `${r.left - p}px`, top: `${r.top - p}px`, width: `${r.width + 2 * p}px`, height: `${r.height + 2 * p}px` });
+      box.classList.toggle('below', r.top < 40);
+      this.#raf = requestAnimationFrame(follow);
+    };
+    follow();
+  }
+  hide() {
+    this.#el = null;
+    cancelAnimationFrame(this.#raf);
+    this.box.classList.remove('on');
+  }
+}
+
+/* ---------- docs drawer ---------- */
+
+// Getting-started tour and generated reference. The section nearest the top of the scroll area is "active" and its
+// target id is announced, so the app can reveal and highlight the matching control.
+// content = { tutorial: [{ title, icon, target, body: [text] }], reference: [{ id, label, icon, help, doc, depth, kind }] }
+// Events: open, close, target (detail: id or null), inspect.
+class DocsDrawer extends HTMLElement {
+  #ref = [];
+  #sections = new Map();
+  #visible = new Set();
+  #active;
+  #timer = 0;
+  constructor() {
+    super();
+    const r = shadow(this, `<style>
+      :host { position: fixed; z-index: 3; left: 16px; top: max(16px, env(safe-area-inset-top)); bottom: calc(max(16px, env(safe-area-inset-bottom)) + 64px);
+        width: min(400px, calc(100vw - 32px)); display: none; flex-direction: column; overflow: hidden; border-radius: 14px;
+        background: var(--surface); color: var(--fg); box-shadow: var(--shadow); font: 13px/1.5 system-ui, sans-serif; }
+      :host([open]) { display: flex; }
+      svg { width: 16px; height: 16px; fill: currentColor; flex: none; }
+      header { display: flex; align-items: center; gap: 8px; padding: 10px 8px 4px 16px; }
+      h2 { flex: 1; margin: 0; font-size: 15px; }
+      .inspect[aria-pressed=true] { background: var(--fg); color: var(--surface); }
+      .tabs { display: flex; gap: 2px; margin: 6px 12px 8px; padding: 3px; border-radius: 10px; background: color-mix(in srgb, var(--fg) 7%, var(--surface)); }
+      .tabs button { flex: 1; display: flex; justify-content: center; align-items: center; gap: 6px; height: 30px; border-radius: 8px; font-weight: 500; opacity: .7; }
+      .tabs button:hover { opacity: 1; }
+      .tabs button[aria-selected=true] { opacity: 1; background: var(--surface); box-shadow: 0 1px 3px rgb(0 0 0 / .18); }
+      .search { display: flex; align-items: center; gap: 6px; margin: 0 12px 8px; padding: 0 10px; height: 32px; border-radius: 8px; background: var(--field); }
+      .search input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; color: inherit; font: inherit; }
+      :host([tab=tutorial]) .search { display: none; }
+      .body { flex: 1; overflow: auto; padding: 4px 16px 45vh; scrollbar-width: thin; overscroll-behavior: contain; }
+      section { --d: 0; margin: 2px -10px 2px calc(var(--d) * 14px - 10px); padding: 6px 10px; border-radius: 10px; transition: background .2s; }
+      .nested { border-left: 1px solid var(--line); border-radius: 0 10px 10px 0; }
+      section.active { background: var(--field); }
+      section.flash { animation: flash 1.2s ease-out; }
+      @keyframes flash { from { background: var(--field-f); } }
+      h3, h4 { display: flex; align-items: center; gap: 8px; margin: 0 0 2px; }
+      h3 { margin-top: 8px; font-size: 15px; }
+      .chapter h4 { margin-top: 16px; font-size: 16px; }
+      .group h4 { font-size: 14px; }
+      .item h4 { font-size: 13px; }
+      .param h4 { font-size: 12.5px; font-weight: 500; }
+      .param p { font-size: 12.5px; }
+      p { margin: 4px 0; }
+      p svg { width: 15px; height: 15px; vertical-align: -3px; }
+      a { color: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+      .none { opacity: .6; }
+    </style>${sprite(Object.keys(ICONS))}
+    <header>${icon('book')}<h2>Help</h2>
+      <button class="icon inspect" data-help="docs.inspect" aria-pressed="false" aria-label="Inspect a control">${icon('inspect')}</button>
+      <button class="icon close" data-help="docs.close" aria-label="Close help">${icon('close')}</button></header>
+    <div class="tabs" role="tablist"><button role="tab" data-tab="tutorial">${icon('school')}Getting started</button><button role="tab" data-tab="reference">${icon('book')}Reference</button></div>
+    <label class="search">${icon('search')}<input type="search" placeholder="Search the reference" aria-label="Search the reference"></label>
+    <div class="body"><article class="tutorial"></article><article class="reference"></article><p class="none" hidden>Nothing matches.</p></div>`);
+    const $ = this.$ = Object.fromEntries(['body', 'tutorial', 'reference', 'tabs', 'none', 'inspect'].map(k => [k, r.querySelector(`.${k}`)]));
+    $.search = r.querySelector('input');
+    r.querySelector('.close').onclick = () => this.close();
+    $.inspect.onclick = () => this.dispatchEvent(new Event('inspect'));
+    $.tabs.onclick = e => { const b = e.target.closest('[data-tab]'); if (b) this.tab = b.dataset.tab; };
+    $.search.addEventListener('input', () => this.#filter());
+    $.body.addEventListener('click', e => {
+      const a = e.target.closest('[data-goto]');
+      if (a) { e.preventDefault(); this.open(a.dataset.goto); }
+    });
+    this.io = new IntersectionObserver(es => {
+      for (const e of es) e.isIntersecting ? this.#visible.add(e.target) : this.#visible.delete(e.target);
+      this.#pick();
+    }, { root: $.body, rootMargin: '0px 0px -60% 0px' });
+    this.tab = 'tutorial';
+  }
+  set content({ tutorial, reference }) {
+    const { tutorial: T, reference: R } = this.$;
+    this.#ref = reference;
+    T.innerHTML = tutorial.map(s => `<section data-target="${esc(s.target ?? '')}"><h3>${s.icon ? icon(s.icon) : ''}${esc(s.title)}</h3>${s.body.map(p => `<p>${rich(p)}</p>`).join('')}</section>`).join('');
+    R.innerHTML = reference.map(e => `<section class="${e.kind}${e.depth ? ' nested' : ''}" style="--d:${e.depth}" data-target="${esc(e.id)}">
+      <h4>${e.icon ? icon(e.icon) : ''}${esc(e.label)}</h4>${e.help ? `<p>${rich(e.help)}</p>` : ''}${e.doc ? `<p>${rich(e.doc)}</p>` : ''}</section>`).join('');
+    this.#sections = new Map([...R.children].map(s => [s.dataset.target, s]));
+    this.io.disconnect();
+    this.#visible.clear();
+    for (const s of this.$.body.querySelectorAll('section')) this.io.observe(s);
+  }
+  get active() { return this.#active; }
+  get isOpen() { return this.hasAttribute('open'); }
+  get tab() { return this.getAttribute('tab'); }
+  set tab(t) {
+    this.setAttribute('tab', t);
+    for (const b of this.$.tabs.children) b.ariaSelected = b.dataset.tab === t;
+    this.$.tutorial.hidden = t !== 'tutorial';
+    this.$.reference.hidden = t !== 'reference';
+    this.$.none.hidden = true;
+    if (t === 'reference') this.#filter();
+    this.$.body.scrollTop = 0;
+    this.#pick();
+  }
+  set inspecting(on) { this.$.inspect.ariaPressed = String(on); }
+  // Open the drawer; with an id, jump to its reference entry (or the nearest entry above it).
+  open(id) {
+    if (!this.isOpen) { this.setAttribute('open', ''); this.dispatchEvent(new Event('open')); }
+    if (id == null) return this.#pick();
+    let k = id;
+    while (k && !this.#sections.has(k)) k = k.includes('.') ? k.slice(0, k.lastIndexOf('.')) : '';
+    const s = this.#sections.get(k);
+    if (this.tab !== 'reference') this.tab = 'reference';
+    if (this.$.search.value) { this.$.search.value = ''; this.#filter(); }
+    if (!s) return;
+    s.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    s.classList.remove('flash');
+    s.offsetWidth;
+    s.classList.add('flash');
+  }
+  close() {
+    if (!this.isOpen) return;
+    this.removeAttribute('open');
+    this.#active = undefined;
+    this.dispatchEvent(new Event('close'));
+  }
+  toggle() { this.isOpen ? this.close() : this.open(); }
+  // The topmost visible section in the upper part of the scroll area is the active one.
+  #pick() {
+    if (!this.isOpen) return;
+    const art = this.tab === 'tutorial' ? this.$.tutorial : this.$.reference;
+    const top = [...this.#visible].filter(s => s.parentNode === art && !s.hidden)
+      .sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top)[0];
+    const id = top?.dataset.target || null;
+    for (const s of this.$.body.querySelectorAll('section.active')) s.classList.remove('active');
+    top?.classList.add('active');
+    if (id === this.#active) return;
+    this.#active = id;
+    clearTimeout(this.#timer);
+    this.#timer = setTimeout(() => this.dispatchEvent(new CustomEvent('target', { detail: id })), 120);
+  }
+  // Show matching reference entries plus the headings above them.
+  #filter() {
+    const words = this.$.search.value.toLowerCase().split(/\s+/).filter(Boolean), secs = [...this.$.reference.children];
+    const hit = secs.map(s => words.every(w => s.textContent.toLowerCase().includes(w))), show = [...hit], stack = [];
+    secs.forEach((s, i) => {
+      const d = this.#ref[i].depth;
+      stack.length = d;
+      if (hit[i]) stack.forEach(j => show[j] = true);
+      stack[d] = i;
+    });
+    secs.forEach((s, i) => s.hidden = !show[i]);
+    this.$.none.hidden = show.some(Boolean);
+    this.#pick();
+  }
+}
+
+/* ---------- preset browser ---------- */
+
+// adapter: { store, groups: [{key, label, title}], capture(keys), load(p), thumbnail(p, canvas), loupe(p, canvas, u, v),
+//            reset(), pick(accept), download(name, blob), notify(text) }
+class PresetBrowser extends HTMLElement {
+  static ACTS = { edit: 'Edit', dup: 'Duplicate', export: 'Export as JSON', delete: 'Delete' };
+  #job = 0;
+  #editing = null;
+  #lens = null;
+  #raf = 0;
+  constructor() {
+    super();
+    const r = shadow(this, `<style>
+      dialog { border: 0; padding: 0; border-radius: 16px; background: var(--surface); color: var(--fg); box-shadow: var(--shadow);
+        font: 14px/1.4 system-ui, sans-serif; }
+      dialog::backdrop { background: rgb(0 0 0 / .45); }
+      .main { width: min(1080px, 94vw); height: min(800px, 90dvh); }
+      .main[open] { display: grid; grid-template-rows: auto 1fr; }
+      header { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 14px 14px 12px 24px;
+        border-bottom: 1px solid color-mix(in srgb, var(--fg) 10%, transparent); }
+      h2 { margin: 0 8px 0 0; font-size: 18px; font-weight: 600; }
+      header p { flex: 1; min-width: 200px; margin: 0; font-size: 13px; opacity: .62; }
+      .items { overflow: auto; padding: 20px 24px 24px; align-content: start; }
+      .items.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 18px; }
+      .items.list { display: grid; gap: 8px; }
+      .card { position: relative; display: grid; gap: 10px; padding: 10px; border-radius: 12px; background: color-mix(in srgb, var(--fg) 4%, transparent); }
+      .card:hover, .card:focus-within { background: color-mix(in srgb, var(--fg) 7%, transparent); }
+      .list .card { grid-template-columns: 120px 1fr auto; align-items: center; }
+      .pick { display: block; border-radius: 8px; }
+      .thumb { position: relative; display: block; aspect-ratio: 4 / 3; border-radius: 8px; background: var(--canvas); overflow: hidden; }
+      .thumb canvas { position: absolute; inset: 7%; width: 86%; height: 86%; object-fit: contain; filter: drop-shadow(0 1px 2px rgb(0 0 0 / .3)); cursor: crosshair; }
+      .meta { display: grid; gap: 6px; min-width: 0; }
+      h3 { margin: 0; font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .badge { font-size: 12px; opacity: .6; }
+      .chips { display: flex; flex-wrap: wrap; gap: 4px; margin: 0; padding: 0; list-style: none; }
+      .chips li { padding: 2px 7px; border-radius: 999px; font-size: 11.5px; opacity: .45;
+        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--fg) 18%, transparent); }
+      .chips li.on { opacity: 1; background: var(--fg); color: var(--surface); box-shadow: none; }
+      .acts { position: absolute; top: 14px; right: 14px; display: flex; gap: 2px; padding: 2px; border-radius: 999px;
+        background: var(--surface); box-shadow: var(--shadow); opacity: 0; transition: opacity .15s; --icon-box: 30px; }
+      .acts svg { width: 18px; height: 18px; }
+      .card:hover .acts, .card:focus-within .acts, .list .acts { opacity: 1; }
+      .list .acts { position: static; background: none; box-shadow: none; }
+      [data-armed] { background: var(--fg); color: var(--surface); }
+      .empty { opacity: .6; }
+      .loupe { inset: auto; margin: 0; padding: 0; border: 0; width: 200px; height: 200px; border-radius: 50%; overflow: hidden;
+        pointer-events: none; background: var(--canvas); box-shadow: 0 0 0 3px var(--surface), var(--shadow); }
+      .loupe canvas { display: block; width: 100%; height: 100%; }
+      .editor { width: min(460px, 92vw); }
+      form { display: grid; gap: 16px; padding: 24px; }
+      form h3 { font-size: 17px; white-space: normal; }
+      .field { display: grid; gap: 6px; font-weight: 500; }
+      input[type=text] { font: inherit; padding: 8px 10px; border-radius: 8px; border: 1px solid color-mix(in srgb, var(--fg) 22%, transparent);
+        background: transparent; color: inherit; }
+      fieldset { display: grid; gap: 6px; margin: 0; padding: 0; border: 0; }
+      legend { margin-bottom: 8px; font-weight: 500; }
+      fieldset label, .recap { display: flex; align-items: center; gap: 8px; }
+      input[type=checkbox] { accent-color: var(--fg); width: 16px; height: 16px; margin: 0; }
+      .hint { margin: 0; font-size: 13px; opacity: .65; }
+      menu { display: flex; justify-content: flex-end; gap: 8px; margin: 0; padding: 0; }
+      .primary { background: var(--fg); color: var(--surface); }
+      .primary:hover:not(:disabled) { background: color-mix(in srgb, var(--fg) 85%, var(--surface)); }
+    </style>
+    ${sprite(['add', 'import', 'export', 'close', 'edit', 'dup', 'delete'])}
+    <dialog class="main" closedby="any" aria-label="Presets">
+      <header>
+        <h2>Presets</h2>
+        <p>Highlighted settings are replaced when you load a preset; everything else stays as it is.</p>
+        <view-toggle key="presets" class="mode"></view-toggle>
+        <button class="txt new">${icon('add')}Save current</button>
+        <button class="txt import">${icon('import')}Import</button>
+        <button class="txt export" title="Export all your presets as one JSON file">${icon('export')}Export yours</button>
+        <button class="icon close" aria-label="Close">${icon('close')}</button>
+      </header>
+      <div class="items"></div>
+      <div class="loupe" popover="manual"><canvas></canvas></div>
+    </dialog>
+    <dialog class="editor">
+      <form method="dialog">
+        <h3></h3>
+        <label class="field">Name <input type="text" name="name" required autocomplete="off"></label>
+        <fieldset><legend>Settings this preset replaces</legend><div class="groups"></div></fieldset>
+        <p class="hint">Newly ticked groups take their values from your current settings.</p>
+        <label class="recap"><input type="checkbox" name="recapture"> Replace all stored values with current settings</label>
+        <menu><button class="txt" value="cancel" formnovalidate>Cancel</button><button class="txt primary save" value="ok">Save</button></menu>
+      </form>
+    </dialog>`);
+    const $ = this.$ = Object.fromEntries(['main', 'editor', 'items', 'mode', 'export', 'loupe', 'groups', 'recap', 'save', 'hint']
+      .map(k => [k, r.querySelector(`.${k}`)]));
+    $.form = r.querySelector('form');
+    r.querySelector('.close').onclick = () => $.main.close();
+    r.querySelector('.new').onclick = () => this.#edit(null);
+    r.querySelector('.import').onclick = () => this.#import();
+    $.export.onclick = () => this.a.download('riso-presets.json', this.a.store.serialize(this.a.store.user));
+    $.mode.addEventListener('change', () => $.items.className = `items ${$.mode.value}`);
+    $.items.addEventListener('click', e => this.#act(e.target.closest('[data-act]')));
+    $.items.addEventListener('pointermove', e => this.#track(e));
+    $.items.addEventListener('pointerleave', () => this.#track(null));
+    $.groups.addEventListener('change', () => $.save.disabled = !$.groups.querySelector(':checked'));
+    $.editor.addEventListener('close', () => $.editor.returnValue === 'ok' && this.#commit());
+    $.main.addEventListener('close', () => { this.#job++; this.#track(null); });
+  }
+  set adapter(a) {
+    this.a = a;
+    a.store.addEventListener('change', () => this.$.main.open && this.#render());
+  }
+  open() {
+    this.a.reset();
+    this.#render();
+    this.$.main.showModal();
+  }
+  #render() {
+    const { store, groups } = this.a, { items, mode, export: exp } = this.$, list = store.all, job = ++this.#job;
+    items.className = `items ${mode.value}`;
+    exp.disabled = !store.user.length;
+    items.innerHTML = list.map(p => this.#card(p, groups)).join('') || '<p class="empty">No presets yet.</p>';
+    (async () => {
+      for (const p of list) {
+        await new Promise(requestAnimationFrame);
+        if (job !== this.#job) return;
+        this.a.thumbnail(p, items.querySelector(`[data-id="${p.id}"] canvas`));
+      }
+    })();
+  }
+  #card(p, groups) {
+    const chip = ({ key, label, title }) => {
+      const v = p.data[key];
+      return `<li class="${v ? 'on' : ''}" title="${esc(title)}${v ? ' (replaced)' : ' (kept)'}">${label}${Array.isArray(v) ? ` ${v.length}` : ''}</li>`;
+    };
+    const acts = p.builtin ? ['dup', 'export'] : ['edit', 'dup', 'export', 'delete'];
+    return `<article class="card" data-id="${esc(p.id)}">
+      <button class="pick" data-act="load" title="Load ${esc(p.name)}"><span class="thumb"><canvas width="1" height="1"></canvas></span></button>
+      <div class="meta"><h3>${esc(p.name)}</h3>${p.builtin ? '<span class="badge">Example</span>' : ''}
+        <ul class="chips" aria-label="Settings replaced">${groups.map(chip).join('')}</ul></div>
+      <div class="acts">${acts.map(a => `<button class="icon" data-act="${a}" title="${PresetBrowser.ACTS[a]}" aria-label="${PresetBrowser.ACTS[a]}">${icon(a)}</button>`).join('')}</div>
+    </article>`;
+  }
+  #act(b) {
+    if (!b) return;
+    const { store } = this.a, p = store.find(b.closest('[data-id]').dataset.id);
+    switch (b.dataset.act) {
+      case 'load': this.$.main.close(); this.a.load(p); break;
+      case 'edit': this.#edit(p); break;
+      case 'dup': store.put({ name: `${p.name} copy`, data: structuredClone(p.data) }); break;
+      case 'export': this.a.download(`${p.name.toLowerCase().replace(/\W+/g, '-')}.json`, store.serialize([p])); break;
+      case 'delete':
+        if (b.dataset.armed) return store.remove(p.id);
+        b.dataset.armed = 1;
+        b.title = 'Click again to delete';
+        setTimeout(() => { delete b.dataset.armed; b.title = PresetBrowser.ACTS.delete; }, 3000);
+    }
+  }
+  #edit(p) {
+    const { editor, form, groups, recap, save } = this.$;
+    this.#editing = p;
+    form.querySelector('h3').textContent = p ? `Edit “${p.name}”` : 'Save current settings as a preset';
+    form.elements.name.value = p?.name ?? 'New preset';
+    groups.innerHTML = this.a.groups.map(({ key, title }) =>
+      `<label><input type="checkbox" name="g" value="${key}" ${(p ? key in p.data : key !== 'page') ? 'checked' : ''}> ${esc(title)}</label>`).join('');
+    recap.hidden = this.$.hint.hidden = !p;
+    form.elements.recapture.checked = false;
+    save.disabled = false;
+    editor.returnValue = '';
+    editor.showModal();
+  }
+  #commit() {
+    const { form } = this.$, p = this.#editing, re = form.elements.recapture.checked;
+    const keys = [...form.querySelectorAll('[name=g]:checked')].map(i => i.value);
+    const data = Object.fromEntries(keys.map(k => [k, p && !re && k in p.data ? p.data[k] : this.a.capture([k])[k]]));
+    this.a.store.put({ id: p?.id, name: form.elements.name.value.trim() || 'Untitled', data });
+  }
+  async #import() {
+    const f = await this.a.pick('.json,application/json');
+    if (!f) return;
+    try { this.a.notify(`Imported ${this.a.store.import(await f.text())} presets`); }
+    catch (e) { this.a.notify(`Could not import ${f.name}: ${e.message}`); }
+  }
+  #track(e) {
+    const c = e?.target.closest?.('canvas');
+    if (!c) { this.#lens = null; return this.$.loupe.hidePopover(); }
+    const b = c.getBoundingClientRect();
+    this.#lens = { p: this.a.store.find(c.closest('[data-id]').dataset.id), u: (e.clientX - b.left) / b.width, v: (e.clientY - b.top) / b.height, x: e.clientX, y: e.clientY };
+    this.#raf ||= requestAnimationFrame(() => {
+      this.#raf = 0;
+      const L = this.#lens, { loupe } = this.$;
+      if (!L) return;
+      const cv = loupe.firstElementChild, size = 200, dpr = devicePixelRatio;
+      Object.assign(cv, { width: size * dpr, height: size * dpr });
+      this.a.loupe(L.p, cv, L.u, L.v);
+      Object.assign(loupe.style, {
+        left: `${L.x + 24 + size > innerWidth ? L.x - 24 - size : L.x + 24}px`,
+        top: `${Math.min(L.y + 24, innerHeight - size - 8)}px`,
+      });
+      if (!loupe.matches(':popover-open')) loupe.showPopover();
+    });
+  }
+}
+
+customElements.define('view-toggle', ViewToggle);
+customElements.define('riso-viewer', RisoViewer);
+customElements.define('riso-toolbar', RisoToolbar);
+customElements.define('ink-palette', InkPalette);
+customElements.define('num-field', NumField);
+customElements.define('point-field', PointField);
+customElements.define('choice-field', ChoiceField);
+customElements.define('toggle-field', ToggleField);
+customElements.define('color-field', ColorField);
+customElements.define('list-editor', ListEditor);
+customElements.define('settings-panel', SettingsPanel);
+customElements.define('status-line', StatusLine);
+customElements.define('help-highlight', HelpHighlight);
+customElements.define('docs-drawer', DocsDrawer);
+customElements.define('preset-browser', PresetBrowser);
+
+/* ---------- files ---------- */
+
+const pick_ = accept => new Promise(res => {
+  const i = Object.assign(document.createElement('input'), { type: 'file', accept });
+  i.onchange = () => res(i.files[0]);
+  i.click();
+});
+
+const downloads = window.claude ? claude.use('downloads') : Promise.resolve(null);
+async function save(filename, data) {
+  const d = await downloads;
+  if (d) return d.save({ filename, data }).catch(e => e.code !== 'declined' && status.notify(`Could not save ${filename}: ${e.message}`));
+  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(data), download: filename });
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1e4);
+}
+
+const CRC = Array.from({ length: 256 }, (_, n) => { for (let k = 0; k < 8; k++) n = n & 1 ? 0xEDB88320 ^ (n >>> 1) : n >>> 1; return n >>> 0; });
+function zip(files) {
+  const rec = f => {
+    const b = new Uint8Array(f.reduce((s, [, n]) => s + n, 0)), v = new DataView(b.buffer);
+    f.reduce((o, [x, n]) => (n === 4 ? v.setUint32(o, x, true) : v.setUint16(o, x, true), o + n), 0);
+    return b;
+  };
+  const parts = [], dir = [];
+  let off = 0;
+  for (const { name, data } of files) {
+    const n = new TextEncoder().encode(name);
+    let c = ~0;
+    for (const b of data) c = CRC[(c ^ b) & 255] ^ (c >>> 8);
+    const common = [[0, 2], [0, 2], [0, 2], [0x21, 2], [~c >>> 0, 4], [data.length, 4], [data.length, 4], [n.length, 2], [0, 2]];
+    const local = rec([[0x04034b50, 4], [20, 2], ...common]);
+    dir.push(rec([[0x02014b50, 4], [20, 2], [20, 2], ...common, [0, 2], [0, 2], [0, 2], [0, 4], [off, 4]]), n);
+    parts.push(local, n, data);
+    off += local.length + n.length + data.length;
+  }
+  const size = dir.reduce((s, d) => s + d.length, 0);
+  return new Blob([...parts, ...dir, rec([[0x06054b50, 4], [0, 2], [0, 2], [files.length, 2], [files.length, 2], [size, 4], [off, 4], [0, 2]])]);
+}
+
+/* ---------- app ---------- */
+
+const S = defaults(), viewer = document.querySelector('riso-viewer'), toolbar = document.querySelector('riso-toolbar');
+const status = document.querySelector('status-line'), browser = document.querySelector('preset-browser'), panel = document.querySelector('settings-panel');
+const docs = document.querySelector('docs-drawer'), highlight = document.querySelector('help-highlight');
+const presets = new PresetStore(BUILTINS);
+let clip = null;
+viewer.state = S;
+
+// Undo history of serialized settings (everything except the view). Slider drags collapse into one step.
+const history = {
+  stack: [], i: -1, timer: 0,
+  snapshot: () => JSON.stringify({ ...S, view: undefined }),
+  commit() {
+    clearTimeout(this.timer);
+    const s = this.snapshot();
+    if (s === this.stack[this.i]) return;
+    this.stack.splice(this.i + 1, Infinity, s);
+    if (this.stack.length > 200) this.stack.shift();
+    this.i = this.stack.length - 1;
+    this.update();
+  },
+  soon() { clearTimeout(this.timer); this.timer = setTimeout(() => this.commit(), 300); },
+  go(d) {
+    this.commit();
+    const j = this.i + d, page = JSON.stringify(S.page);
+    if (j < 0 || j >= this.stack.length) return;
+    this.i = j;
+    Object.assign(S, JSON.parse(this.stack[j]));
+    panel.render();
+    viewer.invalidate();
+    if (JSON.stringify(S.page) !== page) viewer.fit();
+    this.update();
+  },
+  update() { toolbar.state = { undo: this.i > 0, redo: this.i < this.stack.length - 1, compare: viewer.split != null, help: docs.isOpen }; },
+};
+const structural = () => { panel.render(); viewer.invalidate(); history.commit(); };
+const coverage = i => { const c = viewer.set?.coverage[i]; return c == null ? '' : ` ${Math.round(c * 100)}%`; };
+
+/* ---------- schema ---------- */
+
+// The filter stack of whatever owns `key` in the current scope (the source, or a layer's separation).
+const filtersNode = (key, mono) => custom(mono ? 'layer.filters.list' : 'source.filters.list', 'Filters', (pn, c) => {
+  const path = join(c.scope, key), list = () => at(S, path), sk = `filters:${at(S, c.scope).id ?? 'source'}`;
+  const ed = document.createElement('list-editor'), detail = h('div', 'detail'), sel = list().find(f => f.id === pn.ui.sel[sk]);
+  ed.config = {
+    addLabel: 'Add filter', addHelp: 'filters.add', menu: () => filterMenu(mono), menuHelp: type => `filter.${type}`,
+    name: f => FILTERS[f.type].label, meta: f => filterSummary(f), help: f => `filter.${f.type}`, empty: 'No filters yet.',
+    toggle: { label: 'Enabled', get: f => f.on, set: (f, v) => f.on = v, on: 'check', off: 'uncheck' },
+    actions: [{ id: 'dup', label: 'Duplicate', icon: 'dup' }],
+  };
+  ed.items = list();
+  ed.selected = sel?.id;
+  if (sel) {
+    const d = FILTERS[sel.type];
+    detail.append(h('div', 'dhead', `${icon(d.icon)}<span>${esc(d.label)}</span>`),
+      ...pn.buildAll([num('mix', 'Mix', 0, 1, { help: 'Blend between the input (0) and this filter\'s result (1).' }), ...d.params.filter(p => !(mono && p.color))],
+        { scope: join(path, list().indexOf(sel)), id: `filter.${sel.type}` }));
+  } else if (list().length) detail.append(h('p', 'hint', 'Select a filter to edit it.'));
+  pn.watch(() => ed.render());
+  const insert = f => { const l = [...list()], i = l.indexOf(sel); l.splice(i < 0 ? l.length : i + 1, 0, f); put(S, path, l); pn.ui.sel[sk] = f.id; structural(); };
+  ed.addEventListener('select', e => { pn.ui.sel[sk] = e.detail; pn.render(); });
+  ed.addEventListener('change', e => { put(S, path, e.detail); structural(); });
+  ed.addEventListener('add', e => insert(makeFilter(e.detail)));
+  ed.addEventListener('action', e => insert({ ...structuredClone(e.detail.item), id: uid++ }));
+  return pn.masterDetail(ed, detail);
+}, { help: 'Filters run top to bottom. Drag to reorder, untick to bypass, select one to edit it.' });
+
+const LAYER = [
+  group('layer.ink', 'Ink', [
+    ink('sep.ink', 'Ink', { icon: 'palette', help: 'Riso ink for this layer. Pick from the palette, or type an ink name or hex code.' }),
+    num('sep.opacity', 'Opacity', 0, 1, { icon: 'opacity', help: 'How strongly the ink prints. Riso inks are translucent, so overlaps mix.' }),
+    num('sep.opaque', 'Covering', 0, 1, { help: 'How much this ink hides inks printed before it instead of mixing with them.' }),
+  ], { icon: 'palette', open: true }),
+  group('layer.separation', 'Separation', [
+    choice('sep.mode', 'Mode', MODES, { help: 'Where the ink comes from: **hue** picks colours near the ink, **key** takes darkness, **luma** takes brightness, **unmix** solves all unmix inks together.' }),
+    num('sep.hueShift', 'Hue shift', -90, 90, { unit: '°', when: L => L.sep.mode === 'hue', help: 'Move the band of hues this ink picks up.' }),
+    num('sep.hueWidth', 'Hue width', .1, 4, { when: L => L.sep.mode === 'hue', help: 'Widen or narrow the band of hues this ink picks up.' }),
+  ], { icon: 'extract', open: true }),
+  group('layer.filters', 'Filters', [filtersNode('sep.filters', true)], { icon: 'tune' }),
+  group('layer.halftone', 'Halftone', [
+    choice('screen.pattern', 'Pattern', PATTERNS, { help: 'Dot shape for a classic screen, or a dither pattern for a grainy stochastic screen.' }),
+    num('screen.lpi', 'Lines per inch', 10, 200, { step: 1, when: L => PATTERNS.indexOf(L.screen.pattern) < 5, help: 'Screen frequency. Lower is coarser and more visible; riso usually prints 50 to 100.' }),
+    num('screen.grain', 'Dot size', 1, 16, { step: 1, when: L => PATTERNS.indexOf(L.screen.pattern) >= 5, help: 'Size of each dither cell, in printer dots.' }),
+    num('screen.angle', 'Angle', 0, 180, { unit: '°', icon: 'rotate', help: 'Screen rotation. Give each layer its own angle to avoid moiré.' }),
+    point('screen.shift', 'Phase', -10, 10, { help: 'Slide the screen pattern without moving the image (mm).' }),
+    point('screen.stretch', 'Stretch', .25, 4, { help: 'Squash screen cells into ellipses or lines.' }),
+    num('screen.skew', 'Skew', -60, 60, { unit: '°', help: 'Shear the screen pattern.' }),
+  ], { icon: 'halftone', open: true }),
+  group('layer.registration', 'Registration', [
+    point('screen.mis', 'Offset', -5, 5, { icon: 'move', help: 'Shift this layer to imitate misregistration between drums (mm).' }),
+    num('screen.misRot', 'Rotate', -3, 3, { unit: '°', help: 'Rotate this layer slightly, as a skewed sheet would.' }),
+    num('screen.misScale', 'Scale', .98, 1.02, { help: 'Grow or shrink this layer slightly, as stretching paper would.' }),
+    num('screen.jitter', 'Jitter', 0, 3, { unit: 'mm', help: 'Random offset for a loose, hand-fed look.' }),
+    num('screen.seed', 'Seed', 0, 999, { step: 1, when: L => L.screen.jitter > 0, help: 'Pick a different random offset.' }),
+  ], { icon: 'move' }),
+];
+
+const layersNode = custom('layers.list', 'Layers', pn => {
+  const ed = document.createElement('list-editor'), detail = h('div', 'detail');
+  const L = S.layers.find(l => l.id === pn.ui.sel.layers) ?? S.layers[0];
+  ed.config = {
+    addLabel: 'Add layer', addHelp: 'layers.add', max: 8, help: () => 'layers.row', empty: 'No layers yet.',
+    name: L => inkName(L.sep.ink) ?? L.sep.ink, meta: (L, i) => `${L.sep.mode}${coverage(i)}`, swatch: L => L.sep.ink,
+    toggle: { label: 'Visible', get: L => L.sep.on, set: (L, v) => L.sep.on = v, on: 'visible', off: 'hidden' },
+    actions: [
+      { id: 'dup', label: 'Duplicate', icon: 'dup' }, { id: 'copy', label: 'Copy settings', icon: 'dup' },
+      { id: 'paste', label: 'Paste all settings', icon: 'paste', disabled: () => !clip },
+      { id: 'pasteSep', label: 'Paste ink & separation', icon: 'paste', disabled: () => !clip },
+      { id: 'pasteScreen', label: 'Paste halftone & registration', icon: 'paste', disabled: () => !clip },
+    ],
+  };
+  ed.items = S.layers;
+  ed.selected = L?.id;
+  if (L) {
+    const i = S.layers.indexOf(L), head = h('div', 'dhead');
+    pn.watch(() => head.innerHTML = `<i class="sw" style="--c:${L.sep.ink}"></i><span>Layer ${i + 1}: ${esc(inkName(L.sep.ink) ?? L.sep.ink)}</span>`);
+    detail.append(head, ...pn.buildAll(LAYER, { scope: `layers.${i}`, id: 'layer' }));
+  }
+  pn.watch(() => ed.render());
+  ed.addEventListener('select', e => { pn.ui.sel.layers = e.detail; pn.render(); });
+  ed.addEventListener('change', e => { S.layers = e.detail; if (S.view.solo >= S.layers.length) S.view.solo = -1; structural(); });
+  ed.addEventListener('add', () => {
+    const l = makeLayer({ ink: '#000000', mode: 'key' }, S.layers.length);
+    S.layers.push(l);
+    pn.ui.sel.layers = l.id;
+    structural();
+  });
+  ed.addEventListener('action', ({ detail: { id, item } }) => {
+    const i = S.layers.indexOf(item), run = {
+      dup: () => S.layers.length < 8 && S.layers.splice(i + 1, 0, { ...structuredClone(item), id: uid++ }),
+      copy: () => clip = structuredClone({ sep: item.sep, screen: item.screen }),
+      paste: () => Object.assign(item, structuredClone(clip)),
+      pasteSep: () => item.sep = structuredClone(clip.sep),
+      pasteScreen: () => item.screen = structuredClone(clip.screen),
+    };
+    run[id]();
+    if (id === 'copy') status.notify(`Copied the settings of layer ${i + 1}`);
+    structural();
+  });
+  return pn.masterDetail(ed, detail);
+}, { help: 'Inks in print order, top first. Drag to reorder, click the eye to hide, select one to edit it.', docChildren: LAYER, docCtx: 'layer' });
+
+const sizeName = p => Object.keys(SIZES).find(k => { const [a, b] = SIZES[k]; return (a === p.width && b === p.height) || (a === p.height && b === p.width); }) ?? 'Custom';
+const STAGE_OPTS = [[0, 'Source'], [1, 'Separation'], [2, 'Filtered'], [3, 'Halftone (final)']];
+
+const SCHEMA = () => [
+  group('view', 'View', [
+    choice('stage', 'Stage', STAGE_OPTS, { icon: 'stage', help: 'Which step of the pipeline to show. **Halftone** is the final print.' }),
+    choice('solo', 'Layer', S => [[-1, 'All layers'], ...S.layers.map((L, i) => [i, `${i + 1}: ${inkName(L.sep.ink) ?? L.sep.ink}`])],
+      { icon: 'layers', help: 'Show all layers together, or one on its own.' }),
+    toggle('gray', 'As master', { when: v => v.solo >= 0 && v.stage > 0, help: 'Show the single layer as black on white, the way its drum master will look.' }),
+  ], { scope: 'view', icon: 'view', open: true }),
+  node('tabs', null, null, { id: 'tabs', pages: [
+    page('source', 'Source', 'image', [
+      group('source.input', 'Input', [
+        choice('kind', 'Source', KINDS, { help: 'A loaded image, a flat colour, or a generated gradient (handy for testing separations).' }),
+        action('source.load', 'Load image…', () => actions.open(), { icon: 'open', help: 'Open an image file. You can also drop or paste one onto the page.' }),
+        choice('fit', 'Fit', ['cover', 'contain'], { when: s => s.kind === 'image', help: '**Cover** fills the page and crops; **contain** shows the whole image.' }),
+        color('solid', 'Color', { when: s => s.kind === 'solid', help: 'The flat colour to separate.' }),
+        choice('grad', 'Gradient', GRADS, { when: s => s.kind === 'gradient', help: 'Gradient shape. The hue wheel is a good test chart for hue separations.' }),
+        color('a', 'From', { when: s => s.kind === 'gradient' && s.grad !== 'hue wheel', help: 'Start colour of the gradient.' }),
+        color('b', 'To', { when: s => s.kind === 'gradient' && s.grad !== 'hue wheel', help: 'End colour of the gradient.' }),
+      ], { scope: 'input', icon: 'input', open: true }),
+      group('source.transform', 'Transform', [
+        num('scale', 'Scale', .1, 10, { help: 'Zoom the source within the page.' }),
+        num('rotate', 'Rotate', -180, 180, { unit: '°', icon: 'rotate', help: 'Rotate the source within the page.' }),
+        point('offset', 'Offset', -1, 1, { icon: 'move', help: 'Move the source, as a fraction of the page size.' }),
+        toggle('flipX', 'Flip horizontal', { icon: 'flip', help: 'Mirror left to right.' }),
+        toggle('flipY', 'Flip vertical', { help: 'Mirror top to bottom.' }),
+        choice('edge', 'Edges', EDGES, { help: 'What fills the page outside the source: blank paper, stretched edges, tiles, or mirrored tiles.' }),
+      ], { scope: 'transform', icon: 'transform' }),
+      group('source.filters', 'Filters', [filtersNode('filters', false)], { icon: 'tune', open: true }),
+    ], { scope: 'source', help: 'The image or gradient being separated, and how it is framed and filtered.' }),
+    page('layers', 'Layers', 'layers', [
+      color('paper.color', 'Paper', { id: 'paper', icon: 'page', help: 'Paper colour. Inks print on top of it, and unmix separations take it into account.' }),
+      layersNode,
+    ], { help: 'The inks, how each is separated from the source, and how each is screened.' }),
+    page('print', 'Print', 'print', [
+      group('print.page', 'Page', [
+        choice('size', 'Size', [...Object.keys(SIZES), 'Custom'], { get: S => sizeName(S.page), help: 'Standard paper sizes. Keeps the current orientation.',
+          set: (S, v) => {
+            if (!SIZES[v]) return;
+            const [a, b] = SIZES[v], portrait = S.page.height >= S.page.width;
+            [S.page.width, S.page.height] = portrait ? [a, b] : [b, a];
+            viewer.fit();
+          } }),
+        num('page.width', 'Width', 20, 1000, { step: .1, unit: 'mm', help: 'Page width.' }),
+        num('page.height', 'Height', 20, 1000, { step: .1, unit: 'mm', help: 'Page height.' }),
+        action('print.swap', 'Swap orientation', () => { [S.page.width, S.page.height] = [S.page.height, S.page.width]; viewer.fit(); structural(); },
+          { icon: 'swap', help: 'Switch between portrait and landscape.' }),
+        action('print.aspect', 'Match image aspect', () => matchAspect(), { icon: 'aspect', help: 'Set the page height so the page has the same proportions as the loaded image.' }),
+        num('page.dpi', 'Printer DPI', 72, 2400, { step: 1, help: 'Printer resolution. Masters export at this resolution; most riso machines print at 600.' }),
+      ], { icon: 'page', open: true }),
+      group('print.render', 'Rendering', [
+        choice('render.preview', 'Preview size', [800, 1200, 1600, 2400, 3200].map(v => [v, `${v} px`]), { help: 'Working resolution of the live preview. Higher is sharper and slower.' }),
+        choice('render.exportRes', 'Export size', [2048, 3072, 4096, 6144, 8192].map(v => [v, `${v} px`]), { help: 'Working resolution for exports. Higher keeps finer image detail and needs more GPU memory.' }),
+      ], { icon: 'settings' }),
+    ], { help: 'Page size, printer resolution and render quality.' }),
+  ] }),
+];
+
+// Help for controls that live outside the schema.
+const help = (id, label, icon, text) => HELP.set(id, { label, icon, help: text });
+Object.entries(FILTERS).forEach(([type, d]) => help(`filter.${type}`, d.label, d.icon, d.help));
+help('filters.add', 'Add filter', 'add', 'Add a filter after the selected one.');
+help('layers.add', 'Add layer', 'add', 'Add a black key layer. Up to 8 layers.');
+help('layers.row', 'Layer', 'layers', 'Click to edit, drag the grip to change print order, use ::more:: for duplicate, copy and paste.');
+help('panel.resize', 'Resize panel', 'swap', 'Drag to make the panel wider. When wide, list details move beside their list.');
+help('panel.collapse', 'Collapse panel', 'chevron', 'Hide or show the settings.');
+help('viewer', 'Page', 'image', 'Drag to pan, scroll or pinch to zoom, double-click to fit. Drop or paste an image to load it.');
+help('viewer.split', 'Compare divider', 'compare', 'Drag to move the divider between the original (left) and the result (right).');
+const TOOLS = [
+  ['open', 'Open image', 'open', 'Load an image to separate. You can also drop or paste one onto the page.'],
+  ['fit', 'Fit page', 'fit', 'Fit the whole page in view. Double-clicking the page does the same.'],
+  ['one', 'Actual print dots', 'halftone', 'Zoom so one screen pixel shows one printer dot.'],
+  ['compare', 'Compare', 'compare', 'Split the view between the unfiltered original and the result.'],
+  ['undo', 'Undo', 'undo', 'Step back through your changes. Ctrl or Cmd + Z.'],
+  ['redo', 'Redo', 'redo', 'Step forward again. Shift + Ctrl or Cmd + Z.'],
+  ['presets', 'Presets', 'presets', 'Save, load, import and export groups of settings.'],
+  ['theme', 'Light or dark', 'theme', 'Switch between light and dark mode.'],
+  ['export', 'Export', 'export', 'Export the composite, the halftone masters for printing, or the grayscale separations.'],
+  ['composite', 'Composite PNG', 'image', 'The final print preview at printer resolution.'],
+  ['masters', 'Halftone masters', 'halftone', 'One black-and-white PNG per visible layer, ready for the drum.'],
+  ['contone', 'Grayscale separations', 'layers', 'One grayscale PNG per layer, for printers that do their own screening.'],
+  ['help', 'Help', 'help', 'Open the getting-started tour and the reference. Shortcut: ?'],
+];
+for (const [a, label, ic, text] of TOOLS) help(`tool.${a}`, label, ic, text);
+help('docs.inspect', 'Inspect', 'inspect', 'Click this, then click any control to open its reference entry. Esc cancels.');
+help('docs.close', 'Close help', 'close', 'Close the help. The panel returns to how you left it.');
+
+/* ---------- docs ---------- */
+
+// Longer reference text, keyed by the same ids the panel uses. Short help lives on the schema nodes themselves.
+const DOCS = {
+  view: 'What the viewer shows. These settings are not saved in presets or undo history.',
+  'source.input': 'Where the picture comes from. A loaded image is never stored in presets, only how it is framed and filtered.',
+  'source.transform': 'Frames the source on the page without changing the original.',
+  'source.filters': 'Prepares the picture before it is split into inks.',
+  'source.filters.list': 'Radii are measured in millimetres on the page, so the preview and the export look the same at any resolution. Every filter also has a **mix** to blend its result with its input.',
+  layers: 'Inks print in list order, top first. Each layer turns the filtered source into an amount of ink, filters that amount, then screens it into dots.',
+  'layer.ink': 'The colour of the ink and how it overlaps the inks printed before it.',
+  'layer.ink.opaque': 'At 0, inks multiply like translucent riso ink. Raising it makes this ink cover what is underneath, closer to fluorescent or metallic inks.',
+  'layer.separation': 'How much ink each part of the image gets.',
+  'layer.separation.mode': 'Hue layers share the colour wheel: each takes the slice around its own ink, overlapping its neighbours, so hue inks split colours between them. Key and luma ignore the other inks. Unmix layers are solved together as translucent inks over the paper colour, which suits sets like pink, blue and yellow.',
+  'layer.filters': 'Filters on a single ink. Here a higher value means more ink, so erode thins the ink and dilate spreads it.',
+  'layer.halftone': 'Turns the ink amount into printable dots, computed at the full printer resolution.',
+  'layer.halftone.pattern': 'Round, square, diamond, cross and line are classic screens whose dot size follows the tone. Bayer, blue noise and white noise are dither patterns printed at the dot size you set.',
+  'layer.halftone.lpi': 'At 600 DPI, 50 to 85 lines per inch is typical. Very fine screens can fill in with soy ink; coarse screens read as a deliberate dot pattern.',
+  'layer.registration': 'Imitates the small shifts between drums on a real machine.',
+  'print.page': 'The physical page and the printer it is going to.',
+  'print.render': 'Quality settings for this computer. They are not part of presets.',
+  'print.render.exportRes': 'Exports redo the image processing at this size and then screen at the full printer DPI. 3072 px suits A4 and smaller; raise it for large pages with fine detail.',
+  filters: 'Every filter, grouped as in the add menu. Filters marked source only need colour, so ink layers do not offer them.',
+  tools: 'The toolbar along the bottom, the page itself, and the panel and help controls.',
+};
+
+const TUTORIAL = [
+  { title: 'Welcome', icon: 'help', body: [
+    'Riso separation lab splits a picture into ink layers for a risograph: one master per drum, screened into dots, and previewed the way the overlapping inks will print.',
+    'As you scroll through these steps, the matching control lights up. To learn about anything else, press ::inspect:: at the top of this panel and click it.'] },
+  { title: 'The page', icon: 'image', target: 'viewer', body: [
+    'The page in the middle is your print at its real size. Drag to pan, scroll or pinch to zoom, and double-click to fit it again.',
+    '**1:1** in the toolbar zooms to actual printer dots, the best way to judge a screen.'] },
+  { title: 'Choose a source', icon: 'input', target: 'source.input', body: [
+    'Drop or paste an image onto the page, or use **Load image** in the [[source.input|Input]] group. Until then a hue wheel stands in, which makes a good test chart for colour separations.',
+    '[[source.transform|Transform]] frames the source on the page without changing the original.'] },
+  { title: 'Prepare it with filters', icon: 'tune', target: 'source.filters.list', body: [
+    'Source filters adjust the picture before it is split into inks: levels, saturation, blur, threshold, noise and more. They run top to bottom; drag rows to reorder, and untick one to see the result without it.',
+    'Turn on ::compare:: **Compare** in the toolbar and drag the divider to see the original beside the result.'] },
+  { title: 'Inks and separation', icon: 'layers', target: 'layers.list', body: [
+    'Each layer is one ink, listed in print order. Click a layer to edit it, drag to reorder, and use ::visible:: to hide one.',
+    'The [[layer.separation.mode|separation mode]] decides how much ink each part of the picture gets. **Hue** suits bright spot colours, **key** adds a dark layer, and **unmix** finds the best mix of all unmix inks for every colour.'] },
+  { title: 'Pick an ink', icon: 'palette', target: 'layer.ink.ink', body: [
+    'Click the swatch to browse real riso ink colours, or type a name such as sunflower. [[layer.ink.opacity|Opacity]] and [[layer.ink.opaque|covering]] control how inks overlap.'] },
+  { title: 'Screens', icon: 'halftone', target: 'layer.halftone', body: [
+    'The screen turns each layer into printable dots. Give every layer its own [[layer.halftone.angle|angle]] to avoid moiré, and set [[layer.halftone.lpi|lines per inch]] for how coarse the dots are.',
+    'Dither patterns such as blue noise give a grainy look without visible rows of dots.'] },
+  { title: 'Check each layer', icon: 'view', target: 'view', body: [
+    'The **View** group shows any stage of the process. Pick a single layer and turn on **As master** to see exactly what goes on its drum.',
+    'Each layer row also shows its ink coverage, a quick check on how heavily it will print.'] },
+  { title: 'Registration and character', icon: 'move', target: 'layer.registration', body: [
+    'Real riso prints drift a little between drums. Offset, rotation and jitter imitate that on purpose, from a tidy nudge to a loose zine look.'] },
+  { title: 'Presets', icon: 'presets', target: 'tool.presets', body: [
+    '::presets:: **Presets** saves and loads groups of settings: inks only, screens only, a source look, or everything. Highlighted chips show exactly what a preset will replace.'] },
+  { title: 'Print', icon: 'print', target: 'print.page', body: [
+    'Set the page size and your printer\'s DPI in the **Print** tab, then use ::export:: **Export** for the halftone masters: one black-and-white PNG per drum.'] },
+  { title: 'Undo anything', icon: 'undo', target: 'tool.undo', body: [
+    'Every change can be undone with ::undo:: or Ctrl or Cmd + Z, including loading a preset. Hover any control to read what it does in the status line at the bottom.'] },
+];
+
+// Reference entries in schema order, with the same ids the panel gives its elements.
+function referenceEntries() {
+  const out = [], add = (id, label, ic, help, depth, kind) => out.push({ id, label, icon: ic, help: help ?? '', doc: DOCS[id] ?? '', depth, kind });
+  const walk = (nodes, ctx, depth) => {
+    for (const n of nodes) {
+      if (n.type === 'tabs') {
+        for (const p of n.pages) { add(p.id, p.label, p.icon, p.help, depth, 'chapter'); walk(p.children, { id: p.id }, depth + 1); }
+        continue;
+      }
+      const id = nodeId(n, ctx);
+      add(id, n.label, n.icon, n.help, depth, depth ? n.type === 'group' ? 'group' : 'item' : 'chapter');
+      if (n.children) walk(n.children, { id }, depth + 1);
+      if (n.docChildren) walk(n.docChildren, { id: n.docCtx }, depth + 1);
+    }
+  };
+  walk(SCHEMA(), { id: '' }, 0);
+  add('filters', 'Filter reference', 'tune', '', 0, 'chapter');
+  for (const [cat, list] of filterMenu(false)) {
+    add(`filters.${cat}`, cat, null, '', 1, 'group');
+    for (const [type] of list) {
+      const d = FILTERS[type];
+      add(`filter.${type}`, `${d.label}${d.color ? ' (source only)' : ''}`, d.icon, d.help, 2, 'item');
+      for (const p of d.params) add(`filter.${type}.${p.key}`, p.label, p.icon, p.help, 3, 'param');
+    }
+  }
+  add('tools', 'Toolbar, page and panel', 'settings', '', 0, 'chapter');
+  for (const id of ['viewer', 'viewer.split', ...TOOLS.map(([a]) => `tool.${a}`), 'panel.resize', 'panel.collapse', 'docs.inspect']) {
+    const e = HELP.get(id);
+    add(id, e.label, e.icon, e.help, 1, 'item');
+  }
+  return out;
+}
+
+// Elements anywhere in the page, including inside open shadow roots.
+const deepAll = (sel, root = document, out = []) => {
+  for (const el of root.querySelectorAll('*')) {
+    if (el.matches(sel)) out.push(el);
+    if (el.shadowRoot) deepAll(sel, el.shadowRoot, out);
+  }
+  return out;
+};
+// Controls inside popovers (menus, palettes) or hidden by a visibility rule can't be revealed without changing settings.
+const unreachable = el => {
+  for (let n = el; n && n !== document; n = n.parentNode ?? n.host)
+    if (n.hasAttribute?.('popover') || (n.hidden && !n.classList.contains('page'))) return true;
+  return false;
+};
+// The element for a help id, or for the nearest id above it; filter entries fall back to the source filter list.
+const FALLBACK = { filter: 'source.filters.list', filters: 'source.filters.list' };
+function findTarget(id) {
+  const ids = [];
+  for (let k = id; k; k = k.slice(0, Math.max(0, k.lastIndexOf('.')))) ids.push(k);
+  if (FALLBACK[ids.at(-1)]) ids.push(FALLBACK[ids.at(-1)]);
+  for (const k of ids) {
+    const el = deepAll(`[data-help="${CSS.escape(k)}"]`).find(e => !unreachable(e));
+    if (el) return el;
+  }
+  return null;
+}
+const showTarget = id => {
+  const el = id && findTarget(id);
+  if (!el) return highlight.hide();
+  panel.reveal(el);
+  highlight.show(el, HELP.get(el.dataset.help)?.label);
+};
+
+// Inspect: a transparent veil takes the next click, so no control is operated, and reports what is underneath it.
+const veil = Object.assign(document.createElement('div'), { className: 'inspect-veil', hidden: true });
+document.body.append(veil);
+const deepPick = (x, y) => {
+  const under = root => root.elementsFromPoint(x, y).find(e => e !== veil);
+  let el = under(document);
+  for (let inner; el?.shadowRoot && (inner = under(el.shadowRoot)) && inner !== el;) el = inner;
+  for (let n = el; n; n = n.parentNode ?? n.host) if (n.dataset?.help) return n;
+  return null;
+};
+let inspecting = false;
+function setInspect(on) {
+  inspecting = on;
+  veil.hidden = !on;
+  docs.inspecting = on;
+  highlight.hide();
+  if (on) status.notify('Click any control to read about it. Press Esc to cancel.');
+  else if (docs.isOpen) showTarget(docs.active);
+}
+veil.addEventListener('pointermove', e => {
+  const el = deepPick(e.clientX, e.clientY);
+  el ? highlight.show(el, HELP.get(el.dataset.help)?.label) : highlight.hide();
+});
+veil.addEventListener('click', e => {
+  const id = deepPick(e.clientX, e.clientY)?.dataset.help;
+  setInspect(false);
+  if (id && id !== 'docs.inspect') docs.open(id);
+});
+
+let docsSnapshot = null;
+docs.addEventListener('open', () => { docsSnapshot = panel.snapshot(); history.update(); });
+docs.addEventListener('close', () => { setInspect(false); highlight.hide(); panel.restore(docsSnapshot); docsSnapshot = null; history.update(); });
+docs.addEventListener('target', e => inspecting || showTarget(e.detail));
+docs.addEventListener('inspect', () => setInspect(!inspecting));
+
+function matchAspect() {
+  const sz = viewer.r?.imgSize;
+  if (sz) S.page.height = +(S.page.width * sz[1] / sz[0]).toFixed(1);
+  viewer.fit();
+  structural();
+}
+
+async function loadImage(file) {
+  if (!file?.type.startsWith('image/') || !viewer.r) return;
+  let bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
+  const k = Math.min(1, viewer.r.maxTex / Math.max(bmp.width, bmp.height));
+  if (k < 1) bmp = await createImageBitmap(bmp, { resizeWidth: Math.floor(bmp.width * k), resizeHeight: Math.floor(bmp.height * k), resizeQuality: 'high' });
+  viewer.r.setImage(bmp);
+  S.source.input.kind = 'image';
+  matchAspect();
+}
+
+// Thumbnails and the loupe share the 'thumb' texture set; `prepared` remembers which preset it currently holds.
+let prepared = null;
+const prepare = p => {
+  if (prepared?.p !== p) {
+    const T = applyPreset(structuredClone(S), p);
+    prepared = { p, T, set: viewer.r.run(T, 384, 'thumb') };
+  }
+  return prepared;
+};
+browser.adapter = {
+  store: presets,
+  groups: Object.entries(GROUPS).map(([key, { label, title }]) => ({ key, label, title })),
+  capture: keys => capture(S, keys),
+  reset: () => prepared = null,
+  pick: pick_,
+  download: save,
+  notify: text => status.notify(text),
+  load(p) {
+    applyPreset(S, p);
+    structural();
+    if ('page' in p.data) viewer.fit();
+    status.notify(`Loaded “${p.name}”`, 'Undo', () => history.go(-1));
+  },
+  thumbnail(p, canvas) {
+    if (!viewer.r || !canvas) return;
+    const { T, set } = prepare(p), a = T.page.width / T.page.height, m = 320;
+    const W = Math.round(a >= 1 ? m : m * a), H = Math.round(a >= 1 ? m / a : m);
+    viewer.r.renderCanvas(T, set, ALL_LAYERS, { zoom: W / T.page.width, W, H, canvas });
+  },
+  loupe(p, canvas, u, v) {
+    if (!viewer.r) return;
+    const { T, set } = prepare(p), z = T.page.dpi / 25.4 * devicePixelRatio, { width: W, height: H } = canvas;
+    viewer.r.renderCanvas(T, set, { ...ALL_LAYERS, bg: canvasBg() },
+      { zoom: z, W, H, canvas, origin: [u * T.page.width - W / 2 / z, v * T.page.height - H / 2 / z] });
+  },
+};
+
+const busy = fn => async () => {
+  document.body.classList.add('busy');
+  await new Promise(r => setTimeout(r, 30));
+  try { await fn(viewer.r.run(S, S.render.exportRes, 'export')); }
+  catch (e) { status.notify(`Export failed: ${e.message}`); }
+  finally { viewer.r.release('export'); document.body.classList.remove('busy'); }
+};
+const png = (set, view) => new Promise(res => {
+  const z = S.page.dpi / 25.4, W = Math.round(S.page.width * z), H = Math.round(S.page.height * z);
+  viewer.r.renderCanvas(S, set, view, { zoom: z, W, H, exp: true }).toBlob(res, 'image/png');
+});
+const layerFiles = async (set, stage) => {
+  const out = [];
+  for (const [i, { sep: s }] of S.layers.entries()) if (s.on)
+    out.push({ name: `${String(i + 1).padStart(2, '0')}-${(inkName(s.ink) ?? s.ink.slice(1)).toLowerCase().replace(/\W+/g, '-')}.png`,
+      data: new Uint8Array(await (await png(set, { stage, solo: i, gray: true })).arrayBuffer()) });
+  return out;
+};
+
+const actions = {
+  open: async () => loadImage(await pick_('image/*')),
+  fit: () => viewer.fit(),
+  one: () => viewer.zoomAt(S.page.dpi / 25.4),
+  compare: () => { viewer.split = viewer.split == null ? .5 : null; history.update(); },
+  undo: () => history.go(-1),
+  redo: () => history.go(1),
+  theme: () => toggleTheme(),
+  presets: () => viewer.r && browser.open(),
+  help: () => docs.toggle(),
+  composite: busy(async set => save('riso-composite.png', await png(set, ALL_LAYERS))),
+  masters: busy(async set => save('riso-masters.zip', zip(await layerFiles(set, 3)))),
+  contone: busy(async set => save('riso-separations.zip', zip(await layerFiles(set, 2)))),
+};
+
+// Keep the viewer's fit area clear of the panel, and dock the status line between the toolbar and the panel.
+const layoutChrome = () => {
+  const p = panel.getBoundingClientRect(), t = toolbar.shadowRoot.querySelector('.bar').getBoundingClientRect(), docked = innerWidth > 640;
+  const l = t.right + 12, r = docked ? innerWidth - p.left + 12 : 16, roomy = innerWidth - l - r > 280;
+  viewer.insetRight = docked ? innerWidth - p.left + 16 : 0;
+  status.style.setProperty('--l', `${roomy ? l : 16}px`);
+  status.style.setProperty('--r', `${roomy ? r : 16}px`);
+  status.toggleAttribute('stacked', !roomy);
+};
+
+toolbar.addEventListener('action', e => actions[e.detail]?.());
+viewer.addEventListener('file', e => loadImage(e.detail));
+viewer.addEventListener('view', () => toolbar.zoom = `${Math.round(viewer.zoom / (S.page.dpi / 25.4) * 100)}%`);
+viewer.addEventListener('coverage', () => panel.refresh());
+panel.addEventListener('layout', layoutChrome);
+new ResizeObserver(layoutChrome).observe(panel);
+addEventListener('resize', layoutChrome);
+addEventListener('paste', e => loadImage([...(e.clipboardData?.files ?? [])][0]));
+addEventListener('themechange', () => viewer.invalidate(false));
+// Help follows the pointer and keyboard focus. pointermove (not pointerover) also catches content that changed under a resting pointer.
+let hinted;
+const hintAt = e => {
+  const id = e.composedPath().find(n => n.dataset?.help)?.dataset.help;
+  if (id === hinted && e.type === 'pointermove') return;
+  hinted = id;
+  status.hint(id ? HELP.get(id) : null);
+};
+addEventListener('pointermove', hintAt, { passive: true });
+addEventListener('focusin', hintAt);
+addEventListener('keydown', e => {
+  if (e.key === 'Escape' && (inspecting || docs.isOpen)) { e.preventDefault(); return inspecting ? setInspect(false) : docs.close(); }
+  if (e.composedPath()[0]?.matches?.('input:not([type=checkbox]):not([type=range]), textarea, select, [contenteditable]')) return;
+  if (e.key === '?') { e.preventDefault(); return docs.toggle(); }
+  const mod = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
+  if (mod && k === 'z') { e.preventDefault(); history.go(e.shiftKey ? 1 : -1); }
+  else if (mod && k === 'y') { e.preventDefault(); history.go(1); }
+});
+panel.setup({ state: S, schema: SCHEMA, title: 'Riso separation lab', onChange: ({ last }) => { viewer.invalidate(); panel.refresh(); if (last) history.soon(); } });
+docs.content = { tutorial: TUTORIAL, reference: referenceEntries() };
+layoutChrome();
+viewer.invalidate();
+history.commit();
+//]]>
+</script>
+</body>
+</html>

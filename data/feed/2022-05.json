@@ -1,0 +1,5 @@
+{"month": "2022-05", "entries": [
+{"id":"gh:un1tz3r0/jq:2022-05-30","time":"2022-05-30T00:41:56Z","kind":"commits","source":"github","repo":"un1tz3r0/jq","url":"https://github.com/un1tz3r0/jq/commit/e2f17c48e37867076a4111a81f8c9a5154d11fde","count":1,"items":["add hash(\"xxh64i\") algorithm/format to custom hash/1 builtin"]},
+{"id":"gh:un1tz3r0/jq:2022-05-25","time":"2022-05-25T16:22:43Z","kind":"commits","source":"github","repo":"un1tz3r0/jq","url":"https://github.com/un1tz3r0/jq/commit/ec12d9c2fd951e3833261a68cef3fa5fa1a8b64b","count":1,"items":["add xxhash-clean git submodule and support in src/builtin.c for hash/2 function"]},
+{"id":"gh:un1tz3r0/jq:2022-05-17","time":"2022-05-17T13:51:16Z","kind":"commits","source":"github","repo":"un1tz3r0/jq","url":"https://github.com/un1tz3r0/jq/commit/61ec72fe2503e9e0bf99055176a218873152e37f","count":1,"items":["Add \"hash\" builtin for creating on-disk hash tables"]}
+]}

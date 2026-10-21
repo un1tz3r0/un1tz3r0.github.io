@@ -1,0 +1,16 @@
+[project]
+name = "sitekit"
+version = "0.1.0"
+description = "Data tooling for un1tz3r0.github.io"
+requires-python = ">=3.11"
+dependencies = ["aiohttp>=3.9", "yarl>=1.9"]
+
+[project.scripts]
+sitekit = "sitekit.__main__:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["sitekit"]
