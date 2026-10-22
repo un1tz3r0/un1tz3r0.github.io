@@ -4,10 +4,11 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import sys
 from pathlib import Path
 
-from . import compose, demos, history, importers, pulse
+from . import compose, demos, gallery, history, importers, mirror, pulse
 from .common import expand, find_site, load_toml
 from .feed import Feed
 
@@ -68,6 +69,20 @@ def parser() -> argparse.ArgumentParser:
 
     sub.add_parser('sync', help="import new entries from every feed listed in site.toml's [[feeds]]")
 
+    ga = sub.add_parser('gallery', help='add images, GIFs, videos or YouTube links to the gallery, or remove them')
+    gsub = ga.add_subparsers(dest='action', required=True)
+    gadd = gsub.add_parser('add', help='transcode files into gallery/ (GIFs become video loops) and list them in data/gallery.json')
+    gadd.add_argument('sources', nargs='+', help='files or YouTube links')
+    gadd.add_argument('--title', help='caption for every source in this batch')
+    gadd.add_argument('--masters', type=Path, help='also write full-size copies here (default: [media].masters in site.toml)')
+    gadd.add_argument('--refresh', action='store_true', help='encode sources already in the gallery again (e.g. to make their masters)')
+    gadd.add_argument('--jobs', type=int, default=os.cpu_count() or 4)
+    grm = gsub.add_parser('rm', help='remove items by id, with their previews')
+    grm.add_argument('ids', nargs='+')
+
+    sub.add_parser('mirror', help="upload [media].masters to the [media].remote bucket, then point the gallery at [media].base")
+    sub.add_parser('backup', help="copy the [media].remote bucket to [media].backup, keeping replaced and deleted files by date")
+
     pu = sub.add_parser('pulse', help='the local activity daemon')
     pu.add_argument('action', choices=['run', 'publish', 'status'])
     pu.add_argument('--config', type=Path, default=pulse.CONFIG)
@@ -111,6 +126,17 @@ async def dispatch(a: argparse.Namespace) -> None:
                      else await importers.syndication(a.url, a.source, a.kind))
         case 'sync':
             added = await importers.sync(load_toml(site / 'site.toml').get('feeds', []), feed.urls())
+        case 'gallery':
+            media = load_toml(site / 'site.toml').get('media', {})
+            if a.action == 'rm':
+                print('\n'.join(gallery.remove(site, a.ids, media.get('base', ''))) or 'nothing removed')
+            else:
+                masters = a.masters or (expand(media['masters']) if media.get('masters') else None)
+                await gallery.add(site, a.sources, media.get('base', ''), a.title, masters, a.jobs, a.refresh)
+        case 'mirror':
+            await mirror.push(site, load_toml(site / 'site.toml').get('media', {}))
+        case 'backup':
+            await mirror.backup(load_toml(site / 'site.toml').get('media', {}))
         case 'demos':
             await demos.build(site, a.ids)
     if added is not None:

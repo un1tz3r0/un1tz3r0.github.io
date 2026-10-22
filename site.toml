@@ -19,3 +19,10 @@ kind = "lj"
 [[feeds]]
 url = "https://medium.com/feed/@un1tz3r0"
 source = "medium"
+
+# Big files (gallery masters, long videos) live outside the repo. See tools/README.md, "Hosting media".
+[media]
+base = ""       # public URL of the bucket, e.g. "https://media.example.net/"; empty serves the gallery from this repo only
+masters = ""    # local folder of full-size files, e.g. "~/Media/site"; `sitekit gallery add` writes them here
+remote = ""     # rclone remote the masters are mirrored to, e.g. "r2:un1tz3r0-media" or "gcs:un1tz3r0-media"
+backup = ""     # local folder (your SSD) that `sitekit backup` keeps a dated delta copy of the bucket in

@@ -181,6 +181,8 @@ dialog::backdrop { background: hsl(20 20% 6% / .55); backdrop-filter: blur(3px);
 #player header { display: flex; align-items: center; gap: 1.2ex; padding: 1ex 1.2ex 1ex 2ex; border-block-end: 1px solid var(--line-soft); }
 #player header b { flex: 1; font-size: 1.15rem; font-weight: 650; }
 #player iframe { inline-size: 100%; block-size: 100%; border: 0; background: #000; }
+#viewer { inline-size: min(1600px, calc(100vw - 32px)); block-size: calc(100dvh - 32px); max-block-size: none; border-radius: 1.6ex; overflow: hidden; }
+#viewer[open] { display: grid; }
 noscript p { padding: 4ex; }
 ::view-transition-old(root), ::view-transition-new(root) { animation-duration: .28s; animation-timing-function: var(--ease); }
 @media (max-width: 760px) {
@@ -220,7 +222,6 @@ noscript p { padding: 4ex; }
   <symbol id="i-home" viewBox="0 0 24 24"><path d="M4 11l8-6.5 8 6.5M6.5 9.5V19h11V9.5"/></symbol>
   <symbol id="i-wave" viewBox="0 0 24 24"><path d="M3 12h1.5M6.5 9v6M10 5.5v13M13.5 8v8M17 10v4M20.5 12H21"/></symbol>
   <symbol id="i-video" viewBox="0 0 24 24"><rect x="2.5" y="5.5" width="19" height="13" rx="3"/><path d="M10 9.5v5l4.5-2.5z"/></symbol>
-  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="4" y="4" width="6.5" height="6.5" rx="1"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1"/></symbol>
 </svg>
 
 <template id="t-tab-frame"><div class="outer"><div class="inner"><slot></slot></div></div></template>
@@ -247,6 +248,20 @@ noscript p { padding: 4ex; }
   <div class="plot"><canvas></canvas></div>
   <div class="legend dim"></div>
 </template>
+<template id="t-wall">
+  <div class="filters"><chip-set name="gallery-kinds"></chip-set></div>
+  <ul class="wall"></ul>
+</template>
+<template id="t-viewer">
+  <header>
+    <b class="title"></b><span class="pos dim"></span>
+    <a class="btn" name="file" target="_blank" rel="noopener"><x-icon name="open"></x-icon><span>Open file</span></a>
+    <button class="btn icon" name="close" aria-label="Close"><x-icon name="close"></x-icon></button>
+  </header>
+  <button class="btn icon nav" name="prev" aria-label="Previous"><x-icon name="left"></x-icon></button>
+  <div class="stage"></div>
+  <button class="btn icon nav" name="next" aria-label="Next"><x-icon name="right"></x-icon></button>
+</template>
 <template id="t-feed">
   <div class="filters"><chip-set></chip-set></div>
   <ol class="days"></ol>
@@ -263,6 +278,7 @@ noscript p { padding: 4ex; }
           <a class="vbtn" href="#projects">Projects</a>
           <a class="vbtn" href="#activity">Activity</a>
           <a class="vbtn" href="#demos">Demos</a>
+          <a class="vbtn" href="#gallery">Gallery</a>
           <a class="vbtn" href="#about">About</a>
         </nav>
       </div>
@@ -299,6 +315,15 @@ noscript p { padding: 4ex; }
         <p>Interactive toys and tools that run right here in your browser. Play one in place or open it in its own tab.</p>
       </div>
       <div class="cards" id="demo-cards"></div>
+    </section>
+
+    <section data-page="gallery" aria-labelledby="gallery-h" hidden>
+      <div class="sec-head">
+        <h2 id="gallery-h">Gallery</h2>
+        <p>Loops, stills and videos. Loops play while they're on screen; click any piece to see it full size, and use the arrow keys to step through.</p>
+        <div class="stats" id="gallery-stats"></div>
+      </div>
+      <media-wall></media-wall>
     </section>
 
     <section data-page="about" aria-labelledby="about-h" hidden>
@@ -338,6 +363,7 @@ noscript p { padding: 4ex; }
 </div>
 
 <dialog id="project-dialog" aria-label="Project details"><project-detail></project-detail></dialog>
+<dialog id="viewer" aria-label="Gallery"><media-viewer></media-viewer></dialog>
 <dialog id="player" aria-label="Demo">
   <header><b></b><a class="btn" target="_blank" rel="noopener"><x-icon name="open"></x-icon>New tab</a><button class="btn icon" aria-label="Close" data-close><x-icon name="close"></x-icon></button></header>
   <iframe title="Demo" allow="autoplay; fullscreen; clipboard-write; xr-spatial-tracking" allowfullscreen></iframe>
@@ -1264,8 +1290,115 @@ class ActivityFeed extends Base {
   }
 }
 
+/* ---------- gallery ---------- */
+
+const PIECES = { loop: { label: 'Loops', one: 'Loop' }, image: { label: 'Stills', one: 'Still' }, video: { label: 'Videos', one: 'Video' }, youtube: { label: 'Videos', one: 'Video' } };
+const pieceInfo = it => [PIECES[it.kind]?.one, it.kind !== 'youtube' ? `${it.w} × ${it.h}` : null, it.duration ? `${it.duration.toFixed(1)} s` : null].filter(Boolean).join(' · ');
+
+// Rows of tiles at a common height, each as wide as its aspect ratio asks. Loops play while on screen.
+class MediaWall extends Base {
+  static template = 't-wall';
+  static css = `:host { display: grid; gap: 2ex; --row: 14rem; }
+    .wall { display: flex; flex-wrap: wrap; gap: 1ex; margin: 0; padding: 0; list-style: none; }
+    .wall::after { content: ''; flex: 1e4 1 0; }
+    .wall > li { flex: var(--a) 1 calc(var(--row) * var(--a)); aspect-ratio: var(--a); min-inline-size: 0; }
+    .wall > li[hidden] { display: none; }
+    a { position: relative; display: block; block-size: 100%; overflow: hidden; border-radius: 1ex; background: var(--bg-sunk); box-shadow: var(--shadow); }
+    img, video { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; object-fit: cover; transition: transform .5s var(--ease), opacity .4s var(--ease); }
+    video:not(.on) { opacity: 0; }
+    a:hover :is(img, video) { transform: scale(1.04); }
+    .badge { position: absolute; inset: auto .8ex .8ex auto; display: grid; place-items: center; inline-size: 2.4rem; block-size: 2.4rem; border-radius: 50%; background: var(--fill); color: var(--on-fill); box-shadow: var(--shadow-lift); }
+    @media (max-width: 760px) { :host { --row: 9rem; } }`;
+
+  set data({ items }) {
+    const chips = this.$('chip-set'), counts = {};
+    for (const it of items) counts[PIECES[it.kind].label] = (counts[PIECES[it.kind].label] ?? 0) + 1;
+    chips.options = Object.entries(counts).map(([label, count]) => ({ value: label, label, count }));
+    chips.addEventListener('change', () => this.filter(chips.value));
+    this.io = new IntersectionObserver(es => { for (const e of es) this.play(e.target, e.isIntersecting); }, { threshold: .3 });
+    this.$('.wall').replaceChildren(...items.map(it => {
+      const li = h('li', { 'data-kind': PIECES[it.kind].label, style: `--a: ${(it.w / it.h).toFixed(4)}`, '.item': it },
+        h('a', { href: `#gallery/${encodeURIComponent(it.id)}`, 'aria-label': `${it.title ?? 'Untitled'}, ${pieceInfo(it)}` },
+          h('img', { src: it.poster, alt: '', loading: 'lazy', decoding: 'async' }),
+          it.kind === 'video' || it.kind === 'youtube' ? h('span', { class: 'badge' }, icon('play')) : null));
+      if (it.kind === 'loop') this.io.observe(li);
+      return li;
+    }));
+    this.filter(chips.value);
+  }
+
+  filter(on) {
+    for (const li of this.$('.wall').children) li.hidden = on.size > 0 && !on.has(li.dataset.kind);
+  }
+
+  // The pieces in wall order that the filter shows, so the viewer steps through what you see.
+  get shown() { return [...this.$('.wall').children].filter(li => !li.hidden).map(li => li.item); }
+
+  play(li, visible) {
+    li.visible = visible;
+    const a = li.firstChild, still = this.held || reduceMotion.matches || navigator.connection?.saveData;
+    let v = a.querySelector('video');
+    if (!visible || still) return v?.pause();
+    v ??= a.appendChild(h('video', { src: li.item.src, '.muted': true, loop: true, playsinline: true, preload: 'auto', 'aria-hidden': 'true',
+      onplaying: e => e.currentTarget.classList.add('on') }));
+    v.play().catch(() => {});
+  }
+
+  // Pause everything while the viewer is up; resume what's on screen after.
+  hold(on) {
+    this.held = on;
+    for (const li of this.$('.wall').children) if (li.item.kind === 'loop') this.play(li, li.visible);
+  }
+}
+
+// One piece at full size, with previous/next and a link to the file. Emits 'step' (-1 or 1) and 'close'.
+class MediaViewer extends Base {
+  static template = 't-viewer';
+  static css = `:host { display: grid; grid-template: auto minmax(0, 1fr) / auto minmax(0, 1fr) auto; block-size: 100%; min-block-size: 0; }
+    header { grid-column: 1 / -1; display: flex; align-items: center; gap: 1.2ex; padding: 1ex 1.2ex 1ex 2ex; border-block-end: 1px solid var(--line-soft); }
+    header .title { font-size: 1.1rem; font-weight: 650; }
+    header .pos { flex: 1; font-size: .9rem; }
+    .stage { grid-area: 2 / 2; position: relative; min-block-size: 0; min-inline-size: 0; touch-action: pan-y; }
+    .stage > * { position: absolute; inset: 1.6ex 0; inline-size: 100%; block-size: calc(100% - 3.2ex); object-fit: contain; border: 0; }
+    .stage > iframe { inset: 0; margin: auto; inline-size: min(100%, calc((100dvh - 10rem) * 16 / 9)); block-size: auto; max-block-size: 100%; aspect-ratio: 16 / 9;
+      border-radius: 1ex; box-shadow: var(--shadow); background: #000; }
+    .nav { align-self: center; margin: 0 1.2ex; }
+    .nav[hidden] { display: none; }
+    @media (max-width: 760px) { header { padding-inline-start: 1.4ex; } .nav { position: absolute; inset-block-end: 1.4ex; z-index: 1; background: var(--bg-raised); } [name=prev] { inset-inline-start: 1.4ex; } [name=next] { inset-inline-end: 1.4ex; } :host { position: relative; grid-template-columns: 0 minmax(0, 1fr) 0; } }`;
+
+  connectedCallback() {
+    if (this.wired) return;
+    this.wired = true;
+    this.$('[name=close]').addEventListener('click', () => this.emit('close'));
+    this.$('[name=prev]').addEventListener('click', () => this.emit('step', -1));
+    this.$('[name=next]').addEventListener('click', () => this.emit('step', 1));
+    const stage = this.$('.stage');
+    let x0 = null;
+    stage.addEventListener('pointerdown', e => { x0 = e.clientX; });
+    stage.addEventListener('pointerup', e => { const dx = e.clientX - (x0 ?? e.clientX); x0 = null; if (Math.abs(dx) > 60) this.emit('step', dx < 0 ? 1 : -1); });
+  }
+
+  show(it, base, pos, count) {
+    const full = base && it.full ? new URL(it.full, base).href : it.src, file = this.$('[name=file]');
+    this.$('.title').textContent = it.title ?? 'Untitled';
+    this.$('.pos').textContent = `${pieceInfo(it)} · ${pos + 1} of ${count}`;
+    file.href = it.kind === 'youtube' ? `https://www.youtube.com/watch?v=${it.yt}` : full;
+    file.querySelector('span').textContent = it.kind === 'youtube' ? 'YouTube' : 'Open file';
+    this.$('.stage').replaceChildren(
+      it.kind === 'image' ? h('img', { src: full, alt: it.title ?? '' })
+      : it.kind === 'youtube' ? h('iframe', { src: `https://www.youtube-nocookie.com/embed/${it.yt}?autoplay=1&rel=0`, title: it.title ?? 'Video',
+          allow: 'autoplay; encrypted-media; picture-in-picture; fullscreen', allowfullscreen: true, referrerpolicy: 'strict-origin-when-cross-origin' })
+      : h('video', { src: full, poster: it.poster, autoplay: true, playsinline: true, loop: it.kind === 'loop', controls: it.kind === 'video', '.muted': it.kind === 'loop',
+          onclick: it.kind === 'loop' ? e => e.currentTarget.paused ? e.currentTarget.play() : e.currentTarget.pause() : null }));
+    for (const n of ['prev', 'next']) this.$(`[name=${n}]`).hidden = count < 2;
+  }
+
+  clear() { this.$('.stage').replaceChildren(); }
+}
+
 for (const [name, C] of Object.entries({ 'x-icon': XIcon, 'tab-frame': TabFrame, 'bracket-card': BracketCard, 'theme-toggle': ThemeToggle, 'chip-set': ChipSet,
-  'project-gantt': ProjectGantt, 'project-detail': ProjectDetail, 'activity-heatmap': ActivityHeatmap, 'activity-feed': ActivityFeed })) customElements.define(name, C);
+  'project-gantt': ProjectGantt, 'project-detail': ProjectDetail, 'activity-heatmap': ActivityHeatmap, 'activity-feed': ActivityFeed,
+  'media-wall': MediaWall, 'media-viewer': MediaViewer })) customElements.define(name, C);
 
 /* ---------- page ---------- */
 
@@ -1341,11 +1474,14 @@ async function presence() {
   if (mins < 90) for (const t of $$('tab-frame')) t.setAttribute('live', '');
 }
 
-const player = $('#player'), sheetDialog = $('#project-dialog');
+const player = $('#player'), sheetDialog = $('#project-dialog'), viewerDialog = $('#viewer'), viewer = $('media-viewer'), wall = $('media-wall');
 const back = section => { if (location.hash.split('/').length > 1) history.replaceState(null, '', `#${section}`); };
 player.addEventListener('close', () => { player.querySelector('iframe').src = 'about:blank'; back('demos'); });
 player.querySelector('[data-close]').addEventListener('click', () => player.close());
 sheetDialog.addEventListener('close', () => back('projects'));
+viewerDialog.addEventListener('close', () => { viewer.clear(); wall.hold(false); back('gallery'); });
+viewerDialog.addEventListener('keydown', e => { if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') step(e.key === 'ArrowLeft' ? -1 : 1); });
+viewer.addEventListener('step', e => step(e.detail));
 sheetDialog.addEventListener('click', e => e.target === sheetDialog && sheetDialog.close());
 document.addEventListener('close', e => e.target.closest?.('dialog')?.close() ?? sheetDialog.close());
 document.addEventListener('open-project', e => { location.hash = `#projects/${encodeURIComponent(e.detail)}`; });
@@ -1361,6 +1497,32 @@ function openDemo(id) {
   if (!player.open) player.showModal();
 }
 
+let gallery = null;
+async function initGallery() {
+  if (gallery) return;
+  gallery = await load('data/gallery.json', { base: '', items: [] });
+  wall.data = gallery;
+  const n = kind => gallery.items.filter(it => kind.includes(it.kind)).length;
+  $('#gallery-stats').innerHTML = [[n(['loop']), 'loop'], [n(['image']), 'still'], [n(['video', 'youtube']), 'video']].filter(([c]) => c)
+    .map(([c, w]) => `<span><b>${c}</b> ${c === 1 ? w : `${w}s`}</span>`).join('');
+}
+
+function openPiece(id) {
+  const shown = wall.shown, i = shown.findIndex(it => it.id === id), it = i < 0 ? gallery.items.find(x => x.id === id) : shown[i];
+  if (!it) return;
+  viewer.show(it, gallery.base, Math.max(i, 0), i < 0 ? 1 : shown.length);
+  wall.hold(true);
+  if (!viewerDialog.open) viewerDialog.showModal();
+}
+
+function step(dir) {
+  const shown = wall.shown, id = decodeURIComponent(location.hash.split('/')[1] ?? ''), i = shown.findIndex(it => it.id === id);
+  if (i < 0 || shown.length < 2) return;
+  const next = shown[(i + dir + shown.length) % shown.length].id;
+  history.replaceState(null, '', `#gallery/${encodeURIComponent(next)}`);
+  openPiece(next);
+}
+
 function openProject(id) {
   const p = m.byId.get(id);
   if (!p) return;
@@ -1369,7 +1531,7 @@ function openProject(id) {
   sheetDialog.scrollTop = 0;
 }
 
-const SECTIONS = ['projects', 'activity', 'demos', 'about'];
+const SECTIONS = ['projects', 'activity', 'demos', 'gallery', 'about'];
 let current = null;
 
 async function route() {
@@ -1389,10 +1551,13 @@ async function route() {
     await Promise.all([$('activity-heatmap').init(m), $('activity-feed').init(m)]);
     if (/^\d{4}-\d{2}-\d{2}$/.test(arg)) $('activity-feed').goTo(arg);
   }
+  if (id === 'gallery') await initGallery();
   if (sheetDialog.open && !(id === 'projects' && arg)) sheetDialog.close();
   if (player.open && !(id === 'demos' && arg)) player.close();
+  if (viewerDialog.open && !(id === 'gallery' && arg)) viewerDialog.close();
   if (id === 'projects' && arg) openProject(arg);
   if (id === 'demos' && arg) openDemo(arg);
+  if (id === 'gallery' && arg) openPiece(arg);
 }
 
 renderProjects();

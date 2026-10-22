@@ -9,6 +9,7 @@ My corner of the web: what I build, when I built it, and things you can play wit
 - **[Demos](https://un1tz3r0.github.io/#demos)**: the riso separation lab, the windchime simulator,
   [paisl](https://un1tz3r0.github.io/paisl/index.html), [squid](https://un1tz3r0.github.io/squid/index.html) and
   [x-fade](https://un1tz3r0.github.io/audio/index.html).
+- **[Gallery](https://un1tz3r0.github.io/#gallery)**: animated loops and stills on a wall that plays itself, plus videos.
 
 ## How it's put together
 
@@ -16,6 +17,7 @@ My corner of the web: what I build, when I built it, and things you can play wit
 no build step. It reads its content from JSON in `data/`:
 
 - `data/projects.json`, `data/demos.json` and `data/site.json` are written by hand.
+- `data/gallery.json` and the previews in `gallery/` come from `sitekit gallery`; full-size files can live in a bucket.
 - `data/github.json` and `data/feed/` are kept fresh by `tools/` (a small Python package, `sitekit`) and a daily
   GitHub Actions run (`.github/workflows/refresh.yml`) that re-reads commit history and rebuilds the demos that live
   in their own repos.

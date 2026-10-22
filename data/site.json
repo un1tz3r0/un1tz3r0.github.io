@@ -4,7 +4,7 @@
  "since": 2023,
  "license": "CC-BY-NC",
  "tagline": "Generative art in the browser, synth modules, machine-learning experiments, and the tools I build along the way.",
- "about": "I write software for fun and for work, mostly in Python, C++ and JavaScript. This site collects what I've made: the **projects** with a timeline of when I worked on each and how they connect, an **activity** log that updates itself, and **demos** you can play with right here.\n\nThe timeline is built from my commits, the activity log from posts, links and a small daemon on my computer that notes which projects are changing, and the demos are the real thing, running in your browser.",
+ "about": "I write software for fun and for work, mostly in Python, C++ and JavaScript. This site collects what I've made: the **projects** with a timeline of when I worked on each and how they connect, an **activity** log that updates itself, **demos** you can play with right here, and a **gallery** of loops and stills.\n\nThe timeline is built from my commits, the activity log from posts, links and a small daemon on my computer that notes which projects are changing, and the demos are the real thing, running in your browser.",
  "links": [
   {"label": "GitHub", "url": "https://github.com/un1tz3r0", "icon": "repo"},
   {"label": "X", "url": "https://x.com/un1tz3r0", "icon": "status"},
