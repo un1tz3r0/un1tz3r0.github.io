@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Windchime</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #1a1a2e; }
+    canvas { display: block; }
+    #unmute {
+      position: fixed;
+      bottom: 24px;
+      left: 24px;
+      width: 48px;
+      height: 48px;
+      border: none;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.12);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: opacity 0.6s ease, background 0.2s ease;
+      z-index: 10;
+    }
+    #unmute:hover { background: rgba(255,255,255,0.22); }
+    #unmute.faded { opacity: 0; pointer-events: none; }
+    #unmute svg { width: 24px; height: 24px; fill: #ccc; }
+
+    /* Reset FAB */
+    #reset-fab {
+      position: fixed;
+      bottom: 24px;
+      left: 84px;
+      width: 48px;
+      height: 48px;
+      border: none;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.12);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s ease;
+      z-index: 10;
+    }
+    #reset-fab:hover { background: rgba(255,255,255,0.22); }
+    #reset-fab svg { width: 22px; height: 22px; fill: #ccc; }
+
+    /* Share FAB */
+    #share-fab {
+      position: fixed;
+      bottom: 24px;
+      left: 144px;
+      width: 48px;
+      height: 48px;
+      border: none;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.12);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s ease;
+      z-index: 10;
+    }
+    #share-fab:hover { background: rgba(255,255,255,0.22); }
+    #share-fab svg { width: 22px; height: 22px; fill: #ccc; }
+
+    /* Toast */
+    #preset-toast {
+      position: fixed;
+      bottom: 90px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: rgba(30,30,50,0.92);
+      color: #dde;
+      padding: 10px 22px;
+      border-radius: 8px;
+      font: 14px/1.4 system-ui, sans-serif;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      z-index: 100;
+    }
+    #preset-toast.visible {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* Share modal */
+    #share-modal { display: none; }
+    #share-modal.visible { display: flex; }
+    #share-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+    }
+    .share-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+    }
+    .share-card {
+      position: relative;
+      background: #1e1e32;
+      border-radius: 12px;
+      padding: 24px;
+      min-width: 340px;
+      max-width: 90vw;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    }
+    .share-title {
+      color: #cce;
+      font: 600 16px/1 system-ui, sans-serif;
+    }
+    .share-url {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 6px;
+      background: rgba(0,0,0,0.3);
+      color: #aab;
+      font: 13px/1.4 monospace;
+      outline: none;
+    }
+    .share-url:focus { border-color: rgba(136,204,255,0.5); }
+    .share-copy {
+      align-self: flex-end;
+      padding: 8px 20px;
+      border: none;
+      border-radius: 6px;
+      background: rgba(136,204,255,0.2);
+      color: #8cf;
+      font: 600 14px/1 system-ui, sans-serif;
+      cursor: pointer;
+      transition: background 0.2s ease;
+    }
+    .share-copy:hover { background: rgba(136,204,255,0.35); }
+  </style>
+</head>
+<body>
+  <button id="unmute" aria-label="Enable audio">
+    <svg viewBox="0 0 24 24"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>
+  </button>
+  <script type="module" src="dist/bundle.js"></script>
+</body>
+</html>

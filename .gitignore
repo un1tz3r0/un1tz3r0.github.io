@@ -2,3 +2,5 @@ paisl/js/.index.js.swp
 key.pem
 cert.pem
 
+__pycache__/
+*.egg-info/

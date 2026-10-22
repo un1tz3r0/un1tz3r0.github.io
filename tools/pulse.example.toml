@@ -1,0 +1,34 @@
+# Copy to ~/.config/sitekit/pulse.toml and edit, then run `sitekit pulse status` to see what the daemon can detect.
+
+# A checkout of the site that the daemon commits data/pulse/ to. If it doesn't exist yet it is cloned from `remote`
+# as a sparse checkout of data/ only, so it stays small. Use your normal working copy instead if you prefer.
+site = "~/.local/share/sitekit/site"
+remote = "git@github.com:un1tz3r0/un1tz3r0.github.io.git"
+push = true
+db = "~/.local/share/sitekit/pulse.sqlite3"
+
+interval = 60    # seconds between samples
+idle = 180       # seconds without keyboard or mouse input before you count as away
+window = 600     # a project counts as the one you're on for this long after a file in it changes
+publish = 3600   # seconds between publishes
+
+# Extra file or folder names to skip while watching (fnmatch patterns), on top of .git, node_modules, venvs,
+# build output and editor temp files.
+ignore = []
+
+# Folders to watch, and the project id from data/projects.json each one counts toward. Only these projects'
+# minutes, changed-file counts and file extensions are published; nothing about any other folder leaves the machine.
+[projects]
+"~/src/un1tz3r0.github.io" = "site"
+"~/src/windchime" = "windchime"
+"~/src/vcvopxyz" = "vcvopxyz"
+
+# App categories: case-insensitive regexes matched against the focused window's app id or WM class. The first
+# match wins and anything else is "other". Only the category names are published, never app names or titles.
+[apps]
+code = "code|codium|cursor|zed|kate|n?vim|emacs|jetbrains|pycharm|clion|webstorm"
+terminal = "kitty|alacritty|foot|wezterm|ghostty|konsole|gnome-terminal|terminator|xterm"
+browser = "firefox|chrom|brave|vivaldi|epiphany|librewolf"
+graphics = "blender|gimp|inkscape|krita|darktable|godot"
+audio = "vcv|rack|ardour|bitwig|reaper|audacity|carla"
+chat = "discord|slack|signal|telegram|element"

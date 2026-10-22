@@ -1,0 +1,4 @@
+{"month": "2024-10", "entries": [
+{"id":"gh:un1tz3r0/controlnetvideo:2024-10-17","time":"2024-10-18T01:16:11Z","kind":"commits","source":"github","repo":"un1tz3r0/controlnetvideo","url":"https://github.com/un1tz3r0/controlnetvideo/commit/12a9eb2e4c60818c8e925879d16d11989a74a0f6","count":1,"items":["Add support for sdxl reference and controlnet, animation curves, audio tracks and tempo detection,"]},
+{"id":"gh:un1tz3r0/controlnetvideo:2024-10-08","time":"2024-10-08T23:12:04Z","kind":"commits","source":"github","repo":"un1tz3r0/controlnetvideo","url":"https://github.com/un1tz3r0/controlnetvideo/commit/259e24f8a878dddb95290d022d0a3a0ca7a8069d","count":1,"items":["Add reference-only, sdxl and flux.1 support."]}
+]}

@@ -1,0 +1,58 @@
+name: Refresh site data
+
+on:
+  schedule:
+    - cron: '23 9 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+
+concurrency:
+  group: refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /*
+            !/gallery/
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/sitekit
+          key: sitekit-${{ github.run_id }}
+          restore-keys: sitekit-
+      - run: pip install ./tools
+      - name: Commit history
+        run: sitekit history
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Feeds
+        run: sitekit sync
+      - name: Demos
+        run: sitekit demos
+      - name: Commit, push and rebuild Pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add data demos
+          if git diff --cached --quiet; then echo 'Nothing changed.'; exit 0; fi
+          git commit -m 'Refresh project history, feeds and demos'
+          git pull --rebase --quiet
+          git push
+          gh api -X POST "repos/${{ github.repository }}/pages/builds" || echo 'Pages will rebuild on the next push.'

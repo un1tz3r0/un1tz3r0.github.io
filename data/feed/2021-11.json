@@ -1,0 +1,4 @@
+{"month": "2021-11", "entries": [
+{"id":"gh:un1tz3r0/pixelscapes-dataset:2021-11-08","time":"2021-11-08T15:43:57Z","kind":"commits","source":"github","repo":"un1tz3r0/pixelscapes-dataset","url":"https://github.com/un1tz3r0/pixelscapes-dataset/commit/56c9e6c6c076c616c6ed6126848ee8c4b765edd4","count":5,"items":["add parameter to adjust status reporting","cleanup and more documentation, better terminal progress output and create output directory if nonexistant","Add documentation and make script usable as a module","initial commit","first commit"]},
+{"id":"gh:un1tz3r0/ytmusicapi:2021-11-03","time":"2021-11-03T14:30:21Z","kind":"commits","source":"github","repo":"un1tz3r0/ytmusicapi","url":"https://github.com/un1tz3r0/ytmusicapi/commit/433f3dca289842498bc9dfc0daf9609f547af825","count":2,"items":["Merge branch 'master' of github.com:/un1tz3r0/ytmusicapi","make more requests.get calls go through _send_get_request to include auth headers etc."]}
+]}
