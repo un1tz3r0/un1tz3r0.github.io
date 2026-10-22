@@ -55,6 +55,10 @@ sitekit import feed https://myjournal.livejournal.com/data/atom --source livejou
 sitekit import feed https://mastodon.social/@me.rss --source mastodon
 ```
 
+Feeds listed as `[[feeds]]` tables in `site.toml` (your LiveJournal and Medium are there already) are pulled in one go
+with `sitekit sync`, which the daily workflow runs. A feed entry whose link an imported entry already has is skipped,
+so the richer copy from an export wins.
+
 The Twitter archive comes from *Settings › Your account › Download an archive*. LiveJournal exports come from
 `livejournal.com/export.bml` (XML, one file per month) or from ljdump. Only public journal entries are imported.
 Imports are idempotent, so re-running one after a fresh export only adds what's new.

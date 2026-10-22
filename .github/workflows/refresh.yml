@@ -40,6 +40,8 @@ jobs:
         run: sitekit history
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Feeds
+        run: sitekit sync
       - name: Demos
         run: sitekit demos
       - name: Commit, push and rebuild Pages
@@ -50,7 +52,7 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add data demos
           if git diff --cached --quiet; then echo 'Nothing changed.'; exit 0; fi
-          git commit -m 'Refresh project history and demos'
+          git commit -m 'Refresh project history, feeds and demos'
           git pull --rebase --quiet
           git push
           gh api -X POST "repos/${{ github.repository }}/pages/builds" || echo 'Pages will rebuild on the next push.'

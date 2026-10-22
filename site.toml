@@ -9,3 +9,13 @@ forks = true
 ignore = []
 # Repos the API listing misses: other people's repos you commit to, or local checkouts (counted, never named in the feed).
 repos = ["jfischoff/next-pose-control-net", "appostasy-io/appostasy.io"]
+
+# Feeds `sitekit sync` imports from (the daily workflow runs it). kind: post, status, link, media or lj.
+[[feeds]]
+url = "https://un1tz3r0.livejournal.com/data/atom"
+source = "livejournal"
+kind = "lj"
+
+[[feeds]]
+url = "https://medium.com/feed/@un1tz3r0"
+source = "medium"

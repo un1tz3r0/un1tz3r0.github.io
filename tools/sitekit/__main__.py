@@ -66,6 +66,8 @@ def parser() -> argparse.ArgumentParser:
     fd.add_argument('--source', required=True, help='name shown on entries, e.g. mastodon')
     fd.add_argument('--kind', choices=['post', 'status', 'link', 'media', 'lj'], help='entry kind (default: post if titled)')
 
+    sub.add_parser('sync', help="import new entries from every feed listed in site.toml's [[feeds]]")
+
     pu = sub.add_parser('pulse', help='the local activity daemon')
     pu.add_argument('action', choices=['run', 'publish', 'status'])
     pu.add_argument('--config', type=Path, default=pulse.CONFIG)
@@ -107,6 +109,8 @@ async def dispatch(a: argparse.Namespace) -> None:
             added = (importers.twitter(site, a.archive, a.replies, a.retweets, a.media) if a.service == 'twitter'
                      else importers.livejournal(a.paths, a.user, a.utc_offset) if a.service == 'lj'
                      else await importers.syndication(a.url, a.source, a.kind))
+        case 'sync':
+            added = await importers.sync(load_toml(site / 'site.toml').get('feeds', []), feed.urls())
         case 'demos':
             await demos.build(site, a.ids)
     if added is not None:

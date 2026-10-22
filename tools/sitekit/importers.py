@@ -4,12 +4,15 @@ twitter: the archive from Settings › Your account › Download an archive (zip
 lj:      LiveJournal XML exports (livejournal.com/export.bml, one file per month) or ljdump's per-entry files.
 feed:    any RSS or Atom URL: a LiveJournal (user.livejournal.com/data/atom), Mastodon (@user.rss), Bluesky
          (bsky.app/profile/handle/rss), YouTube channel or blog feed.
+sync:    every [[feeds]] table in site.toml at once; the daily workflow runs it.
 """
 from __future__ import annotations
 
+import asyncio
 import html
 import json
 import re
+import sys
 import xml.etree.ElementTree as ET
 import zipfile
 from datetime import datetime, timedelta, timezone
@@ -143,4 +146,16 @@ async def syndication(url: str, source: str, kind: str | None = None) -> list[di
         out.append({'id': f'{source}:{digest(text("guid", "id") or link)}', 'time': iso(when), 'kind': kind or ('post' if title else 'status'),
                     'source': source, 'title': title, 'html': text('encoded', 'content', 'description', 'summary'), 'url': link,
                     'media': [m for m in media if m['type'] in ('image', 'video', 'audio')]})
+    return out
+
+
+async def sync(feeds: list[dict], known: dict[str, str]) -> list[dict]:
+    """Entries from every configured feed, skipping any whose url an entry from another importer already has."""
+    got = await asyncio.gather(*(syndication(f['url'], f['source'], f.get('kind')) for f in feeds), return_exceptions=True)
+    out = []
+    for f, entries in zip(feeds, got):
+        if isinstance(entries, Exception):
+            print(f"sitekit: {f['url']}: {type(entries).__name__} {entries}", file=sys.stderr)
+            continue
+        out += [e for e in entries if known.get(e.get('url'), e['id']) == e['id']]
     return out

@@ -52,6 +52,9 @@ class Feed:
         self.reindex()
         return changed
 
+    def urls(self) -> dict[str, str]:
+        return {e['url']: e['id'] for m in self.months() for e in self.load(m).values() if e.get('url')}
+
     def remove(self, entry_id: str) -> bool:
         for month in self.months():
             cur = self.load(month)
