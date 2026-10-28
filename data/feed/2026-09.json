@@ -1,0 +1,4 @@
+{"month": "2026-09", "entries": [
+{"id":"gh:un1tz3r0/blenderlauncher:2026-09-14","time":"2026-09-14T08:04:21Z","kind":"commits","source":"github","repo":"un1tz3r0/blenderlauncher","url":"https://github.com/un1tz3r0/blenderlauncher/commit/fbe88dcea0eda209d55780e5684cf0b1f091b95c","count":1,"items":["Move Flatpak to GNOME 50 and derive duplicated metadata from one source (#10)"]},
+{"id":"gh:un1tz3r0/blenderlauncher:2026-09-12","time":"2026-09-12T21:48:21Z","kind":"commits","source":"github","repo":"un1tz3r0/blenderlauncher","url":"https://github.com/un1tz3r0/blenderlauncher/commit/d68a38372a89f2ede8e83e18bf22426488b886fe","count":3,"items":["Upgrade aiohttp, lxml, soupsieve and idna for security fixes (#8)","Upgrade aiohttp, lxml, soupsieve and idna for security fixes","Move to src layout, add cross-platform CLI, fix GUI build list"]}
+]}

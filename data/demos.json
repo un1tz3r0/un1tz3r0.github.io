@@ -1,0 +1,24 @@
+{
+ "demos": [
+  {"id": "riso", "title": "Riso separation lab", "path": "demos/riso/", "thumb": "demos/thumbs/riso.jpg", "project": "riso", "added": "2026-10-20",
+   "summary": "Drop in an image and pull it apart into risograph inks: pick inks, tune each separation, stack filters, choose halftone screens and misregistration, then export the layers for print.",
+   "tags": ["webgl2", "print", "image processing"]},
+  {"id": "windchime", "title": "Windchime", "path": "demos/windchime/", "thumb": "demos/thumbs/windchime.jpg", "project": "windchime", "added": "2026-03-14",
+   "summary": "A physically simulated wind chime in fractal wind. Tune the chimes, change the materials and the sky, and share your chime as a link.",
+   "tags": ["three.js", "cannon-es", "web audio"],
+   "build": {"repo": "https://github.com/un1tz3r0/windchime.git", "run": ["npm install --no-audit --no-fund", "npm run build", "sed -i 's#src=\"/dist/#src=\"dist/#' public/index.html"],
+             "copy": {"public/index.html": "index.html", "public/dist/bundle.js": "dist/bundle.js"}}},
+  {"id": "overlay", "title": "Video overlay editor", "project": "overlay", "status": "in progress",
+   "summary": "Composite video, stills, three.js avatars and speech bubbles on a keyframed timeline, then export MP4 or WebM straight from the browser.",
+   "tags": ["three.js", "webcodecs", "timeline"]},
+  {"id": "paisl", "title": "Paisl", "path": "paisl/index.html", "thumb": "demos/thumbs/paisl.jpg", "project": "paisl", "added": "2023-10-31",
+   "summary": "An interactive Apollonian-gasket paisley generator with symmetry, colour and packing controls, and SVG export.",
+   "tags": ["svg", "geometry"]},
+  {"id": "squid", "title": "Squid", "path": "squid/index.html", "thumb": "demos/thumbs/squid.jpg", "project": "squid", "added": "2023-11-08",
+   "summary": "A three.js generative, procedural, seamlessly looping tentacle animation.",
+   "tags": ["three.js", "procedural"]},
+  {"id": "x-fade", "title": "X-Fade", "path": "audio/index.html", "thumb": "demos/thumbs/x-fade.jpg", "project": "x-fade", "added": "2023-12-23",
+   "summary": "A fluid, randomly looping ambient soundscape: clips shuffle and crossfade forever.",
+   "tags": ["web audio"]}
+ ]
+}
