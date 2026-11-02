@@ -6,8 +6,8 @@ My corner of the web: what I build, when I built it, and things you can play wit
   each repo, with curves showing which projects use, follow on from or grew out of which.
 - **[Activity](https://un1tz3r0.github.io/#activity)**: a running log of posts, status updates, links, commits and
   imported journal entries, with a heatmap of keyboard time reported by a small daemon on my computer.
-- **[Demos](https://un1tz3r0.github.io/#demos)**: the riso separation lab, the windchime simulator,
-  [paisl](https://un1tz3r0.github.io/paisl/index.html), [squid](https://un1tz3r0.github.io/squid/index.html) and
+- **[Demos](https://un1tz3r0.github.io/#demos)**: [Overlay Studio](https://un1tz3r0.github.io/demos/overlay/),
+  the riso separation lab, the windchime simulator, [paisl](https://un1tz3r0.github.io/paisl/index.html), [squid](https://un1tz3r0.github.io/squid/index.html) and
   [x-fade](https://un1tz3r0.github.io/audio/index.html).
 - **[Gallery](https://un1tz3r0.github.io/#gallery)**: animated loops and stills on a wall that plays itself, plus videos.
 
