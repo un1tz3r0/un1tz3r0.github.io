@@ -25,6 +25,7 @@ from datetime import date, datetime, timedelta
 from fnmatch import fnmatch
 from pathlib import Path
 
+from . import claude
 from .common import expand, load_toml, now, read_json, run, write_json
 
 CONFIG = expand('~/.config/sitekit/pulse.toml')
@@ -327,9 +328,16 @@ async def publish(s: Settings, db: sqlite3.Connection) -> None:
     write_json(folder / 'index.json', {'updated': now(), 'months': months})
     db.execute("insert or replace into meta values ('published', ?)", (date.today().isoformat(),))
     db.commit()
-    await git('add', 'data/pulse')
-    if (await git('status', '--porcelain', '--', 'data/pulse')).strip():
-        await git('commit', '--quiet', '-m', f'pulse: {datetime.now():%Y-%m-%d %H:%M}', '--', 'data/pulse')
+    paths = ['data/pulse']
+    if claude.TRANSCRIPTS.exists():
+        try:
+            await claude.scan(s.site, load_toml(s.site / 'site.toml').get('claude', {}))
+            paths.append('data/claude-usage')
+        except (OSError, ValueError) as e:
+            log(f'claude scan failed: {e}')
+    await git('add', *paths)
+    if (await git('status', '--porcelain', '--', *paths)).strip():
+        await git('commit', '--quiet', '-m', f'pulse: {datetime.now():%Y-%m-%d %H:%M}', '--', *paths)
         if s.push:
             await git('push', '--quiet')
         log(f'published {len(days)} day(s)' + (' and pushed' if s.push else ''))

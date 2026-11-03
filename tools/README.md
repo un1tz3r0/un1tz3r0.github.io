@@ -133,6 +133,26 @@ a separate app with a Settings-category launcher rather than a page inside it.
 The daemon is controlled over a socket at `$XDG_RUNTIME_DIR/sitekit-pulse.sock` (newline-delimited JSON; commands
 `status`, `watch`, `pause`, `resume`, `publish`, `rescan`, `set`, `reload`, `quit`), which only your user can reach.
 
+## Claude
+
+`sitekit history` also notices Claude's work. Commits a Claude session made carry a `Claude-Session:` trailer (or a
+Claude co-author), and PRs opened from a Claude project thread carry an attribution marker and the project's link. In
+repos owned by `[claude].owners`, Claude's commits count on your timeline (you reviewed and merged them) and are marked
+per day in `data/github.json`. Sessions, commits and PRs are grouped by Claude project in `data/claude.json`; give a
+project a name and a site project under `[claude.projects.<chan_id>]` in `site.toml`. PR lists need the GitHub API, so
+set `GITHUB_TOKEN` (the daily workflow does).
+
+```sh
+sitekit claude scan          # fold ~/.claude/projects into a local cache, publish data/claude-usage/<machine>.json
+sitekit claude report        # everything, cost included, per repo and per Claude project; --days 7 for the last week
+```
+
+Claude Code deletes transcripts after a month, so the scan keeps per-session totals in
+`~/.local/share/sitekit/claude-sessions.json`. What's published is per day: sessions and tokens (input, output, cache
+reads and writes, per model), split by public repo; cost only if `[claude].publish` lists `"cost"`. Each machine writes
+its own file (`SITEKIT_MACHINE` overrides the host name). The pulse daemon runs the scan with every publish. Costs are the
+API list-price equivalent, which on a subscription is notional.
+
 ## The gallery
 
 ```sh

@@ -512,10 +512,21 @@ const KIND = Object.fromEntries(KINDS.map(k => [k.id, k]));
 const REL = { uses: 'a2', fork: 'a1', follows: 'a0', part: 'a3', pairs: 'fg-dim' };
 
 async function buildModel() {
-  const [P, G, D, S] = await Promise.all([
+  const [P, G, D, S, C, U] = await Promise.all([
     load('data/projects.json', { projects: [], groups: [], kinds: {} }), load('data/github.json', { repos: {} }),
-    load('data/demos.json', { demos: [] }), load('data/site.json', {}),
+    load('data/demos.json', { demos: [] }), load('data/site.json', {}), load('data/claude.json', { projects: {} }),
+    load('data/claude-usage/index.json', { machines: [] }).then(i => Promise.all(i.machines.map(n => load(`data/claude-usage/${n}.json`, { days: {} })))),
   ]);
+  const tokens = {};
+  for (const u of U) for (const day of Object.values(u.days)) for (const [r, v] of Object.entries(day.repos ?? {}))
+    tokens[r] = (tokens[r] ?? 0) + sum(Object.values(v.tokens ?? {}));
+  const claudeOf = p => {
+    const repos = new Set(p.repos ?? []), cps = [C.unlinked, ...Object.values(C.projects)].filter(c => c && (c.site?.includes(p.id) || c.repos?.some(r => repos.has(r))));
+    const prs = cps.flatMap(c => c.prs ?? []).filter(pr => repos.has(pr.repo));
+    const commits = sum([...repos].flatMap(n => Object.values(G.repos[n]?.claude ?? {})));
+    const out = { commits, prs, sessions: sum(cps.map(c => c.sessions ?? 0)), tokens: sum([...repos].map(r => tokens[r] ?? 0)) };
+    return commits || prs.length || out.tokens ? out : null;
+  };
   const groups = P.groups.map((g, i) => ({ ...g, hue: i % 4 }));
   const groupOf = Object.fromEntries(groups.map(g => [g.id, g]));
   const claimed = new Set(P.projects.flatMap(p => p.repos ?? []));
@@ -534,13 +545,22 @@ async function buildModel() {
     const status = p.status ?? (TODAY - last < 45 ? 'active' : TODAY - last < 400 ? 'resting' : 'dormant');
     const repos = (p.repos ?? []).map(n => ({ name: n, url: G.repos[n]?.url ?? `https://github.com/${n}`, ...G.repos[n] }));
     return { ...p, group: groupOf[p.group] ? p.group : 'other', days, spans, first, last, status, repos,
-      commits: sum([...days.values()]), demo: demos[p.demo], hue: groupOf[groupOf[p.group] ? p.group : 'other'].hue };
+      commits: sum([...days.values()]), claude: claudeOf(p), demo: demos[p.demo], hue: groupOf[groupOf[p.group] ? p.group : 'other'].hue };
   }).filter(Boolean);
   const byId = new Map(projects.map(p => [p.id, p]));
   for (const p of projects) for (const r of p.repos) if (!byId.has(r.name)) byId.set(r.name, p);
   const relations = projects.flatMap(p => (p.related ?? []).map(r => ({ from: p, to: byId.get(r.to), kind: r.kind })).filter(r => r.to));
   for (const d of D.demos) d.projectRef = byId.get(d.project);
   return { site: S, groups, groupOf, projects, byId, relations, kinds: P.kinds ?? {}, demos: D.demos, github: G };
+}
+
+function withClaude(p) {
+  const c = p.claude, merged = c.prs.filter(r => r.state === 'merged');
+  const add = sum(merged.map(r => r.additions ?? 0)), del = sum(merged.map(r => r.deletions ?? 0));
+  const big = n => n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : `${n}`;
+  return [c.commits && `wrote ${c.commits.toLocaleString()} of ${plural(p.commits, 'commit')}`,
+    merged.length && `${plural(merged.length, 'pull request')} merged (+${add.toLocaleString()} −${del.toLocaleString()})`,
+    c.sessions && plural(c.sessions, 'session'), c.tokens && `${big(c.tokens)} tokens`].filter(Boolean).join(', ');
 }
 
 /* ---------- components ---------- */
@@ -962,6 +982,9 @@ class ProjectDetail extends Base {
       p.days.size ? this.spark(p) : null,
       h('dl', { class: 'facts' },
         p.commits ? [h('dt', {}, 'Commits'), h('dd', {}, `${p.commits.toLocaleString()} over ${plural(p.days.size, 'day')}, busiest in ${[...months].sort((a, b) => b[1] - a[1])[0][0]}`)] : null,
+        p.claude ? [h('dt', {}, 'With Claude'), h('dd', {}, withClaude(p))] : null,
+        p.claude?.prs.length ? [h('dt', {}, 'Claude PRs'), h('dd', {}, p.claude.prs.slice(0, 6).map((r, i) => [i ? ', ' : '',
+          h('a', { href: r.url, target: '_blank', rel: 'noopener', title: `${r.title} (${r.state})` }, `#${r.number}`), ` ${r.title}`]))] : null,
         p.repos.length ? [h('dt', {}, p.repos.length > 1 ? 'Repos' : 'Repo'), h('dd', {}, p.repos.map((r, i) => [i ? ', ' : '', h('a', { href: r.url, target: '_blank', rel: 'noopener' }, r.name)]))] : null,
         p.repos[0]?.language ? [h('dt', {}, 'Language'), h('dd', {}, p.repos[0].language)] : null,
         p.tags?.length ? [h('dt', {}, 'Tags'), h('dd', {}, h('ul', { class: 'tags' }, p.tags.map(t => h('li', {}, t))))] : null),

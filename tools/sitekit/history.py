@@ -4,11 +4,14 @@ Repos come from the GitHub API (all of a user's repos, forks included) plus any 
 local checkouts. Remote repos are mirrored as bare, commit-only partial clones (--filter=tree:0), so even huge forks cost
 a few hundred KB; forks are cut at their fork date. Output: data/github.json for the timeline, and one 'commits' feed
 entry per repo per day for the activity log (public repos only).
+
+Commits Claude wrote (a Claude-Session trailer, a Claude co-author, or Claude as author) are marked, and in repos owned
+by [claude].owners (default: [github].user) they count even though Claude, not you, is the author: you reviewed and
+merged them. Their sessions feed data/claude.json; see claude.py.
 """
 from __future__ import annotations
 
 import asyncio
-import os
 import re
 import sys
 from collections import Counter, defaultdict
@@ -17,13 +20,24 @@ from datetime import datetime
 from pathlib import Path
 
 import aiohttp
-from yarl import URL
 
-from .common import expand, iso, now, read_json, run, write_json
+from . import claude
+from .common import API, api_headers, expand, iso, now, read_json, run, write_json
 from .feed import Feed
 
-API = URL('https://api.github.com')
 SEP = '\x1f'
+LOG = SEP.join(('%H', '%aI', '%an <%ae>', '%s', '%(trailers:key=Claude-Session,valueonly,separator=%x1e)',
+                '%(trailers:key=Co-Authored-By,valueonly,separator=%x1e)'))
+CLAUDE = re.compile(r'\bclaude\b', re.I)
+
+
+@dataclass(frozen=True)
+class Commit:
+    when: datetime
+    sha: str
+    subject: str
+    claude: bool
+    session: str | None
 
 
 @dataclass
@@ -48,13 +62,6 @@ def spec(s: str | dict) -> Repo:
         p = expand(s).resolve()
         return Repo(p.name, str(p), local=True, meta={'private': True})
     return Repo(s, f'https://github.com/{s}.git', meta={'url': f'https://github.com/{s}'})
-
-
-def api_headers() -> dict:
-    h = {'Accept': 'application/vnd.github+json', 'User-Agent': 'sitekit'}
-    if token := os.environ.get('GITHUB_TOKEN'):
-        h['Authorization'] = f'Bearer {token}'
-    return h
 
 
 async def discover(user: str, forks: bool, private: bool) -> list[Repo]:
@@ -88,33 +95,38 @@ async def mirror(repo: Repo, cache: Path) -> Path:
     return path
 
 
-async def commits(path: Path, author: re.Pattern) -> list[tuple[datetime, str, str]]:
-    out = await run('git', '-C', str(path), 'log', '--branches', '--remotes', '--tags',
-                    f'--format=%H{SEP}%aI{SEP}%an <%ae>{SEP}%s')
+async def commits(path: Path, author: re.Pattern, claude_counts: bool) -> list[Commit]:
+    """Your commits, plus Claude's when claude_counts. Records end in NUL (-z) so multi-value trailers stay put."""
+    out = await run('git', '-C', str(path), 'log', '-z', '--branches', '--remotes', '--tags', f'--format={LOG}')
     seen, rows = set(), []
-    for line in out.splitlines():
-        sha, when, who, subject = line.split(SEP, 3)
-        if sha not in seen and author.search(who):
+    for record in filter(None, out.split('\0')):
+        sha, when, who, subject, session, coauthors = record.strip('\n').split(SEP, 5)
+        session = claude.SESSION.search(session)
+        by_claude = bool(session) or bool(CLAUDE.search(coauthors)) or who.lower().startswith('claude <')
+        if sha not in seen and (author.search(who) or by_claude and claude_counts):
             seen.add(sha)
-            rows.append((datetime.fromisoformat(when), sha, subject))
-    return sorted(rows)
+            rows.append(Commit(datetime.fromisoformat(when), sha, subject, by_claude, session and session[1]))
+    return sorted(rows, key=lambda c: c.when)
 
 
-def summarize(repo: Repo, rows) -> tuple[dict, list[dict]]:
-    """Timeline record (commits per local calendar day) and the day-by-day feed entries."""
-    days, last, subjects = Counter(), {}, defaultdict(list)
-    for when, sha, subject in rows:
-        day = when.date().isoformat()
+def summarize(repo: Repo, rows: list[Commit]) -> tuple[dict, list[dict]]:
+    """Timeline record (commits per local calendar day, and how many of them Claude wrote) and the feed entries."""
+    days, by_claude, last, subjects = Counter(), Counter(), {}, defaultdict(list)
+    for c in rows:
+        day = c.when.date().isoformat()
         days[day] += 1
-        last[day] = (when, sha)
-        subjects[day].append(subject)
+        by_claude[day] += c.claude
+        last[day] = c
+        subjects[day].append(c.subject)
     link = repo.meta.get('url')
     record = {**{k: v for k, v in repo.meta.items() if v not in (None, '', [])}, 'fork': repo.fork or None,
-              'commits': sum(days.values()), 'first': min(days), 'last': max(days), 'days': dict(sorted(days.items()))}
+              'commits': sum(days.values()), 'first': min(days), 'last': max(days), 'days': dict(sorted(days.items())),
+              'claude': dict(sorted((d, n) for d, n in by_claude.items() if n)) or None}
     entries = [] if not repo.public else [{
-        'id': f'gh:{repo.name}:{day}', 'time': iso(when), 'kind': 'commits', 'source': 'github', 'repo': repo.name,
-        'url': f'{link}/commit/{sha}' if link else None, 'count': days[day], 'items': subjects[day][::-1][:8],
-    } for day, (when, sha) in last.items()]
+        'id': f'gh:{repo.name}:{day}', 'time': iso(c.when), 'kind': 'commits', 'source': 'github', 'repo': repo.name,
+        'url': f'{link}/commit/{c.sha}' if link else None, 'count': days[day], 'claude': by_claude[day] or None,
+        'items': subjects[day][::-1][:8],
+    } for day, c in last.items()]
     return {k: v for k, v in record.items() if v is not None}, entries
 
 
@@ -129,19 +141,22 @@ async def build(site: Path, cfg: dict, *, api: bool = True, extra: tuple = (), f
     cache = expand(gh.get('cache', '~/.cache/sitekit/git'))
     cache.mkdir(parents=True, exist_ok=True)
     gate = asyncio.Semaphore(jobs)
+    owners = {o.lower() for o in cfg.get('claude', {}).get('owners', [user])}
 
     async def one(repo: Repo):
         async with gate:
             try:
-                return repo, await commits(await mirror(repo, cache), author)
+                return repo, await commits(await mirror(repo, cache), author, repo.local or repo.name.split('/')[0].lower() in owners)
             except RuntimeError as e:
                 print(f'  skip {repo.name}: {e}', file=sys.stderr)
                 return repo, None
 
     out_path = site / 'data' / 'github.json'
     previous = read_json(out_path, {}).get('repos', {})
-    timeline, entries, failed = {}, [], set()
+    timeline, entries, failed, sessions = {}, [], set(), {}
     for repo, rows in await asyncio.gather(*map(one, unique.values())):
+        if rows:
+            sessions[repo.name] = [c for c in rows if c.session]
         if rows is None:
             failed.add(repo.name)
             if repo.name in previous:
@@ -152,6 +167,8 @@ async def build(site: Path, cfg: dict, *, api: bool = True, extra: tuple = (), f
     write_json(out_path, {'generated': now(), 'user': user, 'repos': dict(sorted(timeline.items()))})
     total = sum(r['commits'] for r in timeline.values())
     print(f'{len(timeline)} of {len(unique)} repos have your commits, {total} in all → {out_path.relative_to(site)}')
+    if cfg.get('claude', {}).get('enabled', True):
+        await claude.link(site, cfg, timeline, sessions, failed, api=api)
     if feed:
         stale = lambda e: e.get('source') == 'github' and e.get('repo') not in failed
         print(f'{Feed(site).upsert(entries, drop=stale)} feed entries changed')
