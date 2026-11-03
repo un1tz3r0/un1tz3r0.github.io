@@ -131,7 +131,42 @@ the site checkout and posts quick statuses. GNOME Settings itself has no plug-in
 a separate app with a Settings-category launcher rather than a page inside it.
 
 The daemon is controlled over a socket at `$XDG_RUNTIME_DIR/sitekit-pulse.sock` (newline-delimited JSON; commands
-`status`, `watch`, `pause`, `resume`, `publish`, `rescan`, `set`, `reload`, `quit`), which only your user can reach.
+`status`, `watch`, `pause`, `resume`, `publish`, `rescan`, `set`, `reload`, `quit`, and for the browser extension
+`config`, `focus`, `pages`, `catalog`), which only your user can reach. A request's `id` is echoed in its reply. The
+daemon restarts itself when `pulse.toml` changes.
+
+### Browser extension
+
+`tools/sitekit/extension/` is a Manifest V3 extension (Chrome first; the manifest also loads in Firefox 128+). It
+follows the active tab of the focused window while you aren't idle, records one span per page, and sends it to the
+daemon through a native messaging host, buffering while the daemon is down. While a browser window has focus, the
+page's project beats file changes for that minute, and its site category (from `[browser.sites]`) is published
+alongside the app categories.
+
+```sh
+sitekit pulse browser      # register the native messaging host for Chrome, Chromium, Brave, Vivaldi, Edge and Firefox
+```
+
+Then load it: *chrome://extensions › Developer mode › Load unpacked*, and pick `tools/sitekit/extension`. Its `key`
+pins the id to `idmnjfajgdlaoneflcachggmmbpbohao`, which the host allows; to allow other ids (a store build), set
+`SITEKIT_EXTENSION_IDS=id1,id2` when you run `sitekit pulse browser`. The toolbar icon shows the same four states as
+the panel icon, and its popup shows what the current page counts toward, the daemon controls, and each plugin's sync.
+
+Locally the daemon keeps each span's URL without query or fragment, its title (`titles = false` drops them), site
+category, project and activity. Private windows, non-http pages and `deny`ed hosts are never recorded. Published:
+minutes per site category, and per project the minutes by activity, only for projects that the site already names or
+that a plugin marks as yours and public.
+
+Plugins live in `extension/plugins/` (the interface is documented in `index.js`) and ship with the extension, since MV3
+can't load code from elsewhere. Simple cases need no code: `[[browser.rules]]` map URLs to projects.
+
+- **GitHub**: your repos count toward the project of the same name (so browser and editor time add up), with activity
+  `review`, `issues`, `code`, `ci` and so on. Other people's repos are kept local. Syncs your public repo list daily.
+- **CodePen**: pens are `pen:<slug>` projects, `editing` in the editor and `viewing` elsewhere. Syncs your public pens
+  from your profile feed (`user` defaults to the owner), so they can be named on the site via `data/pulse/catalog.json`.
+- **Claude**: Claude Code projects (`claude-code:chan_…`, named from the page title) and claude.ai projects and chats
+  (`claude:<uuid>`, synced from the web app's own API, which is undocumented and may change). Names only reach
+  `data/claude.json` for Claude projects already listed there.
 
 ## The gallery
 

@@ -54,6 +54,8 @@ class Settings:
     owner: str | None
     rescan: int
     found: dict[Path, str]
+    browser: dict
+    path: Path
 
     @classmethod
     def load(cls, path: Path = CONFIG) -> Settings:
@@ -69,10 +71,18 @@ class Settings:
                    apps=[(k, re.compile(v, re.I)) for k, v in c.get('apps', {}).items()],
                    ignore=IGNORE + c.get('ignore', []), root=expand(d.get('root', '~')).resolve(),
                    depth=int(d['depth']) if d.get('depth') else None, owner=d.get('owner') or site_owner(expand(c.get('site', '~/.local/share/sitekit/site'))),
-                   rescan=int(d.get('every', 86400)) if d.get('enabled', True) else 0, found={})
+                   rescan=int(d.get('every', 86400)) if d.get('enabled', True) else 0, found={},
+                   browser=c.get('browser', {}), path=path)
 
     def category(self, app: str | None) -> str | None:
         return None if app is None else next((k for k, rx in self.apps if rx.search(app)), 'other')
+
+    def browser_config(self) -> dict:
+        """What the browser extension needs: thresholds, URL filters, site categories, URL rules and plugin settings."""
+        b = self.browser
+        return {'idle': self.idle, 'interval': self.interval, 'owner': self.owner, 'titles': b.get('titles', True),
+                'allow': b.get('allow', []), 'deny': b.get('deny', []), 'sites': b.get('sites', {}),
+                'rules': b.get('rules', []), 'plugins': b.get('plugins', {})}
 
 
 def site_owner(site: Path) -> str | None:
@@ -246,6 +256,10 @@ create table if not exists samples (ts integer primary key, active integer not n
 create table if not exists changes (ts integer not null, project text not null, ext text, path text);
 create index if not exists changes_ts on changes (ts);
 create table if not exists meta (key text primary key, value text);
+create table if not exists pages (start real not null, end real not null, tab integer, url text, title text, site text,
+                                  project text, activity text, input integer, meta text);
+create index if not exists pages_start on pages (start);
+create table if not exists catalog (id text primary key, type text, name text, url text, public integer, meta text, updated real);
 '''
 
 
@@ -253,20 +267,30 @@ def open_db(path: Path) -> sqlite3.Connection:
     path.parent.mkdir(parents=True, exist_ok=True)
     db = sqlite3.connect(path)
     db.executescript(SCHEMA)
+    have = {r[1] for r in db.execute('pragma table_info(samples)')}
+    for col in ('site', 'activity'):
+        if col not in have:
+            db.execute(f'alter table samples add column {col} text')
     return db
 
 
 def aggregate(db: sqlite3.Connection, first: date, minutes_per_sample: float) -> dict[str, dict]:
     start = int(datetime.combine(first, datetime.min.time()).timestamp())
     day = lambda ts: datetime.fromtimestamp(ts).astimezone()
-    days = defaultdict(lambda: {'hours': [0.0] * 24, 'apps': Counter(), 'projects': defaultdict(lambda: {'minutes': 0.0})})
-    for ts, category, project in db.execute('select ts, category, project from samples where active and ts >= ?', (start,)):
+    days = defaultdict(lambda: {'hours': [0.0] * 24, 'apps': Counter(), 'sites': Counter(),
+                                'projects': defaultdict(lambda: {'minutes': 0.0, 'activity': Counter()})})
+    rows = db.execute('select ts, category, project, site, activity from samples where active and ts >= ?', (start,))
+    for ts, category, project, site, activity in rows:
         t = day(ts)
         d = days[t.date().isoformat()]
         d['hours'][t.hour] += minutes_per_sample
         d['apps'][category or 'other'] += minutes_per_sample
+        if site:
+            d['sites'][site] += minutes_per_sample
         if project:
             d['projects'][project]['minutes'] += minutes_per_sample
+            if activity:
+                d['projects'][project]['activity'][activity] += minutes_per_sample
     files = defaultdict(set)
     exts = defaultdict(Counter)
     for ts, project, ext, path in db.execute('select ts, project, ext, path from changes where ts >= ?', (start,)):
@@ -277,12 +301,39 @@ def aggregate(db: sqlite3.Connection, first: date, minutes_per_sample: float) ->
     for (d, project), paths in files.items():
         p = days[d]['projects'][project]
         p['files'], p['ext'] = len(paths), dict(exts[(d, project)].most_common(6))
+    rounded = lambda c: {k: round(m) for k, m in c.most_common() if round(m)}
     out = {}
     for d, v in sorted(days.items()):
         hours = [round(h) for h in v['hours']]
-        out[d] = {'active': sum(hours), 'hours': hours, 'apps': {k: round(m) for k, m in v['apps'].most_common() if round(m)},
-                  'projects': {k: {**p, 'minutes': round(p['minutes'])} for k, p in sorted(v['projects'].items())}}
+        projects = {k: {k2: v2 for k2, v2 in {**p, 'minutes': round(p['minutes']), 'activity': rounded(p['activity'])}.items() if v2 != {}}
+                    for k, p in sorted(v['projects'].items())}
+        out[d] = {'active': sum(hours), 'hours': hours, 'apps': rounded(v['apps']), 'projects': projects}
+        if v['sites']:
+            out[d]['sites'] = rounded(v['sites'])
     return out
+
+
+def public_catalog(db: sqlite3.Connection) -> dict[str, dict]:
+    """Projects that browser plugins found and marked public, e.g. your public pens: these may be named on the site."""
+    rows = db.execute('select id, type, name, url from catalog where public order by id')
+    return {i: {k: v for k, v in {'type': t, 'name': n, 'url': u}.items() if v} for i, t, n, u in rows}
+
+
+def enrich_claude(s: Settings, db: sqlite3.Connection) -> None:
+    """Names for Claude projects that data/claude.json already lists (because they have public PRs); no others leak."""
+    path = s.site / 'data' / 'claude.json'
+    doc = read_json(path, None)
+    if not doc:
+        return
+    changed = False
+    for i, name, meta in db.execute("select id, name, meta from catalog where type = 'claude-code'"):
+        entry = doc.get('projects', {}).get(i.split(':', 1)[1])
+        extra = {k: v for k, v in json.loads(meta or '{}').items() if k in ('artifacts', 'conversations')}
+        if entry is not None and (name and entry.get('name') != name or any(entry.get(k) != v for k, v in extra.items())):
+            entry.update({'name': name} if name else {}, **extra)
+            changed = True
+    if changed:
+        write_json(path, doc)
 
 
 async def ensure_checkout(s: Settings) -> None:
@@ -296,11 +347,18 @@ async def ensure_checkout(s: Settings) -> None:
     await run('git', '-C', str(s.site), 'sparse-checkout', 'set', 'data')
 
 
-def private_slugs(s: Settings) -> set[str]:
-    """Discovered projects the site doesn't list as public repos; their names stay off the published data."""
+def publishable(s: Settings, db: sqlite3.Connection | None = None) -> set[str]:
+    """Project ids that may be named in published data: folders listed under [projects], the site's own projects, its
+    public repos, and projects a browser plugin marked public. Anything else (private repos, repos and pages of other
+    people you visited) is counted in the totals but never named."""
     known = {p['id'] for p in read_json(s.site / 'data' / 'projects.json', {}).get('projects', [])}
     public = {k.split('/')[-1] for k, r in read_json(s.site / 'data' / 'github.json', {}).get('repos', {}).items() if not r.get('private', True)}
-    return {v for p, v in s.found.items() if p not in s.projects and v not in known | public}
+    return set(s.projects.values()) | known | public | (set(public_catalog(db)) if db else set())
+
+
+def private_slugs(s: Settings) -> set[str]:
+    """Discovered projects whose names stay off the published data."""
+    return {v for p, v in s.found.items() if p not in s.projects} - publishable(s)
 
 
 async def publish(s: Settings, db: sqlite3.Connection) -> None:
@@ -308,9 +366,10 @@ async def publish(s: Settings, db: sqlite3.Connection) -> None:
     first = min(date.today() - timedelta(days=1), date.fromisoformat(last[0]) if last else date.today())
     days = aggregate(db, first, s.interval / 60)
     await ensure_checkout(s)
-    hide = private_slugs(s)
+    allowed, catalog = publishable(s, db), public_catalog(db)
     for v in days.values():
-        v['projects'] = {k: p for k, p in v['projects'].items() if k not in hide}
+        v['projects'] = {k: p for k, p in v['projects'].items() if k in allowed}
+    enrich_claude(s, db)
     git = lambda *a, **k: run('git', '-C', str(s.site), *a, **k)
     if s.push:
         await git('pull', '--quiet', '--rebase', '--autostash', check=False)
@@ -325,11 +384,15 @@ async def publish(s: Settings, db: sqlite3.Connection) -> None:
         write_json(path, doc)
     months = sorted((p.stem for p in folder.glob('[0-9]*-[0-9]*.json')), reverse=True)
     write_json(folder / 'index.json', {'updated': now(), 'months': months})
+    used = {k for v in days.values() for k in v['projects']} | set(read_json(folder / 'catalog.json', {}))
+    if used & catalog.keys() or (folder / 'catalog.json').exists():
+        write_json(folder / 'catalog.json', {k: v for k, v in catalog.items() if k in used})
     db.execute("insert or replace into meta values ('published', ?)", (date.today().isoformat(),))
     db.commit()
-    await git('add', 'data/pulse')
-    if (await git('status', '--porcelain', '--', 'data/pulse')).strip():
-        await git('commit', '--quiet', '-m', f'pulse: {datetime.now():%Y-%m-%d %H:%M}', '--', 'data/pulse')
+    paths = ['data/pulse'] + (['data/claude.json'] if (s.site / 'data' / 'claude.json').exists() else [])
+    await git('add', *paths)
+    if (await git('status', '--porcelain', '--', *paths)).strip():
+        await git('commit', '--quiet', '-m', f'pulse: {datetime.now():%Y-%m-%d %H:%M}', '--', *paths)
         if s.push:
             await git('push', '--quiet')
         log(f'published {len(days)} day(s)' + (' and pushed' if s.push else ''))
@@ -355,6 +418,12 @@ class State:
     projects: int = 0
     idle_probe: str | None = None
     focus_probe: str | None = None
+    browser: dict | None = None
+
+    def browsing(self, t: float) -> dict | None:
+        """The browser's last focus report, while it is recent and says a browser window has focus."""
+        b = self.browser
+        return b if b and b.get('focused') and t - b['t'] < max(90, 2 * self.s.interval) else None
 
     @property
     def mode(self) -> str:
@@ -366,7 +435,8 @@ class State:
                 'sampled': self.sampled, 'active': self.active, 'project': self.project, 'category': self.category,
                 'minutes': self.minutes, 'published': self.published, 'error': self.error, 'next_publish': self.next_publish,
                 'projects': self.projects, 'push': s.push, 'interval': s.interval, 'idle_probe': self.idle_probe,
-                'focus_probe': self.focus_probe, 'site': str(s.site), 'config': str(CONFIG)}
+                'focus_probe': self.focus_probe, 'site': str(s.site), 'config': str(s.path),
+                'browser': bool(self.browser and time.time() - self.browser['t'] < 120)}
 
 
 async def daemon(s: Settings) -> None:
@@ -421,7 +491,10 @@ async def daemon(s: Settings) -> None:
     watchers: set[asyncio.StreamWriter] = set()
 
     def notify() -> None:
-        line = (json.dumps({'event': 'state', **state.snapshot()}) + '\n').encode()
+        broadcast({'event': 'state', **state.snapshot()})
+
+    def broadcast(event: dict) -> None:
+        line = (json.dumps(event) + '\n').encode()
         for w in list(watchers):
             try:
                 w.write(line)
@@ -432,6 +505,27 @@ async def daemon(s: Settings) -> None:
         match msg.get('cmd'):
             case 'status' | 'watch':
                 pass
+            case 'config':
+                return {'id': msg.get('id'), 'ok': True, 'config': s.browser_config()}
+            case 'focus':
+                state.browser = {**{k: msg.get(k) for k in ('focused', 'idle', 'browser', 'page')}, 't': time.time()}
+                return {'id': msg.get('id'), 'ok': True, 'paused': state.paused}
+            case 'pages':
+                if not state.paused:
+                    db.executemany('insert into pages values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [
+                        (p['start'], p['end'], p.get('tab'), p.get('url'), p.get('title') if s.browser.get('titles', True) else None,
+                         p.get('site'), p.get('project'), p.get('activity'), p.get('input'), json.dumps(p.get('meta') or {}))
+                        for p in msg.get('spans', [])])
+                    db.commit()
+                return {'id': msg.get('id'), 'ok': True, 'stored': 0 if state.paused else len(msg.get('spans', []))}
+            case 'catalog':
+                db.executemany('''insert into catalog values (?, ?, ?, ?, ?, ?, ?) on conflict (id) do update set
+                                  type = coalesce(excluded.type, type), name = coalesce(excluded.name, name), url = coalesce(excluded.url, url),
+                                  public = coalesce(excluded.public, public), meta = coalesce(excluded.meta, meta), updated = excluded.updated''', [
+                    (p['id'], p.get('type'), p.get('name'), p.get('url'), None if p.get('public') is None else int(bool(p['public'])),
+                     json.dumps(p['meta']) if p.get('meta') else None, time.time()) for p in msg.get('projects', [])])
+                db.commit()
+                return {'id': msg.get('id'), 'ok': True, 'stored': len(msg.get('projects', []))}
             case 'pause':
                 minutes = float(msg.get('minutes') or 0)
                 state.paused, state.paused_until = True, time.time() + minutes * 60 if minutes else None
@@ -446,14 +540,15 @@ async def daemon(s: Settings) -> None:
             case 'set':
                 if 'push' in msg:
                     s.push = bool(msg['push'])
+                broadcast({'event': 'config', 'config': s.browser_config()})
             case 'reload' | 'quit':
                 want['restart'] = msg['cmd'] == 'reload'
                 stop.set()
             case other:
-                return {'ok': False, 'error': f'unknown command {other!r}'}
+                return {'id': msg.get('id'), 'ok': False, 'error': f'unknown command {other!r}'}
         wake.set()
         notify()
-        return {'ok': True, **state.snapshot()}
+        return {'id': msg.get('id'), 'ok': True, **state.snapshot()}
 
     async def client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         msg = None
@@ -462,8 +557,8 @@ async def daemon(s: Settings) -> None:
                 try:
                     msg = json.loads(line)
                     reply = command(msg)
-                except (ValueError, TypeError, AttributeError) as e:
-                    reply = {'ok': False, 'error': str(e)}
+                except (ValueError, TypeError, AttributeError, KeyError, sqlite3.Error) as e:
+                    reply = {'id': msg.get('id') if isinstance(msg, dict) else None, 'ok': False, 'error': str(e)}
                 writer.write((json.dumps(reply) + '\n').encode())
                 await writer.drain()
                 if isinstance(msg, dict) and msg.get('cmd') == 'watch':
@@ -482,9 +577,21 @@ async def daemon(s: Settings) -> None:
 
     refresh_minutes()
     last_app, next_sample = None, time.time()
+    mtime = lambda: s.path.stat().st_mtime if s.path.exists() else None
+    loaded = mtime()
     state.next_publish = next_publish = time.time() + 60
     while not stop.is_set():
         t = time.time()
+        if mtime() != loaded:
+            loaded = mtime()
+            try:
+                Settings.load(s.path)
+            except (ValueError, OSError, SystemExit) as e:
+                log(f'{s.path} changed but does not load, keeping the running config: {e}')
+            else:
+                log(f'{s.path} changed')
+                want['restart'] = True
+                break
         if state.paused and state.paused_until and t >= state.paused_until:
             state.paused, state.paused_until = False, None
         if t >= next_sample:
@@ -496,16 +603,24 @@ async def daemon(s: Settings) -> None:
             else:
                 idle = await idle_probe() if idle_probe else None
                 app = await focus_probe() if focus_probe else None
+                b = state.browsing(t)
+                if b and app is None:
+                    app = b.get('browser') or 'browser'
+                category = s.category(app)
+                b = b if b and (focus_probe is None or category == 'browser') else None
+                page = (b or {}).get('page') or {}
                 touched = Counter(p for ts, p in recent)
-                active = idle < s.idle if idle is not None else bool(touched) or (app is not None and app != last_app)
-                project = touched.most_common(1)[0][0] if active and touched else None
-                db.execute('insert or replace into samples values (?, ?, ?, ?, ?, ?)',
-                           (int(t), int(active), idle, app if active else None, s.category(app) if active else None, project))
+                active = (idle < s.idle if idle is not None else b['idle'] == 'active' if b
+                          else bool(touched) or (app is not None and app != last_app))
+                project = (page.get('project') or touched.most_common(1)[0][0] if touched else page.get('project')) if active else None
+                db.execute('insert or replace into samples values (?, ?, ?, ?, ?, ?, ?, ?)',
+                           (int(t), int(active), idle, app if active else None, category if active else None, project,
+                            page.get('site') if active else None, page.get('activity') if active and project == page.get('project') else None))
                 db.executemany('insert into changes values (?, ?, ?, ?)', pending)
                 db.commit()
                 pending.clear()
                 last_app = app
-                state.active, state.project, state.category = active, project, s.category(app) if active else None
+                state.active, state.project, state.category = active, project, category if active else None
                 state.sampled = t
                 refresh_minutes()
         if s.rescan and t >= next_scan or want['scan']:
@@ -521,7 +636,7 @@ async def daemon(s: Settings) -> None:
                 log(f'publish failed, will retry: {e}')
             state.next_publish = next_publish
         notify()
-        due = min(next_sample, state.paused_until or next_sample)
+        due = min(next_sample, state.paused_until or next_sample, time.time() + 5)
         wake.clear()
         try:
             await asyncio.wait_for(wake.wait(), timeout=max(0.5, due - time.time()))

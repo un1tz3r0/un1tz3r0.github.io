@@ -84,9 +84,11 @@ def parser() -> argparse.ArgumentParser:
     sub.add_parser('backup', help="copy the [media].remote bucket to [media].backup, keeping replaced and deleted files by date")
 
     pu = sub.add_parser('pulse', help='the local activity daemon')
-    pu.add_argument('action', choices=['run', 'publish', 'status', 'pause', 'resume', 'indicator', 'install', 'uninstall'],
+    pu.add_argument('action', choices=['run', 'publish', 'status', 'pause', 'resume', 'indicator', 'install', 'uninstall', 'browser'],
                     help='run: the daemon; pause/resume: ask the running daemon; indicator: the panel icon; '
-                         'install: systemd unit, launchers, autostart and icons for this user')
+                         'install: systemd unit, launchers, autostart and icons for this user; '
+                         'browser: register the native messaging host the browser extension talks to')
+    pu.add_argument('--uninstall', action='store_true', help='with browser: remove the native messaging host')
     pu.add_argument('--config', type=Path, default=pulse.CONFIG)
 
     st = sub.add_parser('settings', help='the GNOME settings window for sitekit and pulse')
@@ -101,6 +103,9 @@ async def dispatch(a: argparse.Namespace) -> None:
     if a.cmd == 'settings':
         from . import settings_app
         sys.exit(settings_app.main(a.page))
+    if a.cmd == 'pulse' and a.action == 'browser':
+        from . import native
+        return print('\n'.join(native.install(a.uninstall)))
     if a.cmd == 'pulse' and a.action in ('pause', 'resume', 'indicator', 'install', 'uninstall'):
         from . import pulse_ctl
         if a.action == 'indicator':
