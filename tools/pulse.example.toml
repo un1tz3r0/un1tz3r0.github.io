@@ -43,3 +43,28 @@ browser = "firefox|chrom|brave|vivaldi|epiphany|librewolf"
 graphics = "blender|gimp|inkscape|krita|darktable|godot"
 audio = "vcv|rack|ardour|bitwig|reaper|audacity|carla"
 chat = "discord|slack|signal|telegram|element"
+
+# The browser extension (tools/sitekit/extension). Hosts in `deny` are never recorded; if `allow` is non-empty, only
+# its hosts are. Patterns are globs on the hostname, or on host + path when they contain a "/".
+[browser]
+titles = true
+allow = []
+deny = ["*.bank.*", "mail.google.com"]
+
+# Site categories: regexes on the hostname, like [apps]. These win over the ones plugins set ("code" for GitHub and CodePen, "ai" for Claude).
+[browser.sites]
+docs = "developer\\.mozilla\\.org|docs\\.|readthedocs|devdocs"
+video = "youtube\\.com|vimeo\\.com"
+social = "x\\.com|mastodon|bsky\\.app|reddit\\.com"
+
+# URL rules, checked before plugins: a regex on host + path, and the project ($1… are its groups) and activity.
+# [[browser.rules]]
+# match = "^shadertoy\\.com/view/(\\w+)"
+# project = "shader:$1"
+# activity = "editing"
+
+# Plugin settings, under the plugin's id. Every plugin is on unless enabled = false.
+[browser.plugins.codepen]
+# user = "un1tz3r0"   # defaults to the owner
+[browser.plugins.claude]
+enabled = true

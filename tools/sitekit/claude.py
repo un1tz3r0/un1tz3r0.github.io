@@ -20,6 +20,7 @@ import sys
 from collections import Counter, defaultdict
 from datetime import date, datetime, timedelta
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import aiohttp
 
@@ -35,6 +36,13 @@ TRANSCRIPTS = expand('~/.claude/projects')
 CACHE = expand('~/.local/share/sitekit/claude-sessions.json')
 TOKENS = ('in', 'out', 'cache_read', 'cache_write')
 WEIGHT = (1, 5, 0.1, 1.25)  # relative per-token price, the same ratios for every Claude model: splits a session's cost by day
+
+
+def is_github_url(value: str) -> bool:
+    try:
+        return urlsplit(value).hostname == 'github.com'
+    except ValueError:
+        return False
 
 
 # ── GitHub: sessions, commits and PRs per Claude project ─────────────────────────────────────────────────────────
@@ -96,7 +104,7 @@ async def link(site: Path, cfg: dict, timeline: dict, sessions: dict[str, list],
                 previous[pr['repo']].append(pr)
     # Private repos' PRs are kept unnamed, so their rows can't be reused when an API call fails; list them only with a token.
     candidates = [r for r, rec in timeline.items() if '/' in r and rec.get('last', '') >= SINCE
-                  and 'github.com' in rec.get('url', '') and (r in public or os.environ.get('GITHUB_TOKEN'))]
+                  and is_github_url(rec.get('url') or '') and (r in public or os.environ.get('GITHUB_TOKEN'))]
     prs = await fetch_prs(candidates, previous) if api else dict(previous)
 
     owner_of = {}
