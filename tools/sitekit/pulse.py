@@ -49,22 +49,66 @@ class Settings:
     projects: dict[Path, str]
     apps: list[tuple[str, re.Pattern]]
     ignore: list[str]
+    root: Path
+    depth: int | None
+    owner: str | None
+    rescan: int
+    found: dict[Path, str]
 
     @classmethod
     def load(cls, path: Path = CONFIG) -> Settings:
         if not path.exists():
             sys.exit(f'pulse: no config at {path}; copy tools/pulse.example.toml there and edit it')
         c = load_toml(path)
+        d = c.get('discover', {})
         return cls(site=expand(c.get('site', '~/.local/share/sitekit/site')), remote=c.get('remote'),
                    interval=int(c.get('interval', 60)), idle=int(c.get('idle', 180)), window=int(c.get('window', 600)),
                    publish=int(c.get('publish', 3600)), push=bool(c.get('push', True)),
                    db=expand(c.get('db', '~/.local/share/sitekit/pulse.sqlite3')),
                    projects={expand(k).resolve(): v for k, v in c.get('projects', {}).items()},
                    apps=[(k, re.compile(v, re.I)) for k, v in c.get('apps', {}).items()],
-                   ignore=IGNORE + c.get('ignore', []))
+                   ignore=IGNORE + c.get('ignore', []), root=expand(d.get('root', '~')).resolve(),
+                   depth=int(d['depth']) if d.get('depth') else None, owner=d.get('owner') or site_owner(expand(c.get('site', '~/.local/share/sitekit/site'))),
+                   rescan=int(d.get('every', 86400)) if d.get('enabled', True) else 0, found={})
 
     def category(self, app: str | None) -> str | None:
         return None if app is None else next((k for k, rx in self.apps if rx.search(app)), 'other')
+
+
+def site_owner(site: Path) -> str | None:
+    return load_toml(site / 'site.toml').get('github', {}).get('user')
+
+
+GITHUB_REMOTE = re.compile(r'github\.com[:/]+([^/\s]+)/([^/\s]+?)(?:\.git)?/?$', re.I)
+
+
+def find_repos(root: Path, depth: int | None, ignore: list[str]) -> list[Path]:
+    """Directories under root (not root itself) holding a .git, without descending into repos or hidden folders."""
+    out = []
+    for d, subdirs, _ in os.walk(root):
+        level = len(Path(d).relative_to(root).parts)
+        if d != str(root) and os.path.exists(os.path.join(d, '.git')):
+            out.append(Path(d))
+            subdirs[:] = []
+        elif depth is not None and level >= depth:
+            subdirs[:] = []
+        else:
+            subdirs[:] = [s for s in subdirs if not s.startswith('.') and not any(fnmatch(s, pat) for pat in ignore)
+                          and not os.path.islink(os.path.join(d, s))]
+    return out
+
+
+async def discover(s: Settings) -> dict[Path, str]:
+    """Repos under s.root with a GitHub remote owned by s.owner, as {path: repo name}."""
+    found = {}
+    for repo in await asyncio.to_thread(find_repos, s.root, s.depth, s.ignore):
+        urls = (await run('git', '-C', str(repo), 'config', '--get-regexp', r'^remote\..*\.url$', check=False)).splitlines()
+        for line in urls:
+            m = GITHUB_REMOTE.search(line.split(None, 1)[-1].strip())
+            if m and m[1].lower() == s.owner.lower():
+                found[repo.resolve()] = m[2]
+                break
+    return found
 
 
 async def probe(*cmd: str) -> str | None:
@@ -252,12 +296,22 @@ async def ensure_checkout(s: Settings) -> None:
     await run('git', '-C', str(s.site), 'sparse-checkout', 'set', 'data')
 
 
+def private_slugs(s: Settings) -> set[str]:
+    """Discovered projects the site doesn't list as public repos; their names stay off the published data."""
+    known = {p['id'] for p in read_json(s.site / 'data' / 'projects.json', {}).get('projects', [])}
+    public = {k.split('/')[-1] for k, r in read_json(s.site / 'data' / 'github.json', {}).get('repos', {}).items() if not r.get('private', True)}
+    return {v for p, v in s.found.items() if p not in s.projects and v not in known | public}
+
+
 async def publish(s: Settings, db: sqlite3.Connection) -> None:
     last = db.execute("select value from meta where key = 'published'").fetchone()
     first = min(date.today() - timedelta(days=1), date.fromisoformat(last[0]) if last else date.today())
     days = aggregate(db, first, s.interval / 60)
-    git = lambda *a, **k: run('git', '-C', str(s.site), *a, **k)
     await ensure_checkout(s)
+    hide = private_slugs(s)
+    for v in days.values():
+        v['projects'] = {k: p for k, p in v['projects'].items() if k not in hide}
+    git = lambda *a, **k: run('git', '-C', str(s.site), *a, **k)
     if s.push:
         await git('pull', '--quiet', '--rebase', '--autostash', check=False)
     folder = s.site / 'data' / 'pulse'
@@ -281,59 +335,219 @@ async def publish(s: Settings, db: sqlite3.Connection) -> None:
         log(f'published {len(days)} day(s)' + (' and pushed' if s.push else ''))
 
 
+SOCKET = expand(os.environ.get('XDG_RUNTIME_DIR') or f'/tmp/sitekit-{os.getuid()}') / 'sitekit-pulse.sock'
+
+
+@dataclass
+class State:
+    """What the daemon reports over the control socket; the tray icon and settings app render this."""
+    s: Settings
+    paused: bool = False
+    paused_until: float | None = None
+    sampled: float | None = None
+    active: bool = False
+    project: str | None = None
+    category: str | None = None
+    minutes: int = 0
+    published: float | None = None
+    error: str | None = None
+    next_publish: float = 0
+    projects: int = 0
+    idle_probe: str | None = None
+    focus_probe: str | None = None
+
+    @property
+    def mode(self) -> str:
+        return 'offline' if self.error else 'paused' if self.paused else 'active' if self.active else 'idle'
+
+    def snapshot(self) -> dict:
+        s = self.s
+        return {'mode': self.mode, 'pid': os.getpid(), 'paused': self.paused, 'paused_until': self.paused_until,
+                'sampled': self.sampled, 'active': self.active, 'project': self.project, 'category': self.category,
+                'minutes': self.minutes, 'published': self.published, 'error': self.error, 'next_publish': self.next_publish,
+                'projects': self.projects, 'push': s.push, 'interval': s.interval, 'idle_probe': self.idle_probe,
+                'focus_probe': self.focus_probe, 'site': str(s.site), 'config': str(CONFIG)}
+
+
 async def daemon(s: Settings) -> None:
     db = open_db(s.db)
     idle_probe, focus_probe = await first_working(IDLE), await first_working(FOCUS)
     log(f'idle: {idle_probe.__name__ if idle_probe else "none (counting minutes with file changes or focus switches)"}; '
         f'focus: {focus_probe.__name__ if focus_probe else "none"}')
+    state = State(s, idle_probe=idle_probe and idle_probe.__name__, focus_probe=focus_probe and focus_probe.__name__)
     recent: deque[tuple[float, str]] = deque()
     pending: list[tuple[int, str, str, str]] = []
 
     def changed(project: str, path: Path):
+        if state.paused:
+            return
         t = time.time()
         recent.append((t, project))
         pending.append((int(t), project, path.suffix.lower(), str(path)))
 
+    roots = dict(s.projects)
     watcher = None
-    if s.projects:
-        try:
-            watcher = Watcher(s.projects, s.ignore, changed)
-            watcher.start()
-            log(f'watching {len(watcher.dirs)} folders under {len(s.projects)} project roots')
-        except OSError as e:
-            log(f'file watching unavailable: {e}')
+    try:
+        watcher = Watcher(roots, s.ignore, changed)
+        watcher.start()
+    except OSError as e:
+        log(f'file watching unavailable: {e}')
 
-    stop = asyncio.Event()
+    async def scan() -> None:
+        if not (s.rescan and s.owner):
+            return
+        try:
+            s.found = await discover(s)
+        except (RuntimeError, OSError) as e:
+            return log(f'project scan failed: {e}')
+        new = {p: n for p, n in s.found.items() if p not in roots}
+        roots.update(new)
+        if watcher:
+            for p, n in new.items():
+                watcher.add(p, n)
+        state.projects = len(roots)
+        log(f'scan of {s.root}: {len(s.found)} repos owned by {s.owner}, {len(new)} new')
+
+    await scan()
+    state.projects = len(roots)
+    if watcher:
+        log(f'watching {len(watcher.dirs)} folders under {len(roots)} project roots')
+    next_scan = time.time() + s.rescan
+
+    stop, wake = asyncio.Event(), asyncio.Event()
+    want = {'publish': False, 'scan': False, 'restart': False}
     for sig in (signal.SIGINT, signal.SIGTERM):
         asyncio.get_running_loop().add_signal_handler(sig, stop.set)
-    last_app, next_publish = None, time.time() + 60
+    watchers: set[asyncio.StreamWriter] = set()
 
+    def notify() -> None:
+        line = (json.dumps({'event': 'state', **state.snapshot()}) + '\n').encode()
+        for w in list(watchers):
+            try:
+                w.write(line)
+            except (ConnectionError, OSError, RuntimeError):
+                watchers.discard(w)
+
+    def command(msg: dict) -> dict:
+        match msg.get('cmd'):
+            case 'status' | 'watch':
+                pass
+            case 'pause':
+                minutes = float(msg.get('minutes') or 0)
+                state.paused, state.paused_until = True, time.time() + minutes * 60 if minutes else None
+                recent.clear()
+                pending.clear()
+            case 'resume':
+                state.paused, state.paused_until = False, None
+            case 'publish':
+                want['publish'] = True
+            case 'rescan':
+                want['scan'] = True
+            case 'set':
+                if 'push' in msg:
+                    s.push = bool(msg['push'])
+            case 'reload' | 'quit':
+                want['restart'] = msg['cmd'] == 'reload'
+                stop.set()
+            case other:
+                return {'ok': False, 'error': f'unknown command {other!r}'}
+        wake.set()
+        notify()
+        return {'ok': True, **state.snapshot()}
+
+    async def client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+        msg = None
+        try:
+            while line := await reader.readline():
+                try:
+                    msg = json.loads(line)
+                    reply = command(msg)
+                except (ValueError, TypeError, AttributeError) as e:
+                    reply = {'ok': False, 'error': str(e)}
+                writer.write((json.dumps(reply) + '\n').encode())
+                await writer.drain()
+                if isinstance(msg, dict) and msg.get('cmd') == 'watch':
+                    watchers.add(writer)
+        except (ConnectionError, OSError):
+            pass
+        finally:
+            watchers.discard(writer)
+            writer.close()
+
+    server = await listen(client)
+
+    def refresh_minutes() -> None:
+        today = aggregate(db, date.today(), s.interval / 60).get(date.today().isoformat())
+        state.minutes = today['active'] if today else 0
+
+    refresh_minutes()
+    last_app, next_sample = None, time.time()
+    state.next_publish = next_publish = time.time() + 60
     while not stop.is_set():
         t = time.time()
-        while recent and recent[0][0] < t - s.window:
-            recent.popleft()
-        idle = await idle_probe() if idle_probe else None
-        app = await focus_probe() if focus_probe else None
-        touched = Counter(p for ts, p in recent)
-        active = idle < s.idle if idle is not None else bool(touched) or (app is not None and app != last_app)
-        project = touched.most_common(1)[0][0] if active and touched else None
-        db.execute('insert or replace into samples values (?, ?, ?, ?, ?, ?)',
-                   (int(t), int(active), idle, app if active else None, s.category(app) if active else None, project))
-        db.executemany('insert into changes values (?, ?, ?, ?)', pending)
-        db.commit()
-        pending.clear()
-        last_app = app
-        if t >= next_publish:
-            next_publish = t + s.publish
+        if state.paused and state.paused_until and t >= state.paused_until:
+            state.paused, state.paused_until = False, None
+        if t >= next_sample:
+            next_sample = t + s.interval
+            while recent and recent[0][0] < t - s.window:
+                recent.popleft()
+            if state.paused:
+                state.active, state.project, state.category = False, None, None
+            else:
+                idle = await idle_probe() if idle_probe else None
+                app = await focus_probe() if focus_probe else None
+                touched = Counter(p for ts, p in recent)
+                active = idle < s.idle if idle is not None else bool(touched) or (app is not None and app != last_app)
+                project = touched.most_common(1)[0][0] if active and touched else None
+                db.execute('insert or replace into samples values (?, ?, ?, ?, ?, ?)',
+                           (int(t), int(active), idle, app if active else None, s.category(app) if active else None, project))
+                db.executemany('insert into changes values (?, ?, ?, ?)', pending)
+                db.commit()
+                pending.clear()
+                last_app = app
+                state.active, state.project, state.category = active, project, s.category(app) if active else None
+                state.sampled = t
+                refresh_minutes()
+        if s.rescan and t >= next_scan or want['scan']:
+            next_scan, want['scan'] = t + s.rescan, False
+            await scan()
+        if t >= next_publish or want['publish']:
+            next_publish, want['publish'] = t + s.publish, False
             try:
                 await publish(s, db)
+                state.published, state.error = time.time(), None
             except (RuntimeError, OSError) as e:
+                state.error = str(e) or type(e).__name__
                 log(f'publish failed, will retry: {e}')
+            state.next_publish = next_publish
+        notify()
+        due = min(next_sample, state.paused_until or next_sample)
+        wake.clear()
         try:
-            await asyncio.wait_for(stop.wait(), timeout=max(1.0, s.interval - (time.time() - t)))
+            await asyncio.wait_for(wake.wait(), timeout=max(0.5, due - time.time()))
         except TimeoutError:
             pass
-    log('stopped')
+    server.close()
+    SOCKET.unlink(missing_ok=True)
+    log('reloading' if want['restart'] else 'stopped')
+    if want['restart']:
+        os.execvp(sys.orig_argv[0], sys.orig_argv)
+
+
+async def listen(handler) -> asyncio.AbstractServer:
+    """Bind the control socket, refusing to start a second daemon but replacing a stale socket left by a crash."""
+    SOCKET.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    if SOCKET.exists():
+        try:
+            _, probe_writer = await asyncio.open_unix_connection(SOCKET)
+        except (ConnectionError, FileNotFoundError):
+            SOCKET.unlink(missing_ok=True)
+        else:
+            probe_writer.close()
+            sys.exit(f'pulse: a daemon is already running (control socket {SOCKET})')
+    server = await asyncio.start_unix_server(handler, SOCKET)
+    SOCKET.chmod(0o600)
+    return server
 
 
 async def status(s: Settings, config: Path = CONFIG) -> None:
@@ -342,6 +556,12 @@ async def status(s: Settings, config: Path = CONFIG) -> None:
     print(f'idle    {idle_probe.__name__ if idle_probe else "none"} → {await idle_probe() if idle_probe else "-"}')
     app = await focus_probe() if focus_probe else None
     print(f'focus   {focus_probe.__name__ if focus_probe else "none"} → {app} ({s.category(app)})')
+    if s.rescan and s.owner:
+        s.found = await discover(s)
+        print(f'scan    {s.root} (depth {s.depth or "unlimited"}) for github.com/{s.owner}: {len(s.found)} repos')
+        for path, name in sorted(s.found.items()):
+            print(f'  {name:30} {path}' + (f'  (listed under [projects] as {s.projects[path]})' if path in s.projects else ''))
+        print(f'unpublished (not public on the site): {sorted(private_slugs(s)) or "none"}')
     if s.db.exists():
         today = aggregate(open_db(s.db), date.today(), s.interval / 60).get(date.today().isoformat())
         print(json.dumps(today, indent=1) if today else 'nothing recorded today yet')

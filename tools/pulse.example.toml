@@ -23,6 +23,17 @@ ignore = []
 "~/src/windchime" = "windchime"
 "~/src/vcvopxyz" = "vcvopxyz"
 
+# Find projects automatically: on startup and then every `every` seconds, look under `root` for git repos with a remote
+# on github.com/<owner> and watch each one, using the repo name as its project id. Folders under [projects] above take
+# precedence. Discovered repos are only published if the site lists them as public (data/projects.json or
+# data/github.json); private repos are still tracked locally but their names never leave the machine.
+[discover]
+enabled = true
+root = "~"          # e.g. "~/Projects"
+depth = 0           # folders below root to search; 0 = no limit (e.g. 1 with root "~/Projects")
+# owner = "un1tz3r0"  # defaults to [github].user in the site checkout's site.toml
+every = 86400
+
 # App categories: case-insensitive regexes matched against the focused window's app id or WM class. The first
 # match wins and anything else is "other". Only the category names are published, never app names or titles.
 [apps]

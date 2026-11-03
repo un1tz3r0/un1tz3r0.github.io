@@ -78,6 +78,11 @@ sitekit pulse status     # which idle and focus probes work on this desktop, and
 sitekit pulse publish    # publish now instead of waiting for the hour
 ```
 
+Listing every folder gets old, so `[discover]` in the config makes the daemon scan `root` (default `~`, optionally
+limited by `depth`) at startup and daily for git repos whose remote is on `github.com/<owner>`, and watch them under the
+repo's name. A repo only appears in the published data if the site lists it as public; private ones are tracked
+locally and never named. `sitekit pulse status` shows what the scan finds and what would be held back.
+
 Idle time comes from GNOME (Mutter), `xprintidle` on X11, or logind. The focused app comes from Hyprland, Sway, KDE
 (`kdotool`), X11 (`xprop`) or, on GNOME Wayland, the *Focused Window D-Bus* shell extension. Without an idle probe a
 minute counts as active when files changed or the focused app switched. File watching uses inotify directly; if you
@@ -103,6 +108,30 @@ WantedBy=graphical-session.target
 then `systemctl --user enable --now sitekit-pulse` and follow it with `journalctl --user -fu sitekit-pulse`. The
 service needs your session's `DISPLAY`/`WAYLAND_DISPLAY` and `SSH_AUTH_SOCK` (GNOME and KDE pass them on; elsewhere run
 `systemctl --user import-environment` from your session startup) so the probes work and `git push` can authenticate.
+
+### Panel icon and settings window (GNOME and others)
+
+```sh
+sitekit pulse install      # systemd unit, launcher, panel-icon autostart and icons, all under ~ (`uninstall` reverses it)
+sitekit pulse indicator    # the panel icon, run by hand
+sitekit settings [page]    # the settings window; page is pulse, projects, apps, publishing or tools
+sitekit pulse pause        # or resume: ask the running daemon from a script or keybinding
+```
+
+The panel icon shows whether pulse is **active**, **idle** (away from the keyboard), **paused**, or **offline** (the
+daemon isn't running or the last publish failed), and its menu has the pause and push toggles, publish and rescan, and
+*Pulse Settings…*, which opens the settings window on the Pulse page. It speaks StatusNotifierItem directly, so it
+needs no extra packages on GNOME with the AppIndicator extension (on by default in Ubuntu; elsewhere install
+`gnome-shell-extension-appindicator` and enable it) or on KDE and other panels that show tray icons.
+
+The settings window (libadwaita: `python3-gi` and `gir1.2-adw-1`) shows live state and edits `pulse.toml` in place,
+keeping your comments and writing the previous file to `pulse.toml.bak`. Changes apply when you press *Save and Apply*,
+which restarts the daemon; the push switch takes effect at once. The *Tools* page runs the other sitekit commands in
+the site checkout and posts quick statuses. GNOME Settings itself has no plug-in API for third-party panels, so this is
+a separate app with a Settings-category launcher rather than a page inside it.
+
+The daemon is controlled over a socket at `$XDG_RUNTIME_DIR/sitekit-pulse.sock` (newline-delimited JSON; commands
+`status`, `watch`, `pause`, `resume`, `publish`, `rescan`, `set`, `reload`, `quit`), which only your user can reach.
 
 ## The gallery
 
