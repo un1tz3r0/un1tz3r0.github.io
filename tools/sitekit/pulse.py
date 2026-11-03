@@ -25,6 +25,7 @@ from datetime import date, datetime, timedelta
 from fnmatch import fnmatch
 from pathlib import Path
 
+from . import claude
 from .common import expand, load_toml, now, read_json, run, write_json
 
 CONFIG = expand('~/.config/sitekit/pulse.toml')
@@ -390,6 +391,12 @@ async def publish(s: Settings, db: sqlite3.Connection) -> None:
     db.execute("insert or replace into meta values ('published', ?)", (date.today().isoformat(),))
     db.commit()
     paths = ['data/pulse'] + (['data/claude.json'] if (s.site / 'data' / 'claude.json').exists() else [])
+    if claude.TRANSCRIPTS.exists():
+        try:
+            await claude.scan(s.site, load_toml(s.site / 'site.toml').get('claude', {}))
+            paths.append('data/claude-usage')
+        except (OSError, ValueError) as e:
+            log(f'claude scan failed: {e}')
     await git('add', *paths)
     if (await git('status', '--porcelain', '--', *paths)).strip():
         await git('commit', '--quiet', '-m', f'pulse: {datetime.now():%Y-%m-%d %H:%M}', '--', *paths)

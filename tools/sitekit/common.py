@@ -11,6 +11,10 @@ import tomllib
 from datetime import datetime, timezone
 from pathlib import Path
 
+from yarl import URL
+
+API = URL('https://api.github.com')
+
 
 def expand(p) -> Path:
     return Path(os.path.expandvars(os.path.expanduser(str(p))))
@@ -78,3 +82,10 @@ async def run(*cmd: str, cwd=None, check=True, shell=False) -> str:
     if check and proc.returncode:
         raise RuntimeError(f'{cmd[0]} {" ".join(cmd[1:3])}: {err.decode(errors="replace").strip()[-400:]}')
     return out.decode('utf-8', 'replace')
+
+
+def api_headers() -> dict:
+    h = {'Accept': 'application/vnd.github+json', 'User-Agent': 'sitekit'}
+    if token := os.environ.get('GITHUB_TOKEN'):
+        h['Authorization'] = f'Bearer {token}'
+    return h

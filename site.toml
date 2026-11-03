@@ -26,3 +26,13 @@ base = ""       # public URL of the bucket, e.g. "https://media.example.net/"; e
 masters = ""    # local folder of full-size files, e.g. "~/Media/site"; `sitekit gallery add` writes them here
 remote = ""     # rclone remote the masters are mirrored to, e.g. "r2:un1tz3r0-media" or "gcs:un1tz3r0-media"
 backup = ""     # local folder (your SSD) that `sitekit backup` keeps a dated delta copy of the bucket in
+
+# Claude's part in the work. `sitekit history` links sessions, commits and PRs to Claude projects (data/claude.json);
+# `sitekit claude scan` (and the pulse daemon, hourly) publishes this machine's Claude Code token use. See tools/README.md.
+[claude]
+owners = ["un1tz3r0", "appostasy-io"]   # in these owners' repos, commits Claude wrote count on your timeline
+publish = ["sessions", "tokens"]         # add "cost" to publish the API-price equivalent too; `sitekit claude report` always shows it
+
+[claude.projects.chan_01FKDa5Rn5Hi2cYoGv1SCGAR]
+name = "un1tz3r0.github.io"
+project = "site"
