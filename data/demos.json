@@ -2,7 +2,8 @@
  "demos": [
   {"id": "overlay", "title": "Overlay Studio", "path": "demos/overlay/", "thumb": "demos/thumbs/overlay.jpg", "project": "overlay", "added": "2026-11-02",
    "summary": "Composite video, audio, stills, three.js avatars, procedural skies and speech bubbles on a keyframed timeline, then export MP4 or WebM straight from the browser.",
-   "tags": ["three.js", "webcodecs", "timeline"]},
+   "tags": ["three.js", "webcodecs", "timeline"],
+   "build": {"repo": "https://github.com/un1tz3r0/video-overlay-animation-studio.git", "ref": "main", "copy": {"src/index.html": "index.html"}}},
   {"id": "riso", "title": "Riso separation lab", "path": "demos/riso/", "thumb": "demos/thumbs/riso.jpg", "project": "riso", "added": "2026-10-20",
    "summary": "Drop in an image and pull it apart into risograph inks: pick inks, tune each separation, stack filters, choose halftone screens and misregistration, then export the layers for print.",
    "tags": ["webgl2", "print", "image processing"]},
