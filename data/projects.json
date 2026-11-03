@@ -40,8 +40,8 @@
 
   {"id": "riso", "title": "Riso separation lab", "group": "graphics", "spans": [["2026-10", "2026-10"]], "demo": "riso", "tags": ["javascript", "webgl2", "print"],
    "summary": "Separates any image into risograph ink layers in the browser, with a WebGL filter stack, halftone screens, misregistration, presets and print-ready export."},
-  {"id": "overlay", "title": "Video overlay editor", "group": "graphics", "spans": [["2026-10-21", null]], "demo": "overlay", "status": "in progress", "tags": ["javascript", "three.js", "webcodecs"],
-   "summary": "A browser-only editor that composites video, stills, three.js avatars and speech bubbles on a keyframed timeline, and exports MP4 or WebM through WebCodecs."},
+  {"id": "overlay", "title": "Overlay Studio", "group": "graphics", "repos": ["un1tz3r0/video-overlay-animation-studio"], "spans": [["2026-10-21", null]], "demo": "overlay", "status": "in progress", "tags": ["javascript", "three.js", "webcodecs"],
+   "summary": "A browser-only video editor that composites video, audio, stills, three.js avatars, procedural skies and speech bubbles on a keyframed timeline, and exports MP4 or WebM through WebCodecs."},
   {"id": "paisl", "title": "Paisl", "group": "graphics", "repos": ["un1tz3r0/paisl.cor3.app"], "spans": [["2023-09-27", "2023-10-31"]], "demo": "paisl", "tags": ["javascript", "svg", "geometry"],
    "summary": "Generative vector art built from Apollonian gaskets: the paisl, the teardrop that every paisley pattern is made of, packed with circles and exported as SVG."},
   {"id": "squid", "title": "Squid", "group": "graphics", "spans": [["2023-09-27", "2023-11-08"]], "demo": "squid", "related": [{"to": "site", "kind": "part"}], "tags": ["javascript", "three.js"],
