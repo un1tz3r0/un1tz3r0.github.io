@@ -8,7 +8,7 @@ import os
 import sys
 from pathlib import Path
 
-from . import compose, demos, gallery, history, importers, mirror, pulse
+from . import claude, compose, demos, gallery, history, importers, mirror, pulse
 from .common import expand, find_site, load_toml
 from .feed import Feed
 
@@ -92,6 +92,11 @@ def parser() -> argparse.ArgumentParser:
     st = sub.add_parser('settings', help='the GNOME settings window for sitekit and pulse')
     st.add_argument('page', nargs='?', default='pulse', choices=['pulse', 'projects', 'apps', 'publishing', 'tools'])
 
+    cl = sub.add_parser('claude', help='Claude Code usage from this machine (scan publishes aggregates, report shows it all)')
+    cl.add_argument('action', choices=['scan', 'report'])
+    cl.add_argument('--days', type=int, default=30, help='report: how many days back (default 30)')
+    cl.add_argument('--transcripts', type=Path, default=claude.TRANSCRIPTS, help='scan: Claude Code transcript folder')
+
     de = sub.add_parser('demos', help='build demos that live in other repos (see data/demos.json)')
     de.add_argument('ids', nargs='*')
     return ap
@@ -154,6 +159,11 @@ async def dispatch(a: argparse.Namespace) -> None:
             await mirror.push(site, load_toml(site / 'site.toml').get('media', {}))
         case 'backup':
             await mirror.backup(load_toml(site / 'site.toml').get('media', {}))
+        case 'claude':
+            if a.action == 'scan':
+                await claude.scan(site, load_toml(site / 'site.toml').get('claude', {}), expand(a.transcripts))
+            else:
+                claude.report(site, a.days)
         case 'demos':
             await demos.build(site, a.ids)
     if added is not None:
