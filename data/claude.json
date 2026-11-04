@@ -1,5 +1,5 @@
 {
- "generated": "2026-11-03T17:10:53Z",
+ "generated": "2026-11-04T17:22:26Z",
  "projects": {
   "chan_01FKDa5Rn5Hi2cYoGv1SCGAR": {
    "name": "un1tz3r0.github.io",
@@ -19,8 +19,9 @@
      "number": 5,
      "title": "Add the sitekit pulse browser extension",
      "url": "https://github.com/un1tz3r0/un1tz3r0.github.io/pull/5",
-     "state": "open",
+     "state": "merged",
      "created": "2026-11-03",
+     "merged": "2026-11-03",
      "commits": 3,
      "files": 15,
      "additions": 886,
@@ -93,7 +94,7 @@
     "un1tz3r0/vcvopxyz"
    ],
    "sessions": 10,
-   "commits": 6,
+   "commits": 5,
    "first": "2026-10-09",
    "last": "2026-11-03",
    "prs": [
@@ -102,9 +103,10 @@
      "number": 49,
      "title": "Breakouts: voltage ranges for CV jacks, triggers on GATE (2.1.12)",
      "url": "https://github.com/un1tz3r0/vcvopxyz/pull/49",
-     "state": "open",
+     "state": "merged",
      "created": "2026-11-03",
-     "commits": 1,
+     "merged": "2026-11-03",
+     "commits": 2,
      "files": 8,
      "additions": 289,
      "deletions": 27,
