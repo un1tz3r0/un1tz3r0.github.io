@@ -1,91 +1,6 @@
 {
- "generated": "2026-11-04T17:22:26Z",
+ "generated": "2026-11-05T17:29:25Z",
  "projects": {
-  "chan_01FKDa5Rn5Hi2cYoGv1SCGAR": {
-   "name": "un1tz3r0.github.io",
-   "site": [
-    "site"
-   ],
-   "repos": [
-    "un1tz3r0/un1tz3r0.github.io"
-   ],
-   "sessions": 3,
-   "commits": 8,
-   "first": "2026-10-21",
-   "last": "2026-11-03",
-   "prs": [
-    {
-     "repo": "un1tz3r0/un1tz3r0.github.io",
-     "number": 5,
-     "title": "Add the sitekit pulse browser extension",
-     "url": "https://github.com/un1tz3r0/un1tz3r0.github.io/pull/5",
-     "state": "merged",
-     "created": "2026-11-03",
-     "merged": "2026-11-03",
-     "commits": 3,
-     "files": 15,
-     "additions": 886,
-     "deletions": 27,
-     "by": "un1tz3r0"
-    },
-    {
-     "repo": "un1tz3r0/un1tz3r0.github.io",
-     "number": 4,
-     "title": "Count Claude's commits and link Claude projects, sessions and PRs",
-     "url": "https://github.com/un1tz3r0/un1tz3r0.github.io/pull/4",
-     "state": "merged",
-     "created": "2026-11-03",
-     "merged": "2026-11-03",
-     "commits": 1,
-     "files": 8,
-     "additions": 459,
-     "deletions": 39,
-     "by": "un1tz3r0"
-    },
-    {
-     "repo": "un1tz3r0/un1tz3r0.github.io",
-     "number": 3,
-     "title": "Build the Overlay Studio demo from its repo",
-     "url": "https://github.com/un1tz3r0/un1tz3r0.github.io/pull/3",
-     "state": "merged",
-     "created": "2026-11-03",
-     "merged": "2026-11-03",
-     "commits": 2,
-     "files": 1,
-     "additions": 2,
-     "deletions": 1,
-     "by": "un1tz3r0"
-    },
-    {
-     "repo": "un1tz3r0/un1tz3r0.github.io",
-     "number": 2,
-     "title": "Add Overlay Studio to the demos",
-     "url": "https://github.com/un1tz3r0/un1tz3r0.github.io/pull/2",
-     "state": "merged",
-     "created": "2026-11-02",
-     "merged": "2026-11-03",
-     "commits": 1,
-     "files": 5,
-     "additions": 2511,
-     "deletions": 7,
-     "by": "un1tz3r0"
-    },
-    {
-     "repo": "un1tz3r0/un1tz3r0.github.io",
-     "number": 1,
-     "title": "Rebuild the site around projects, activity, demos and a gallery",
-     "url": "https://github.com/un1tz3r0/un1tz3r0.github.io/pull/1",
-     "state": "merged",
-     "created": "2026-10-21",
-     "merged": "2026-10-28",
-     "commits": 3,
-     "files": 582,
-     "additions": 12135,
-     "deletions": 274,
-     "by": "un1tz3r0"
-    }
-   ]
-  },
   "chan_0187qNhzrzSvSUUv8GhrzmWw": {
    "site": [
     "vcvopxyz"
@@ -93,11 +8,24 @@
    "repos": [
     "un1tz3r0/vcvopxyz"
    ],
-   "sessions": 10,
-   "commits": 5,
+   "sessions": 11,
+   "commits": 6,
    "first": "2026-10-09",
-   "last": "2026-11-03",
+   "last": "2026-11-05",
    "prs": [
+    {
+     "repo": "un1tz3r0/vcvopxyz",
+     "number": 50,
+     "title": "Pattern Editor: a resizable screen to edit patterns (2.1.13)",
+     "url": "https://github.com/un1tz3r0/vcvopxyz/pull/50",
+     "state": "open",
+     "created": "2026-11-05",
+     "commits": 1,
+     "files": 14,
+     "additions": 1511,
+     "deletions": 90,
+     "by": "un1tz3r0"
+    },
     {
      "repo": "un1tz3r0/vcvopxyz",
      "number": 49,
@@ -383,17 +311,31 @@
     "un1tz3r0/vcvtempodetector"
    ],
    "sessions": 6,
-   "commits": 10,
+   "commits": 11,
    "first": "2026-10-25",
-   "last": "2026-10-29",
+   "last": "2026-11-04",
    "prs": [
+    {
+     "repo": "un1tz3r0/vcvtempodetector",
+     "number": 9,
+     "title": "Learning mode: adapt the model inside Rack (v2.3.0)",
+     "url": "https://github.com/un1tz3r0/vcvtempodetector/pull/9",
+     "state": "open",
+     "created": "2026-11-04",
+     "commits": 1,
+     "files": 10,
+     "additions": 885,
+     "deletions": 12,
+     "by": "un1tz3r0"
+    },
     {
      "repo": "un1tz3r0/vcvtempodetector",
      "number": 8,
      "title": "Record a beat grid and manage models in the module (Stage 3, part 2)",
      "url": "https://github.com/un1tz3r0/vcvtempodetector/pull/8",
-     "state": "open",
+     "state": "merged",
      "created": "2026-10-29",
+     "merged": "2026-11-04",
      "commits": 2,
      "files": 8,
      "additions": 383,
@@ -495,6 +437,91 @@
      "commits": 1,
      "files": 14,
      "additions": 829,
+     "deletions": 0,
+     "by": "un1tz3r0"
+    }
+   ]
+  },
+  "chan_01FKDa5Rn5Hi2cYoGv1SCGAR": {
+   "name": "un1tz3r0.github.io",
+   "site": [
+    "site"
+   ],
+   "repos": [
+    "un1tz3r0/un1tz3r0.github.io"
+   ],
+   "sessions": 3,
+   "commits": 8,
+   "first": "2026-10-21",
+   "last": "2026-11-03",
+   "prs": [
+    {
+     "repo": "un1tz3r0/un1tz3r0.github.io",
+     "number": 5,
+     "title": "Add the sitekit pulse browser extension",
+     "url": "https://github.com/un1tz3r0/un1tz3r0.github.io/pull/5",
+     "state": "merged",
+     "created": "2026-11-03",
+     "merged": "2026-11-03",
+     "commits": 3,
+     "files": 15,
+     "additions": 886,
+     "deletions": 27,
+     "by": "un1tz3r0"
+    },
+    {
+     "repo": "un1tz3r0/un1tz3r0.github.io",
+     "number": 4,
+     "title": "Count Claude's commits and link Claude projects, sessions and PRs",
+     "url": "https://github.com/un1tz3r0/un1tz3r0.github.io/pull/4",
+     "state": "merged",
+     "created": "2026-11-03",
+     "merged": "2026-11-03",
+     "commits": 1,
+     "files": 8,
+     "additions": 459,
+     "deletions": 39,
+     "by": "un1tz3r0"
+    },
+    {
+     "repo": "un1tz3r0/un1tz3r0.github.io",
+     "number": 3,
+     "title": "Build the Overlay Studio demo from its repo",
+     "url": "https://github.com/un1tz3r0/un1tz3r0.github.io/pull/3",
+     "state": "merged",
+     "created": "2026-11-03",
+     "merged": "2026-11-03",
+     "commits": 2,
+     "files": 1,
+     "additions": 2,
+     "deletions": 1,
+     "by": "un1tz3r0"
+    },
+    {
+     "repo": "un1tz3r0/un1tz3r0.github.io",
+     "number": 2,
+     "title": "Add Overlay Studio to the demos",
+     "url": "https://github.com/un1tz3r0/un1tz3r0.github.io/pull/2",
+     "state": "merged",
+     "created": "2026-11-02",
+     "merged": "2026-11-03",
+     "commits": 1,
+     "files": 5,
+     "additions": 2511,
+     "deletions": 7,
+     "by": "un1tz3r0"
+    },
+    {
+     "repo": "un1tz3r0/un1tz3r0.github.io",
+     "number": 1,
+     "title": "Rebuild the site around projects, activity, demos and a gallery",
+     "url": "https://github.com/un1tz3r0/un1tz3r0.github.io/pull/1",
+     "state": "merged",
+     "created": "2026-10-21",
+     "merged": "2026-10-28",
+     "commits": 3,
+     "files": 0,
+     "additions": 0,
      "deletions": 0,
      "by": "un1tz3r0"
     }
