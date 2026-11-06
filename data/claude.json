@@ -1,5 +1,5 @@
 {
- "generated": "2026-11-05T17:29:25Z",
+ "generated": "2026-11-06T16:50:57Z",
  "projects": {
   "chan_0187qNhzrzSvSUUv8GhrzmWw": {
    "site": [
@@ -9,7 +9,7 @@
     "un1tz3r0/vcvopxyz"
    ],
    "sessions": 11,
-   "commits": 6,
+   "commits": 5,
    "first": "2026-10-09",
    "last": "2026-11-05",
    "prs": [
@@ -18,8 +18,9 @@
      "number": 50,
      "title": "Pattern Editor: a resizable screen to edit patterns (2.1.13)",
      "url": "https://github.com/un1tz3r0/vcvopxyz/pull/50",
-     "state": "open",
+     "state": "merged",
      "created": "2026-11-05",
+     "merged": "2026-11-05",
      "commits": 1,
      "files": 14,
      "additions": 1511,
@@ -520,9 +521,9 @@
      "created": "2026-10-21",
      "merged": "2026-10-28",
      "commits": 3,
-     "files": 0,
-     "additions": 0,
-     "deletions": 0,
+     "files": 582,
+     "additions": 12135,
+     "deletions": 274,
      "by": "un1tz3r0"
     }
    ]
@@ -635,6 +636,29 @@
     }
    ]
   },
+  "chan_01UT1WhTnsH8mmRrT168j2FK": {
+   "repos": [
+    "un1tz3r0/vcvmapper"
+   ],
+   "sessions": 1,
+   "first": "2026-10-08",
+   "last": "2026-10-08",
+   "prs": [
+    {
+     "repo": "un1tz3r0/vcvmapper",
+     "number": 1,
+     "title": "Step 1: plugin scaffold, CI, and the Pin module",
+     "url": "https://github.com/un1tz3r0/vcvmapper/pull/1",
+     "state": "merged",
+     "created": "2026-10-08",
+     "merged": "2026-10-27",
+     "commits": 2,
+     "files": 27,
+     "additions": 1455,
+     "deletions": 1
+    }
+   ]
+  },
   "chan_01FnKE52wXGNjEwzwjAaasHt": {
    "site": [
     "vcv-rack2-plugin"
@@ -662,29 +686,6 @@
      "by": "un1tz3r0"
     }
    ]
-  },
-  "chan_01UT1WhTnsH8mmRrT168j2FK": {
-   "repos": [
-    "un1tz3r0/vcvmapper"
-   ],
-   "sessions": 1,
-   "first": "2026-10-08",
-   "last": "2026-10-08",
-   "prs": [
-    {
-     "repo": "un1tz3r0/vcvmapper",
-     "number": 1,
-     "title": "Step 1: plugin scaffold, CI, and the Pin module",
-     "url": "https://github.com/un1tz3r0/vcvmapper/pull/1",
-     "state": "merged",
-     "created": "2026-10-08",
-     "merged": "2026-10-27",
-     "commits": 2,
-     "files": 27,
-     "additions": 1455,
-     "deletions": 1
-    }
-   ]
   }
  },
  "unlinked": {
@@ -709,11 +710,23 @@
    "un1tz3r0/vcvplugin-installer",
    "un1tz3r0/video-overlay-animation-studio"
   ],
-  "sessions": 18,
-  "commits": 48,
+  "sessions": 19,
+  "commits": 49,
   "first": "2025-09-04",
-  "last": "2026-10-28",
+  "last": "2026-11-06",
   "prs": [
+   {
+    "repo": "un1tz3r0/vcvopxyz",
+    "number": 51,
+    "title": "Pattern Editor: tools, selection and gestures (2.1.14)",
+    "url": "https://github.com/un1tz3r0/vcvopxyz/pull/51",
+    "state": "open",
+    "created": "2026-11-06",
+    "commits": 1,
+    "files": 4,
+    "additions": 816,
+    "deletions": 216
+   },
    {
     "repo": "un1tz3r0/video-overlay-animation-studio",
     "number": 2,
