@@ -114,24 +114,29 @@ service needs your session's `DISPLAY`/`WAYLAND_DISPLAY` and `SSH_AUTH_SOCK` (GN
 ```sh
 sitekit pulse install      # systemd unit, launcher, panel-icon autostart and icons, all under ~ (`uninstall` reverses it)
 sitekit pulse indicator    # the panel icon, run by hand
-sitekit settings [page]    # the settings window; page is pulse, projects, apps, publishing or tools
+sitekit settings [page]    # the settings window; page is pulse, projects, apps, publishing, tools or log
 sitekit pulse pause        # or resume: ask the running daemon from a script or keybinding
 ```
 
 The panel icon shows whether pulse is **active**, **idle** (away from the keyboard), **paused**, or **offline** (the
-daemon isn't running or the last publish failed), and its menu has the pause and push toggles, publish and rescan, and
-*Pulse Settings…*, which opens the settings window on the Pulse page. It speaks StatusNotifierItem directly, so it
+daemon isn't running or the last publish failed). Its menu has pause (for a while or until resumed), the push toggle,
+publish and rescan, the sample interval, and two assignments: the focused app to a category or *ignore* (written to
+`[app_ids]`; ignored apps never count as active), and the folder you last changed files in to a project or *ignore*
+(written to `[projects]` or `[discover].exclude`). *Pulse Settings…* and *Activity Log…* open the settings window. It speaks StatusNotifierItem directly, so it
 needs no extra packages on GNOME with the AppIndicator extension (on by default in Ubuntu; elsewhere install
 `gnome-shell-extension-appindicator` and enable it) or on KDE and other panels that show tray icons.
 
-The settings window (libadwaita: `python3-gi` and `gir1.2-adw-1`) shows live state and edits `pulse.toml` in place,
-keeping your comments and writing the previous file to `pulse.toml.bak`. Changes apply when you press *Save and Apply*,
-which restarts the daemon; the push switch takes effect at once. The *Tools* page runs the other sitekit commands in
-the site checkout and posts quick statuses. GNOME Settings itself has no plug-in API for third-party panels, so this is
+The settings window (libadwaita: `python3-gi` and `gir1.2-adw-1`, so a venv needs `--system-site-packages`) shows
+live state with a countdown to the next publish and edits `pulse.toml` in place, keeping your comments and writing the
+previous file to `pulse.toml.bak`. Changes apply when you press *Save and Apply*, which restarts the daemon; pause and
+push take effect at once. The *Tools* page runs the other sitekit commands in the site checkout, posts quick statuses
+and commits and pushes `data/`. The *Log* page follows the daemon's log, with a toggle per kind of line (lifecycle,
+samples, activity, scans, publishing, warnings, errors) and a filter. GNOME Settings itself has no plug-in API for third-party panels, so this is
 a separate app with a Settings-category launcher rather than a page inside it.
 
 The daemon is controlled over a socket at `$XDG_RUNTIME_DIR/sitekit-pulse.sock` (newline-delimited JSON; commands
-`status`, `watch`, `pause`, `resume`, `publish`, `rescan`, `set`, `reload`, `quit`, and for the browser extension
+`status`, `watch`, `pause`, `resume`, `publish`, `rescan`, `set` (push, interval, idle, window, publish; saved to the
+config without a restart), `assign`, `log`, `reload`, `quit`, and for the browser extension
 `config`, `focus`, `pages`, `catalog`), which only your user can reach. A request's `id` is echoed in its reply. The
 daemon restarts itself when `pulse.toml` changes.
 

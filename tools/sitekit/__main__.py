@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import importlib
 import json
 import os
 import sys
@@ -92,7 +93,7 @@ def parser() -> argparse.ArgumentParser:
     pu.add_argument('--config', type=Path, default=pulse.CONFIG)
 
     st = sub.add_parser('settings', help='the GNOME settings window for sitekit and pulse')
-    st.add_argument('page', nargs='?', default='pulse', choices=['pulse', 'projects', 'apps', 'publishing', 'tools'])
+    st.add_argument('page', nargs='?', default='pulse', choices=['pulse', 'projects', 'apps', 'publishing', 'tools', 'log'])
 
     cl = sub.add_parser('claude', help='Claude Code usage from this machine (scan publishes aggregates, report shows it all)')
     cl.add_argument('action', choices=['scan', 'report'])
@@ -104,18 +105,25 @@ def parser() -> argparse.ArgumentParser:
     return ap
 
 
+def gui(name: str):
+    """The panel icon and settings window need PyGObject with GTK 4 and libadwaita from the system."""
+    try:
+        return importlib.import_module(f'.{name}', __package__)
+    except (ImportError, ValueError) as e:
+        sys.exit(f'sitekit: {e}. The panel icon and settings window need PyGObject, GTK 4 and libadwaita '
+                 '(Debian/Ubuntu: python3-gi gir1.2-adw-1); in a venv, create it with --system-site-packages')
+
+
 async def dispatch(a: argparse.Namespace) -> None:
     if a.cmd == 'settings':
-        from . import settings_app
-        sys.exit(settings_app.main(a.page))
+        sys.exit(gui('settings_app').main(a.page))
     if a.cmd == 'pulse' and a.action == 'browser':
         from . import native
         return print('\n'.join(native.install(a.uninstall)))
     if a.cmd == 'pulse' and a.action in ('pause', 'resume', 'indicator', 'install', 'uninstall'):
         from . import pulse_ctl
         if a.action == 'indicator':
-            from . import tray
-            return tray.main()
+            return gui('tray').main()
         if a.action in ('install', 'uninstall'):
             return print('\n'.join(pulse_ctl.install(a.action == 'uninstall')))
         reply = pulse_ctl.request(a.action)

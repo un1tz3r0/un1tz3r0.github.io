@@ -33,8 +33,19 @@ IGNORE = ['.git', 'node_modules', '__pycache__', '.venv', 'venv', '.cache', 'bui
           '*.swp', '*.swx', '*~', '4913', '.#*', '*.pyc', '*.tmp', '*.part', '*.crdownload']
 
 
-def log(*a):
-    print(time.strftime('%H:%M:%S'), *a, file=sys.stderr, flush=True)
+LOG: deque[dict] = deque(maxlen=1000)
+LOG_HOOKS: list = []
+KINDS = ('lifecycle', 'sample', 'activity', 'scan', 'publish', 'warning', 'error')
+
+
+def log(*a, kind: str = 'lifecycle') -> None:
+    """Print to stderr (the journal) and keep the line for the settings app's log viewer, tagged with one of KINDS."""
+    entry = {'t': time.time(), 'kind': kind, 'text': ' '.join(map(str, a))}
+    if kind != 'sample':
+        print(time.strftime('%H:%M:%S'), entry['text'], file=sys.stderr, flush=True)
+    LOG.append(entry)
+    for hook in LOG_HOOKS:
+        hook(entry)
 
 
 @dataclass
@@ -57,6 +68,8 @@ class Settings:
     found: dict[Path, str]
     browser: dict
     path: Path
+    pinned: dict[str, str]
+    exclude: set[Path]
 
     @classmethod
     def load(cls, path: Path = CONFIG) -> Settings:
@@ -73,10 +86,25 @@ class Settings:
                    ignore=IGNORE + c.get('ignore', []), root=expand(d.get('root', '~')).resolve(),
                    depth=int(d['depth']) if d.get('depth') else None, owner=d.get('owner') or site_owner(expand(c.get('site', '~/.local/share/sitekit/site'))),
                    rescan=int(d.get('every', 86400)) if d.get('enabled', True) else 0, found={},
-                   browser=c.get('browser', {}), path=path)
+                   browser=c.get('browser', {}), path=path, pinned={k.lower(): v for k, v in c.get('app_ids', {}).items()},
+                   exclude={expand(x).resolve() for x in d.get('exclude', [])})
 
     def category(self, app: str | None) -> str | None:
-        return None if app is None else next((k for k, rx in self.apps if rx.search(app)), 'other')
+        """[app_ids] pins exact app ids (to a category, or "ignore"); otherwise the first [apps] regex that matches."""
+        if app is None:
+            return None
+        return self.pinned.get(app.lower()) or next((k for k, rx in self.apps if rx.search(app)), 'other')
+
+    def project_ids(self) -> list[str]:
+        return sorted(set(self.projects.values()) | set(self.found.values()))
+
+    def save(self, changes: list[tuple[str, str, object]]) -> None:
+        from . import tomledit
+        tomledit.edit(self.path, changes)
+
+    def tilde(self, p: Path) -> str:
+        home = Path.home()
+        return f'~/{p.relative_to(home)}' if p.is_relative_to(home) else str(p)
 
     def browser_config(self) -> dict:
         """What the browser extension needs: thresholds, URL filters, site categories, URL rules and plugin settings."""
@@ -113,6 +141,8 @@ async def discover(s: Settings) -> dict[Path, str]:
     """Repos under s.root with a GitHub remote owned by s.owner, as {path: repo name}."""
     found = {}
     for repo in await asyncio.to_thread(find_repos, s.root, s.depth, s.ignore):
+        if repo.resolve() in s.exclude:
+            continue
         urls = (await run('git', '-C', str(repo), 'config', '--get-regexp', r'^remote\..*\.url$', check=False)).splitlines()
         for line in urls:
             m = GITHUB_REMOTE.search(line.split(None, 1)[-1].strip())
@@ -227,7 +257,7 @@ class Watcher:
                 self.dirs[wd] = (Path(d), project)
             elif ctypes.get_errno() == errno.ENOSPC and not self.full:
                 self.full = True
-                log('inotify watch limit reached; raise it with: sysctl fs.inotify.max_user_watches=524288')
+                log('inotify watch limit reached; raise it with: sysctl fs.inotify.max_user_watches=524288', kind='warning')
 
     def start(self) -> None:
         asyncio.get_running_loop().add_reader(self.fd, self.read)
@@ -342,7 +372,7 @@ async def ensure_checkout(s: Settings) -> None:
         return
     if not s.remote:
         sys.exit(f'pulse: {s.site} is not a git checkout and no remote is configured to clone it from')
-    log(f'cloning {s.remote} → {s.site} (sparse: data/ only)')
+    log(f'cloning {s.remote} → {s.site} (sparse: data/ only)', kind='publish')
     s.site.parent.mkdir(parents=True, exist_ok=True)
     await run('git', 'clone', '--quiet', '--filter=blob:none', '--sparse', s.remote, str(s.site))
     await run('git', '-C', str(s.site), 'sparse-checkout', 'set', 'data')
@@ -396,13 +426,13 @@ async def publish(s: Settings, db: sqlite3.Connection) -> None:
             await claude.scan(s.site, load_toml(s.site / 'site.toml').get('claude', {}))
             paths.append('data/claude-usage')
         except (OSError, ValueError) as e:
-            log(f'claude scan failed: {e}')
+            log(f'claude scan failed: {e}', kind='warning')
     await git('add', *paths)
     if (await git('status', '--porcelain', '--', *paths)).strip():
         await git('commit', '--quiet', '-m', f'pulse: {datetime.now():%Y-%m-%d %H:%M}', '--', *paths)
         if s.push:
             await git('push', '--quiet')
-        log(f'published {len(days)} day(s)' + (' and pushed' if s.push else ''))
+        log(f'published {len(days)} day(s)' + (' and pushed' if s.push else ''), kind='publish')
 
 
 SOCKET = expand(os.environ.get('XDG_RUNTIME_DIR') or f'/tmp/sitekit-{os.getuid()}') / 'sitekit-pulse.sock'
@@ -426,6 +456,10 @@ class State:
     idle_probe: str | None = None
     focus_probe: str | None = None
     browser: dict | None = None
+    app: str | None = None
+    changed: Path | None = None
+    roots: dict[Path, str] | None = None
+    pending: int = 0
 
     def browsing(self, t: float) -> dict | None:
         """The browser's last focus report, while it is recent and says a browser window has focus."""
@@ -443,7 +477,15 @@ class State:
                 'minutes': self.minutes, 'published': self.published, 'error': self.error, 'next_publish': self.next_publish,
                 'projects': self.projects, 'push': s.push, 'interval': s.interval, 'idle_probe': self.idle_probe,
                 'focus_probe': self.focus_probe, 'site': str(s.site), 'config': str(s.path),
-                'browser': bool(self.browser and time.time() - self.browser['t'] < 120)}
+                'browser': bool(self.browser and time.time() - self.browser['t'] < 120),
+                'idle': s.idle, 'window': s.window, 'publish': s.publish, 'pending': round(self.pending * s.interval / 60),
+                'app': self.app, 'root': self.root and str(self.root), 'root_project': self.roots.get(self.root) if self.root else None,
+                'categories': [k for k, _ in s.apps], 'project_ids': s.project_ids()}
+
+    @property
+    def root(self) -> Path | None:
+        """The watched project folder that the most recent file change was in."""
+        return next((p for p in self.changed.parents if p in self.roots), None) if self.changed and self.roots else None
 
 
 async def daemon(s: Settings) -> None:
@@ -454,6 +496,7 @@ async def daemon(s: Settings) -> None:
     state = State(s, idle_probe=idle_probe and idle_probe.__name__, focus_probe=focus_probe and focus_probe.__name__)
     recent: deque[tuple[float, str]] = deque()
     pending: list[tuple[int, str, str, str]] = []
+    noted: dict[str, float] = {}
 
     def changed(project: str, path: Path):
         if state.paused:
@@ -461,14 +504,19 @@ async def daemon(s: Settings) -> None:
         t = time.time()
         recent.append((t, project))
         pending.append((int(t), project, path.suffix.lower(), str(path)))
+        state.changed = path
+        if t - noted.get(project, 0) >= 60:
+            noted[project] = t
+            log(f'files changing in {project} ({path.name})', kind='activity')
 
-    roots = dict(s.projects)
+    roots = {p: n for p, n in s.projects.items() if p not in s.exclude}
+    state.roots = roots
     watcher = None
     try:
         watcher = Watcher(roots, s.ignore, changed)
         watcher.start()
     except OSError as e:
-        log(f'file watching unavailable: {e}')
+        log(f'file watching unavailable: {e}', kind='warning')
 
     async def scan() -> None:
         if not (s.rescan and s.owner):
@@ -476,14 +524,14 @@ async def daemon(s: Settings) -> None:
         try:
             s.found = await discover(s)
         except (RuntimeError, OSError) as e:
-            return log(f'project scan failed: {e}')
+            return log(f'project scan failed: {e}', kind='error')
         new = {p: n for p, n in s.found.items() if p not in roots}
         roots.update(new)
         if watcher:
             for p, n in new.items():
                 watcher.add(p, n)
         state.projects = len(roots)
-        log(f'scan of {s.root}: {len(s.found)} repos owned by {s.owner}, {len(new)} new')
+        log(f'scan of {s.root}: {len(s.found)} repos owned by {s.owner}, {len(new)} new', kind='scan')
 
     await scan()
     state.projects = len(roots)
@@ -500,6 +548,37 @@ async def daemon(s: Settings) -> None:
     def notify() -> None:
         broadcast({'event': 'state', **state.snapshot()})
 
+    LOG_HOOKS[:] = [lambda e: broadcast({'event': 'log', **e})]
+    mtime = lambda: s.path.stat().st_mtime if s.path.exists() else None
+    loaded = mtime()
+    timing = {'next_publish': time.time() + 60}
+
+    def save(changes: list[tuple[str, str, object]]) -> None:
+        """Write settings that apply live without the restart a config change otherwise triggers."""
+        nonlocal loaded
+        s.save(changes)
+        loaded = mtime()
+
+    def assign(msg: dict) -> str:
+        """Pin the focused app to a category or ignore it; count the last-changed folder toward a project or ignore it.
+        Both edit pulse.toml, and the daemon restarts to apply them."""
+        if msg.get('what') == 'app':
+            app, category = msg.get('app') or state.app, msg['category']
+            if not app:
+                raise ValueError('no focused app to assign')
+            s.save([('app_ids', app, category)])
+            return f'app {app} → {category}'
+        path = Path(msg['path']).resolve() if msg.get('path') else state.root
+        if not path:
+            raise ValueError('no project folder has changed yet')
+        if msg['project'] == 'ignore':
+            excluded = load_toml(s.path).get('discover', {}).get('exclude', [])
+            s.save([('projects', k, None) for k in load_toml(s.path).get('projects', {}) if expand(k).resolve() == path]
+                   + [('discover', 'exclude', sorted({*excluded, s.tilde(path)}))])
+            return f'ignoring {path}'
+        s.save([('projects', s.tilde(path), msg['project'])])
+        return f'{path} → {msg["project"]}'
+
     def broadcast(event: dict) -> None:
         line = (json.dumps(event) + '\n').encode()
         for w in list(watchers):
@@ -514,7 +593,14 @@ async def daemon(s: Settings) -> None:
                 pass
             case 'config':
                 return {'id': msg.get('id'), 'ok': True, 'config': s.browser_config()}
+            case 'log':
+                return {'id': msg.get('id'), 'ok': True, 'entries': list(LOG)[-int(msg.get('limit') or len(LOG)):]}
+            case 'assign':
+                log(assign(msg), kind='lifecycle')
             case 'focus':
+                page = (msg.get('page') or {})
+                if page != ((state.browser or {}).get('page') or {}) and page:
+                    log(f'browser: {page.get("site") or "page"}' + (f' · {page["project"]}' if page.get('project') else ''), kind='activity')
                 state.browser = {**{k: msg.get(k) for k in ('focused', 'idle', 'browser', 'page')}, 't': time.time()}
                 return {'id': msg.get('id'), 'ok': True, 'paused': state.paused}
             case 'pages':
@@ -538,15 +624,29 @@ async def daemon(s: Settings) -> None:
                 state.paused, state.paused_until = True, time.time() + minutes * 60 if minutes else None
                 recent.clear()
                 pending.clear()
+                log(f'paused for {minutes:g} min' if minutes else 'paused')
             case 'resume':
                 state.paused, state.paused_until = False, None
+                log('resumed')
             case 'publish':
                 want['publish'] = True
             case 'rescan':
                 want['scan'] = True
             case 'set':
+                changes = []
                 if 'push' in msg:
                     s.push = bool(msg['push'])
+                    changes.append(('', 'push', s.push))
+                for k in ('interval', 'idle', 'window', 'publish'):
+                    if k in msg:
+                        setattr(s, k, max(5, int(msg[k])))
+                        changes.append(('', k, getattr(s, k)))
+                if 'publish' in msg:
+                    timing['next_publish'] = state.next_publish = min(timing['next_publish'], time.time() + s.publish)
+                if changes and msg.get('persist', True):
+                    save(changes)
+                if changes:
+                    log('set ' + ', '.join(f'{k} = {v}' for _, k, v in changes))
                 broadcast({'event': 'config', 'config': s.browser_config()})
             case 'reload' | 'quit':
                 want['restart'] = msg['cmd'] == 'reload'
@@ -584,9 +684,8 @@ async def daemon(s: Settings) -> None:
 
     refresh_minutes()
     last_app, next_sample = None, time.time()
-    mtime = lambda: s.path.stat().st_mtime if s.path.exists() else None
-    loaded = mtime()
-    state.next_publish = next_publish = time.time() + 60
+    state.next_publish = timing['next_publish']
+    log(f'started (pid {os.getpid()}, sampling every {s.interval} s)')
     while not stop.is_set():
         t = time.time()
         if mtime() != loaded:
@@ -594,19 +693,21 @@ async def daemon(s: Settings) -> None:
             try:
                 Settings.load(s.path)
             except (ValueError, OSError, SystemExit) as e:
-                log(f'{s.path} changed but does not load, keeping the running config: {e}')
+                log(f'{s.path} changed but does not load, keeping the running config: {e}', kind='warning')
             else:
                 log(f'{s.path} changed')
                 want['restart'] = True
                 break
         if state.paused and state.paused_until and t >= state.paused_until:
             state.paused, state.paused_until = False, None
+            log('resumed after the pause ran out')
         if t >= next_sample:
             next_sample = t + s.interval
             while recent and recent[0][0] < t - s.window:
                 recent.popleft()
             if state.paused:
                 state.active, state.project, state.category = False, None, None
+                log('sample: paused', kind='sample')
             else:
                 idle = await idle_probe() if idle_probe else None
                 app = await focus_probe() if focus_probe else None
@@ -618,7 +719,11 @@ async def daemon(s: Settings) -> None:
                 page = (b or {}).get('page') or {}
                 touched = Counter(p for ts, p in recent)
                 active = (idle < s.idle if idle is not None else b['idle'] == 'active' if b
-                          else bool(touched) or (app is not None and app != last_app))
+                          else bool(touched) or (app is not None and app != last_app)) and category != 'ignore'
+                if app != last_app and app is not None:
+                    log(f'focus: {app} ({category})', kind='activity')
+                if active != state.active:
+                    log('at the keyboard' if active else 'away from the keyboard', kind='activity')
                 project = (page.get('project') or touched.most_common(1)[0][0] if touched else page.get('project')) if active else None
                 db.execute('insert or replace into samples values (?, ?, ?, ?, ?, ?, ?, ?)',
                            (int(t), int(active), idle, app if active else None, category if active else None, project,
@@ -626,22 +731,24 @@ async def daemon(s: Settings) -> None:
                 db.executemany('insert into changes values (?, ?, ?, ?)', pending)
                 db.commit()
                 pending.clear()
-                last_app = app
+                last_app = state.app = app
                 state.active, state.project, state.category = active, project, category if active else None
                 state.sampled = t
+                state.pending += active
+                log('sample: ' + (' · '.join(filter(None, [category, project])) or 'active' if active else 'idle'), kind='sample')
                 refresh_minutes()
         if s.rescan and t >= next_scan or want['scan']:
             next_scan, want['scan'] = t + s.rescan, False
             await scan()
-        if t >= next_publish or want['publish']:
-            next_publish, want['publish'] = t + s.publish, False
+        if t >= timing['next_publish'] or want['publish']:
+            timing['next_publish'], want['publish'] = t + s.publish, False
             try:
                 await publish(s, db)
-                state.published, state.error = time.time(), None
+                state.published, state.error, state.pending = time.time(), None, 0
             except (RuntimeError, OSError) as e:
                 state.error = str(e) or type(e).__name__
-                log(f'publish failed, will retry: {e}')
-            state.next_publish = next_publish
+                log(f'publish failed, will retry: {e}', kind='error')
+            state.next_publish = timing['next_publish']
         notify()
         due = min(next_sample, state.paused_until or next_sample, time.time() + 5)
         wake.clear()
