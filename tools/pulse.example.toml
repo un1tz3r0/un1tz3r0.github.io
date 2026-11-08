@@ -33,6 +33,7 @@ root = "~"          # e.g. "~/Projects"
 depth = 0           # folders below root to search; 0 = no limit (e.g. 1 with root "~/Projects")
 # owner = "un1tz3r0"  # defaults to [github].user in the site checkout's site.toml
 every = 86400
+exclude = []        # folders never watched, e.g. "~/src/scratch" (the panel menu's "Ignore this folder" adds here)
 
 # App categories: case-insensitive regexes matched against the focused window's app id or WM class. The first
 # match wins and anything else is "other". Only the category names are published, never app names or titles.
@@ -43,6 +44,12 @@ browser = "firefox|chrom|brave|vivaldi|epiphany|librewolf"
 graphics = "blender|gimp|inkscape|krita|darktable|godot"
 audio = "vcv|rack|ardour|bitwig|reaper|audacity|carla"
 chat = "discord|slack|signal|telegram|element"
+
+# Exact app ids pinned to a category, or "ignore" so time in them never counts as active. Checked before [apps]; the
+# panel menu's app submenu writes these.
+[app_ids]
+# steam = "ignore"
+
 
 # The browser extension (tools/sitekit/extension). Hosts in `deny` are never recorded; if `allow` is non-empty, only
 # its hosts are. Patterns are globs on the hostname, or on host + path when they contain a "/".
