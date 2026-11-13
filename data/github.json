@@ -1,5 +1,5 @@
 {
- "generated": "2026-11-12T17:39:36Z",
+ "generated": "2026-11-13T17:17:06Z",
  "user": "un1tz3r0",
  "repos": {
   "appostasy-io/appostasy.io": {
@@ -925,6 +925,24 @@
     "2024-08-27": 1
    }
   },
+  "un1tz3r0/raspi-tools": {
+   "url": "https://github.com/un1tz3r0/raspi-tools",
+   "description": "piimg: customize and repair Raspberry Pi OS images and SD cards offline (libguestfs, no root, TUI)",
+   "language": "Python",
+   "stars": 0,
+   "private": false,
+   "archived": false,
+   "created": "2026-11-13",
+   "commits": 1,
+   "first": "2026-11-13",
+   "last": "2026-11-13",
+   "days": {
+    "2026-11-13": 1
+   },
+   "claude": {
+    "2026-11-13": 1
+   }
+  },
   "un1tz3r0/raspi-waveshare": {
    "url": "https://github.com/un1tz3r0/raspi-waveshare",
    "description": "Device-tree overlay and config.txt options for the Waveshare 1.44\" color TFT hat for Raspberry Pi Zero.",
@@ -1197,9 +1215,9 @@
    "private": false,
    "archived": false,
    "created": "2017-11-01",
-   "commits": 170,
+   "commits": 172,
    "first": "2023-02-07",
-   "last": "2026-11-08",
+   "last": "2026-11-12",
    "days": {
     "2023-02-07": 2,
     "2023-03-07": 1,
@@ -1240,14 +1258,16 @@
     "2026-11-01": 1,
     "2026-11-02": 4,
     "2026-11-03": 8,
-    "2026-11-08": 4
+    "2026-11-08": 4,
+    "2026-11-12": 2
    },
    "claude": {
     "2026-10-21": 1,
     "2026-10-22": 2,
     "2026-11-02": 1,
     "2026-11-03": 5,
-    "2026-11-08": 1
+    "2026-11-08": 1,
+    "2026-11-12": 1
    }
   },
   "un1tz3r0/unicodesnipper": {
@@ -1316,17 +1336,19 @@
    "private": false,
    "archived": false,
    "created": "2026-10-08",
-   "commits": 5,
+   "commits": 7,
    "first": "2026-10-08",
-   "last": "2026-10-27",
+   "last": "2026-11-12",
    "days": {
     "2026-10-08": 3,
     "2026-10-26": 1,
-    "2026-10-27": 1
+    "2026-10-27": 1,
+    "2026-11-12": 2
    },
    "claude": {
     "2026-10-08": 3,
-    "2026-10-27": 1
+    "2026-10-27": 1,
+    "2026-11-12": 1
    }
   },
   "un1tz3r0/vcvopxyz": {

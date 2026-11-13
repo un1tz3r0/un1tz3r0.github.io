@@ -1,6 +1,119 @@
 {
- "generated": "2026-11-12T17:39:39Z",
+ "generated": "2026-11-13T17:17:08Z",
  "projects": {
+  "chan_01FKDa5Rn5Hi2cYoGv1SCGAR": {
+   "name": "un1tz3r0.github.io",
+   "site": [
+    "site"
+   ],
+   "repos": [
+    "un1tz3r0/un1tz3r0.github.io"
+   ],
+   "sessions": 4,
+   "commits": 10,
+   "first": "2026-10-21",
+   "last": "2026-11-12",
+   "prs": [
+    {
+     "repo": "un1tz3r0/un1tz3r0.github.io",
+     "number": 7,
+     "title": "Show browser activity from the pulse extension on the site",
+     "url": "https://github.com/un1tz3r0/un1tz3r0.github.io/pull/7",
+     "state": "merged",
+     "created": "2026-11-12",
+     "merged": "2026-11-13",
+     "commits": 1,
+     "files": 2,
+     "additions": 173,
+     "deletions": 42,
+     "by": "un1tz3r0"
+    },
+    {
+     "repo": "un1tz3r0/un1tz3r0.github.io",
+     "number": 6,
+     "title": "Recreate the pulse panel icon and settings window lost from ece6868",
+     "url": "https://github.com/un1tz3r0/un1tz3r0.github.io/pull/6",
+     "state": "merged",
+     "created": "2026-11-08",
+     "merged": "2026-11-08",
+     "commits": 1,
+     "files": 13,
+     "additions": 1230,
+     "deletions": 37,
+     "by": "un1tz3r0"
+    },
+    {
+     "repo": "un1tz3r0/un1tz3r0.github.io",
+     "number": 5,
+     "title": "Add the sitekit pulse browser extension",
+     "url": "https://github.com/un1tz3r0/un1tz3r0.github.io/pull/5",
+     "state": "merged",
+     "created": "2026-11-03",
+     "merged": "2026-11-03",
+     "commits": 3,
+     "files": 15,
+     "additions": 886,
+     "deletions": 27,
+     "by": "un1tz3r0"
+    },
+    {
+     "repo": "un1tz3r0/un1tz3r0.github.io",
+     "number": 4,
+     "title": "Count Claude's commits and link Claude projects, sessions and PRs",
+     "url": "https://github.com/un1tz3r0/un1tz3r0.github.io/pull/4",
+     "state": "merged",
+     "created": "2026-11-03",
+     "merged": "2026-11-03",
+     "commits": 1,
+     "files": 8,
+     "additions": 459,
+     "deletions": 39,
+     "by": "un1tz3r0"
+    },
+    {
+     "repo": "un1tz3r0/un1tz3r0.github.io",
+     "number": 3,
+     "title": "Build the Overlay Studio demo from its repo",
+     "url": "https://github.com/un1tz3r0/un1tz3r0.github.io/pull/3",
+     "state": "merged",
+     "created": "2026-11-03",
+     "merged": "2026-11-03",
+     "commits": 2,
+     "files": 1,
+     "additions": 2,
+     "deletions": 1,
+     "by": "un1tz3r0"
+    },
+    {
+     "repo": "un1tz3r0/un1tz3r0.github.io",
+     "number": 2,
+     "title": "Add Overlay Studio to the demos",
+     "url": "https://github.com/un1tz3r0/un1tz3r0.github.io/pull/2",
+     "state": "merged",
+     "created": "2026-11-02",
+     "merged": "2026-11-03",
+     "commits": 1,
+     "files": 5,
+     "additions": 2511,
+     "deletions": 7,
+     "by": "un1tz3r0"
+    },
+    {
+     "repo": "un1tz3r0/un1tz3r0.github.io",
+     "number": 1,
+     "title": "Rebuild the site around projects, activity, demos and a gallery",
+     "url": "https://github.com/un1tz3r0/un1tz3r0.github.io/pull/1",
+     "state": "merged",
+     "created": "2026-10-21",
+     "merged": "2026-10-28",
+     "commits": 3,
+     "files": 582,
+     "additions": 12135,
+     "deletions": 274,
+     "by": "un1tz3r0"
+    }
+   ]
+  },
   "chan_0187qNhzrzSvSUUv8GhrzmWw": {
    "site": [
     "vcvopxyz"
@@ -321,105 +434,6 @@
     }
    ]
   },
-  "chan_01FKDa5Rn5Hi2cYoGv1SCGAR": {
-   "name": "un1tz3r0.github.io",
-   "site": [
-    "site"
-   ],
-   "repos": [
-    "un1tz3r0/un1tz3r0.github.io"
-   ],
-   "sessions": 3,
-   "commits": 9,
-   "first": "2026-10-21",
-   "last": "2026-11-08",
-   "prs": [
-    {
-     "repo": "un1tz3r0/un1tz3r0.github.io",
-     "number": 6,
-     "title": "Recreate the pulse panel icon and settings window lost from ece6868",
-     "url": "https://github.com/un1tz3r0/un1tz3r0.github.io/pull/6",
-     "state": "merged",
-     "created": "2026-11-08",
-     "merged": "2026-11-08",
-     "commits": 1,
-     "files": 13,
-     "additions": 1230,
-     "deletions": 37,
-     "by": "un1tz3r0"
-    },
-    {
-     "repo": "un1tz3r0/un1tz3r0.github.io",
-     "number": 5,
-     "title": "Add the sitekit pulse browser extension",
-     "url": "https://github.com/un1tz3r0/un1tz3r0.github.io/pull/5",
-     "state": "merged",
-     "created": "2026-11-03",
-     "merged": "2026-11-03",
-     "commits": 3,
-     "files": 15,
-     "additions": 886,
-     "deletions": 27,
-     "by": "un1tz3r0"
-    },
-    {
-     "repo": "un1tz3r0/un1tz3r0.github.io",
-     "number": 4,
-     "title": "Count Claude's commits and link Claude projects, sessions and PRs",
-     "url": "https://github.com/un1tz3r0/un1tz3r0.github.io/pull/4",
-     "state": "merged",
-     "created": "2026-11-03",
-     "merged": "2026-11-03",
-     "commits": 1,
-     "files": 8,
-     "additions": 459,
-     "deletions": 39,
-     "by": "un1tz3r0"
-    },
-    {
-     "repo": "un1tz3r0/un1tz3r0.github.io",
-     "number": 3,
-     "title": "Build the Overlay Studio demo from its repo",
-     "url": "https://github.com/un1tz3r0/un1tz3r0.github.io/pull/3",
-     "state": "merged",
-     "created": "2026-11-03",
-     "merged": "2026-11-03",
-     "commits": 2,
-     "files": 1,
-     "additions": 2,
-     "deletions": 1,
-     "by": "un1tz3r0"
-    },
-    {
-     "repo": "un1tz3r0/un1tz3r0.github.io",
-     "number": 2,
-     "title": "Add Overlay Studio to the demos",
-     "url": "https://github.com/un1tz3r0/un1tz3r0.github.io/pull/2",
-     "state": "merged",
-     "created": "2026-11-02",
-     "merged": "2026-11-03",
-     "commits": 1,
-     "files": 5,
-     "additions": 2511,
-     "deletions": 7,
-     "by": "un1tz3r0"
-    },
-    {
-     "repo": "un1tz3r0/un1tz3r0.github.io",
-     "number": 1,
-     "title": "Rebuild the site around projects, activity, demos and a gallery",
-     "url": "https://github.com/un1tz3r0/un1tz3r0.github.io/pull/1",
-     "state": "merged",
-     "created": "2026-10-21",
-     "merged": "2026-10-28",
-     "commits": 3,
-     "files": 0,
-     "additions": 0,
-     "deletions": 0,
-     "by": "un1tz3r0"
-    }
-   ]
-  },
   "chan_01C1hEyZ2L6Veqr1hqXHPRoq": {
    "repos": [
     "un1tz3r0/vcvtempodetector"
@@ -664,29 +678,6 @@
     }
    ]
   },
-  "chan_01UT1WhTnsH8mmRrT168j2FK": {
-   "repos": [
-    "un1tz3r0/vcvmapper"
-   ],
-   "sessions": 1,
-   "first": "2026-10-08",
-   "last": "2026-10-08",
-   "prs": [
-    {
-     "repo": "un1tz3r0/vcvmapper",
-     "number": 1,
-     "title": "Step 1: plugin scaffold, CI, and the Pin module",
-     "url": "https://github.com/un1tz3r0/vcvmapper/pull/1",
-     "state": "merged",
-     "created": "2026-10-08",
-     "merged": "2026-10-27",
-     "commits": 2,
-     "files": 27,
-     "additions": 1455,
-     "deletions": 1
-    }
-   ]
-  },
   "chan_01FnKE52wXGNjEwzwjAaasHt": {
    "site": [
     "vcv-rack2-plugin"
@@ -714,6 +705,29 @@
      "by": "un1tz3r0"
     }
    ]
+  },
+  "chan_01UT1WhTnsH8mmRrT168j2FK": {
+   "repos": [
+    "un1tz3r0/vcvmapper"
+   ],
+   "sessions": 1,
+   "first": "2026-10-08",
+   "last": "2026-10-08",
+   "prs": [
+    {
+     "repo": "un1tz3r0/vcvmapper",
+     "number": 1,
+     "title": "Step 1: plugin scaffold, CI, and the Pin module",
+     "url": "https://github.com/un1tz3r0/vcvmapper/pull/1",
+     "state": "merged",
+     "created": "2026-10-08",
+     "merged": "2026-10-27",
+     "commits": 2,
+     "files": 27,
+     "additions": 1455,
+     "deletions": 1
+    }
+   ]
   }
  },
  "unlinked": {
@@ -739,10 +753,22 @@
    "un1tz3r0/video-overlay-animation-studio"
   ],
   "sessions": 19,
-  "commits": 48,
+  "commits": 49,
   "first": "2025-09-04",
-  "last": "2026-11-07",
+  "last": "2026-11-12",
   "prs": [
+   {
+    "repo": "un1tz3r0/vcvmapper",
+    "number": 3,
+    "title": "Step 3: Strings, an 8-channel mapper edited from its screen",
+    "url": "https://github.com/un1tz3r0/vcvmapper/pull/3",
+    "state": "open",
+    "created": "2026-11-12",
+    "commits": 1,
+    "files": 20,
+    "additions": 1165,
+    "deletions": 182
+   },
    {
     "repo": "un1tz3r0/vcvopxyz",
     "number": 52,
@@ -786,8 +812,9 @@
     "number": 2,
     "title": "Step 2: binding core, with Pin moved onto it",
     "url": "https://github.com/un1tz3r0/vcvmapper/pull/2",
-    "state": "open",
+    "state": "merged",
     "created": "2026-10-27",
+    "merged": "2026-11-12",
     "commits": 1,
     "files": 12,
     "additions": 1374,
