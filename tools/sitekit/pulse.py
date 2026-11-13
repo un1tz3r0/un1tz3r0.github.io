@@ -2,8 +2,9 @@
 folders are changing, then publishes daily aggregates to data/pulse/YYYY-MM.json in a checkout of the site and pushes.
 
 Raw samples stay in a local SQLite file. Only aggregates leave the machine: active minutes per hour, minutes per app
-category (categories you define; app names and window titles are never published), and for the folders listed under
-[projects] only, active minutes, changed-file counts and file extensions.
+category (categories you define; app names and window titles are never published), minutes per hour in the browser and
+per site category, and for publishable projects only (see `publishable`), active minutes, the kinds of activity browser
+plugins saw, changed-file counts and file extensions.
 """
 from __future__ import annotations
 
@@ -308,7 +309,7 @@ def open_db(path: Path) -> sqlite3.Connection:
 def aggregate(db: sqlite3.Connection, first: date, minutes_per_sample: float) -> dict[str, dict]:
     start = int(datetime.combine(first, datetime.min.time()).timestamp())
     day = lambda ts: datetime.fromtimestamp(ts).astimezone()
-    days = defaultdict(lambda: {'hours': [0.0] * 24, 'apps': Counter(), 'sites': Counter(),
+    days = defaultdict(lambda: {'hours': [0.0] * 24, 'web': [0.0] * 24, 'apps': Counter(), 'sites': Counter(),
                                 'projects': defaultdict(lambda: {'minutes': 0.0, 'activity': Counter()})})
     rows = db.execute('select ts, category, project, site, activity from samples where active and ts >= ?', (start,))
     for ts, category, project, site, activity in rows:
@@ -316,6 +317,8 @@ def aggregate(db: sqlite3.Connection, first: date, minutes_per_sample: float) ->
         d = days[t.date().isoformat()]
         d['hours'][t.hour] += minutes_per_sample
         d['apps'][category or 'other'] += minutes_per_sample
+        if category == 'browser' or site:
+            d['web'][t.hour] += minutes_per_sample
         if site:
             d['sites'][site] += minutes_per_sample
         if project:
@@ -341,6 +344,8 @@ def aggregate(db: sqlite3.Connection, first: date, minutes_per_sample: float) ->
         out[d] = {'active': sum(hours), 'hours': hours, 'apps': rounded(v['apps']), 'projects': projects}
         if v['sites']:
             out[d]['sites'] = rounded(v['sites'])
+        if any(web := [round(h) for h in v['web']]):
+            out[d]['web'] = web
     return out
 
 
@@ -380,11 +385,13 @@ async def ensure_checkout(s: Settings) -> None:
 
 def publishable(s: Settings, db: sqlite3.Connection | None = None) -> set[str]:
     """Project ids that may be named in published data: folders listed under [projects], the site's own projects, its
-    public repos, and projects a browser plugin marked public. Anything else (private repos, repos and pages of other
-    people you visited) is counted in the totals but never named."""
+    public repos, Claude projects that data/claude.json lists (they have public PRs), and projects a browser plugin
+    marked public. Anything else (private repos, repos and pages of other people you visited) is counted in the totals
+    but never named."""
     known = {p['id'] for p in read_json(s.site / 'data' / 'projects.json', {}).get('projects', [])}
     public = {k.split('/')[-1] for k, r in read_json(s.site / 'data' / 'github.json', {}).get('repos', {}).items() if not r.get('private', True)}
-    return set(s.projects.values()) | known | public | (set(public_catalog(db)) if db else set())
+    claude_listed = {f'claude-code:{c}' for c in read_json(s.site / 'data' / 'claude.json', {}).get('projects', {})}
+    return set(s.projects.values()) | known | public | claude_listed | (set(public_catalog(db)) if db else set())
 
 
 def private_slugs(s: Settings) -> set[str]:

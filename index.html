@@ -303,9 +303,10 @@ noscript p { padding: 4ex; }
     <section data-page="activity" aria-labelledby="activity-h" hidden>
       <div class="sec-head">
         <h2 id="activity-h">Activity</h2>
-        <p>What I've been up to, as it happens: posts, status updates, links, commits, and the hours my computer says I spent at the keyboard on each project. Click a day on the chart to jump to it.</p>
+        <p>What I've been up to, as it happens: posts, status updates, links, commits, and the hours my computer and browser say I spent on each project. Click a day on the chart to jump to it.</p>
       </div>
       <activity-heatmap></activity-heatmap>
+      <pulse-breakdown hidden></pulse-breakdown>
       <activity-feed></activity-feed>
     </section>
 
@@ -342,7 +343,7 @@ noscript p { padding: 4ex; }
           <ul>
             <li>The project timeline is rebuilt every day from the commit history of each repository.</li>
             <li>The activity log mixes hand-written posts and links with commits and imports from older journals.</li>
-            <li>The keyboard-time chart comes from a small daemon on my computer that publishes hourly totals per project, and nothing more detailed than that.</li>
+            <li>The keyboard-time chart comes from a small daemon on my computer and a browser extension that tells it which project a page belongs to. Only hourly and daily totals are published: kinds of app and website, and time per project for public projects, never page addresses or titles.</li>
             <li>Every page is a single HTML file built from web components, with no framework and no build step.</li>
           </ul>
         </div>
@@ -512,10 +513,12 @@ const KIND = Object.fromEntries(KINDS.map(k => [k.id, k]));
 const REL = { uses: 'a2', fork: 'a1', follows: 'a0', part: 'a3', pairs: 'fg-dim' };
 
 async function buildModel() {
-  const [P, G, D, S, C, U] = await Promise.all([
+  const [P, G, D, S, C, U, PM, CAT] = await Promise.all([
     load('data/projects.json', { projects: [], groups: [], kinds: {} }), load('data/github.json', { repos: {} }),
     load('data/demos.json', { demos: [] }), load('data/site.json', {}), load('data/claude.json', { projects: {} }),
     load('data/claude-usage/index.json', { machines: [] }).then(i => Promise.all(i.machines.map(n => load(`data/claude-usage/${n}.json`, { days: {} })))),
+    load('data/pulse/index.json', { months: [] }).then(i => Promise.all(i.months.map(mo => load(`data/pulse/${mo}.json`, { days: {} })))),
+    load('data/pulse/catalog.json', {}),
   ]);
   const tokens = {};
   for (const u of U) for (const day of Object.values(u.days)) for (const [r, v] of Object.entries(day.repos ?? {}))
@@ -535,24 +538,60 @@ async function buildModel() {
     id: n, title: n.split('/')[1], group: r.fork ? 'forks' : 'other', repos: [n], summary: r.description ?? '', tags: [r.language].filter(Boolean), auto: true,
   }));
   const demos = Object.fromEntries(D.demos.map(d => [d.id, d]));
-  const projects = [...P.projects, ...auto].map(p => {
-    const days = new Map();
+  const listed = [...P.projects, ...auto], time = tracked(listed, PM, C.projects, CAT);
+  const projects = [...listed, ...time.extra].map(p => {
+    const days = new Map(), t = time.of.get(p) ?? { minutes: new Map(), activity: {}, ids: [] };
     for (const n of p.repos ?? []) for (const [d, c] of Object.entries(G.repos[n]?.days ?? {})) days.set(dnum(d), (days.get(dnum(d)) ?? 0) + c);
     const spans = (p.spans ?? []).map(([a, b]) => [dnum(a), b ? dnum(monthEnd(b)) : TODAY]);
-    const ends = [...days.keys(), ...spans.flat()];
+    const ends = [...days.keys(), ...t.minutes.keys(), ...spans.flat()];
     if (!ends.length) return null;
     const first = Math.min(...ends), last = Math.max(...ends);
     const status = p.status ?? (TODAY - last < 45 ? 'active' : TODAY - last < 400 ? 'resting' : 'dormant');
     const repos = (p.repos ?? []).map(n => ({ name: n, url: G.repos[n]?.url ?? `https://github.com/${n}`, ...G.repos[n] }));
     return { ...p, group: groupOf[p.group] ? p.group : 'other', days, spans, first, last, status, repos,
-      commits: sum([...days.values()]), claude: claudeOf(p), demo: demos[p.demo], hue: groupOf[groupOf[p.group] ? p.group : 'other'].hue };
+      commits: sum([...days.values()]), minutes: t.minutes, time: sum([...t.minutes.values()]), activity: t.activity, pulseIds: t.ids,
+      claude: claudeOf(p), demo: demos[p.demo], hue: groupOf[groupOf[p.group] ? p.group : 'other'].hue };
   }).filter(Boolean);
   const byId = new Map(projects.map(p => [p.id, p]));
-  for (const p of projects) for (const r of p.repos) if (!byId.has(r.name)) byId.set(r.name, p);
+  for (const p of projects) for (const r of [...p.repos.map(r => r.name), ...p.pulseIds]) if (!byId.has(r)) byId.set(r, p);
   const relations = projects.flatMap(p => (p.related ?? []).map(r => ({ from: p, to: byId.get(r.to), kind: r.kind })).filter(r => r.to));
   for (const d of D.demos) d.projectRef = byId.get(d.project);
   return { site: S, groups, groupOf, projects, byId, relations, kinds: P.kinds ?? {}, demos: D.demos, github: G };
 }
+
+// Pulse publishes minutes per project id: a site project id, a bare repo name, "claude-code:<chan>" for a Claude project
+// that data/claude.json lists, or "<type>:<id>" for something a browser plugin found (a pen, say), named in catalog.json.
+// Each id is credited to a listed project where one matches; the rest become projects of their own, made from the catalog.
+const WEB_TYPES = { pen: ['web', 'A pen on CodePen.'], github: ['other', 'A repository on GitHub.'], 'claude-code': ['other', 'A Claude project.'] };
+function tracked(listed, months, claude, catalog) {
+  const ids = new Map();
+  for (const p of listed) for (const k of [p.id, ...(p.repos ?? []).flatMap(r => [r, r.split('/')[1]])]) if (!ids.has(k)) ids.set(k, p);
+  const of = new Map(), extra = new Map();
+  const find = id => {
+    const chan = id.startsWith('claude-code:') && claude[id.slice(12)];
+    const p = ids.get(id) ?? (chan && chan.site?.length === 1 ? ids.get(chan.site[0]) : null);
+    if (p) return p;
+    if (!extra.has(id)) {
+      const c = catalog[id] ?? {}, [group, summary] = WEB_TYPES[c.type ?? id.split(':')[0]] ?? ['other', ''];
+      extra.set(id, { id, title: c.name ?? (chan && chan.name) ?? id.replace(/^[\w-]+:/, ''), group, summary, url: c.url, repos: [], tags: [c.type].filter(Boolean), auto: true });
+    }
+    return extra.get(id);
+  };
+  for (const mo of months) for (const [d, v] of Object.entries(mo.days ?? {})) for (const [id, pv] of Object.entries(v.projects ?? {})) {
+    if (!pv.minutes) continue;
+    const p = find(id), t = of.get(p) ?? of.set(p, { minutes: new Map(), activity: {}, ids: [] }).get(p), n = dnum(d);
+    t.minutes.set(n, (t.minutes.get(n) ?? 0) + pv.minutes);
+    for (const [k, mins] of Object.entries(pv.activity ?? {})) t.activity[k] = (t.activity[k] ?? 0) + mins;
+    if (!t.ids.includes(id)) t.ids.push(id);
+  }
+  return { of, extra: [...extra.values()] };
+}
+
+// "editing 2 h, reviewing 40 min": the biggest entries of a {name: minutes} tally.
+const tally = (o, n = 4, names = {}) => Object.entries(o ?? {}).filter(([, v]) => v >= 1).sort((a, b) => b[1] - a[1]).slice(0, n).map(([k, v]) => `${names[k] ?? k} ${hours(v)}`).join(', ');
+// What browser plugins call their kinds of activity, in words.
+const DOING = { 'claude-code': 'with Claude Code', chat: 'chatting with Claude', review: 'reviewing', issues: 'on issues', code: 'reading code', history: 'reading history',
+  ci: 'on CI', docs: 'on docs', releases: 'on releases', repo: 'browsing', pr: 'on pull requests' };
 
 function withClaude(p) {
   const c = p.claude, merged = c.prs.filter(r => r.state === 'merged');
@@ -712,6 +751,7 @@ class ProjectGantt extends Base {
     .lbl.auto { fill: var(--fg-dim); }
     .life { stroke: var(--c); stroke-opacity: .45; stroke-width: 1.5; }
     .bars { fill: var(--c); }
+    .tbars { fill: var(--c); fill-opacity: .3; }
     .manual { fill: var(--c); fill-opacity: .55; }
     .rel { fill: none; stroke-width: 1.6; stroke-opacity: .75; transition: stroke-opacity .2s, stroke-width .2s; }
     .rel-end { stroke: none; }
@@ -770,10 +810,10 @@ class ProjectGantt extends Base {
     });
   }
 
-  // Commits per bin of `size` days, cached per project.
-  bins(p, size) {
+  // Commits (or, with key 'minutes', tracked minutes) per bin of `size` days, cached per project.
+  bins(p, size, key = 'days') {
     p.bins ??= {};
-    return p.bins[size] ??= [...p.days].reduce((m, [d, c]) => m.set(Math.floor(d / size) * size, (m.get(Math.floor(d / size) * size) ?? 0) + c), new Map());
+    return p.bins[key + size] ??= [...p[key]].reduce((m, [d, c]) => m.set(Math.floor(d / size) * size, (m.get(Math.floor(d / size) * size) ?? 0) + c), new Map());
   }
 
   // Month ticks every 1, 3, 6, 12, 24 or 60 months, whichever first leaves room for a label; weekly ticks when zoomed in far.
@@ -803,6 +843,7 @@ class ProjectGantt extends Base {
     const size = k >= 3 ? 1 : k * 7 >= 3 ? 7 : k * 30.44 >= 3 ? 30.44 : 91.31;
     const rows = this.rows(), parts = [], rels = [], layout = [], pos = new Map();
     const peak = Math.max(1, ...rows.flatMap(r => r.p ? [...this.bins(r.p, size).values()] : []));
+    const peakT = Math.max(1, ...rows.flatMap(r => r.p ? [...this.bins(r.p, size, 'minutes').values()] : []));
     let y = AX + 6;
     for (const r of rows) {
       if (r.g) {
@@ -817,18 +858,22 @@ class ProjectGantt extends Base {
       }
       const p = r.p, cy = y + RH / 2, hue = p.hue;
       const visible = (a, b) => b >= t0 && a <= t1;
-      let bars = '';
-      for (const [d, c] of this.bins(p, size)) {
-        if (!visible(d, d + size)) continue;
-        const hh = 3 + (RH - 7) * Math.sqrt(c / peak), w = Math.max(1.6, size * k - (size > 1 ? 1 : .4));
-        bars += `M${x(d).toFixed(1)} ${(cy - hh / 2).toFixed(1)}h${w.toFixed(1)}v${hh.toFixed(1)}h${(-w).toFixed(1)}z`;
-      }
+      const path = (key, top) => {
+        let out = '';
+        for (const [d, c] of this.bins(p, size, key)) {
+          if (!visible(d, d + size)) continue;
+          const hh = 3 + (RH - 7) * Math.sqrt(c / top), w = Math.max(1.6, size * k - (size > 1 ? 1 : .4));
+          out += `M${x(d).toFixed(1)} ${(cy - hh / 2).toFixed(1)}h${w.toFixed(1)}v${hh.toFixed(1)}h${(-w).toFixed(1)}z`;
+        }
+        return out;
+      };
+      const bars = path('days', peak), tbars = path('minutes', peakT);
       const manual = p.spans.filter(([a, b]) => visible(a, b)).map(([a, b]) =>
         `<rect class="manual" x="${x(a).toFixed(1)}" y="${cy - RH * .2}" width="${Math.max(3, (b - a + 1) * k).toFixed(1)}" height="${RH * .4}" rx="2" style="fill:url(#hatch-${hue})"/>`).join('');
       parts.push(`<g class="row" data-id="${esc(p.id)}" style="--c:var(--a${hue})"><rect class="hit" x="0" y="${y}" width="${W}" height="${RH}"/>
         <text class="lbl${p.auto ? ' auto' : ''}" x="${L - 12}" y="${cy + 4.5}" text-anchor="end">${esc(p.title.length > (narrow ? 15 : 30) ? `${p.title.slice(0, narrow ? 14 : 29)}…` : p.title)}</text>
         <g clip-path="url(#clip)">${visible(p.first, p.last) ? `<line class="life" x1="${x(p.first).toFixed(1)}" x2="${x(p.last + 1).toFixed(1)}" y1="${cy}" y2="${cy}"/>` : ''}
-        ${manual}<path class="bars" d="${bars}"/></g></g>`);
+        ${manual}<path class="tbars" d="${tbars}"/><path class="bars" d="${bars}"/></g></g>`);
       pos.set(p, cy);
       layout.push([y, y + RH, r]);
       y += RH;
@@ -860,6 +905,7 @@ class ProjectGantt extends Base {
     const sample = kd => `<svg viewBox="0 0 30 12"><path d="M2 6H24" style="stroke:var(--k-${kd});stroke-width:1.8" marker-end="url(#lg-${kd})"/><defs><marker id="lg-${kd}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 1L9 5L0 9z" style="fill:var(--k-${kd})"/></marker></defs></svg>`;
     const used = new Set(this.m.relations.map(r => r.kind));
     this.$('.legend').innerHTML = Object.entries(this.m.kinds).filter(([kd]) => used.has(kd)).map(([kd, label]) => `<span>${sample(kd)}${esc(label)}</span>`).join('')
+      + (this.m.projects.some(p => p.time) ? `<span><svg viewBox="0 0 30 12"><rect x="2" y="1" width="26" height="10" rx="1" style="fill:var(--fg-dim);fill-opacity:.3"/></svg>time at the keyboard and in the browser</span>` : '')
       + `<span><svg viewBox="0 0 30 12"><rect x="2" y="2" width="26" height="8" rx="2" style="fill:url(#lg-hatch)"/><defs><pattern id="lg-hatch" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="2.2" height="5" style="fill:var(--fg-dim)"/></pattern></defs></svg>worked on, outside git</span>`;
   }
 
@@ -891,7 +937,7 @@ class ProjectGantt extends Base {
     const links = this.m.relations.filter(rel => rel.from === p || rel.to === p)
       .map(rel => rel.from === p ? `${this.m.kinds[rel.kind] ?? rel.kind} <b>${esc(rel.to.title)}</b>` : `${esc(rel.from.title)} ${this.m.kinds[rel.kind] ?? rel.kind} this`);
     this.tip.show([a, row[0] + top, Math.max(4, b - a), RH], `<b>${esc(p.title)}</b> · ${esc(this.m.groupOf[p.group].label)}<br>
-      ${period(p.first, p.last)}${p.commits ? ` · ${plural(p.commits, 'commit')}` : ''}${links.length ? `<br><span class="dim">${links.join('<br>')}</span>` : ''}`);
+      ${period(p.first, p.last)}${p.commits ? ` · ${plural(p.commits, 'commit')}` : ''}${p.time ? ` · ${hours(p.time)} tracked` : ''}${links.length ? `<br><span class="dim">${links.join('<br>')}</span>` : ''}`);
   }
 
   pointer() {
@@ -979,9 +1025,10 @@ class ProjectDetail extends Base {
           h('span', {}, period(p.first, p.last)),
           h('span', {}, p.status === 'active' ? `active, last worked on ${ago(p.last)}` : p.status === 'in progress' ? 'in progress' : `last worked on ${ago(p.last)}`))),
       p.summary ? h('div', { class: 'summary md', '.innerHTML': md(p.summary) }) : null,
-      p.days.size ? this.spark(p) : null,
+      p.days.size ? this.spark(p, p.days, 'commits per week') : p.minutes.size ? this.spark(p, p.minutes, 'time per week') : null,
       h('dl', { class: 'facts' },
         p.commits ? [h('dt', {}, 'Commits'), h('dd', {}, `${p.commits.toLocaleString()} over ${plural(p.days.size, 'day')}, busiest in ${[...months].sort((a, b) => b[1] - a[1])[0][0]}`)] : null,
+        p.time ? [h('dt', {}, 'Time tracked'), h('dd', {}, `${hours(p.time)} over ${plural(p.minutes.size, 'day')}${tally(p.activity) ? `: ${tally(p.activity, 4, DOING)}` : ''}`)] : null,
         p.claude ? [h('dt', {}, 'With Claude'), h('dd', {}, withClaude(p))] : null,
         p.claude?.prs.length ? [h('dt', {}, 'Claude PRs'), h('dd', {}, p.claude.prs.slice(0, 6).map((r, i) => [i ? ', ' : '',
           h('a', { href: r.url, target: '_blank', rel: 'noopener', title: `${r.title} (${r.state})` }, `#${r.number}`), ` ${r.title}`]))] : null,
@@ -993,18 +1040,19 @@ class ProjectDetail extends Base {
       h('div', { class: 'actions' },
         p.demo?.path ? h('a', { class: 'btn', href: `#demos/${p.demo.id}` }, icon('play'), 'Play the demo') : null,
         p.repos.map(r => h('a', { class: 'btn', href: r.url, target: '_blank', rel: 'noopener' }, icon('repo'), p.repos.length > 1 ? r.name.split('/')[1] : 'Source')),
-        p.repos[0]?.homepage ? h('a', { class: 'btn', href: p.repos[0].homepage, target: '_blank', rel: 'noopener' }, icon('open'), 'Homepage') : null)].filter(Boolean));
+        p.repos[0]?.homepage ? h('a', { class: 'btn', href: p.repos[0].homepage, target: '_blank', rel: 'noopener' }, icon('open'), 'Homepage') : null,
+        p.url && safeUrl(p.url) ? h('a', { class: 'btn', href: p.url, target: '_blank', rel: 'noopener' }, icon('open'), 'Open') : null)].filter(Boolean));
   }
 
-  spark(p) {
+  spark(p, series, caption) {
     const a = p.first, b = Math.max(p.last, a + 60), n = Math.min(120, Math.max(12, Math.round((b - a) / 7)));
     const w = (b - a + 1) / n, bins = Array(n).fill(0);
-    for (const [d, c] of p.days) bins[Math.min(n - 1, Math.floor((d - a) / w))] += c;
+    for (const [d, c] of series) bins[Math.min(n - 1, Math.floor((d - a) / w))] += c;
     const peak = Math.max(1, ...bins), bw = 600 / n;
     const bars = bins.map((c, i) => c ? `<rect x="${(i * bw + .5).toFixed(1)}" y="${(60 - 56 * Math.sqrt(c / peak)).toFixed(1)}" width="${Math.max(1, bw - 1).toFixed(1)}" height="${(56 * Math.sqrt(c / peak)).toFixed(1)}" rx="1"/>` : '').join('');
     return h('div', { class: 'spark' },
-      h('div', { '.innerHTML': `<svg viewBox="0 0 600 64" preserveAspectRatio="none" role="img" aria-label="Commits over time"><line x1="0" x2="600" y1="60.5" y2="60.5" style="stroke:var(--line-soft)"/><g style="fill:var(--c)">${bars}</g></svg>` }),
-      h('div', { class: 'cap' }, h('span', {}, fmt('month', a)), h('span', {}, 'commits per week'), h('span', {}, fmt('month', b))));
+      h('div', { '.innerHTML': `<svg viewBox="0 0 600 64" preserveAspectRatio="none" role="img" aria-label="${caption}"><line x1="0" x2="600" y1="60.5" y2="60.5" style="stroke:var(--line-soft)"/><g style="fill:var(--c)">${bars}</g></svg>` }),
+      h('div', { class: 'cap' }, h('span', {}, fmt('month', a)), h('span', {}, caption), h('span', {}, fmt('month', b))));
   }
 }
 
@@ -1021,7 +1069,9 @@ class ActivityHeatmap extends Base {
     .legend { display: flex; flex-wrap: wrap; gap: .6ex 2.4ex; font-size: .87rem; }
     .legend i { display: inline-block; inline-size: .8em; block-size: .8em; border-radius: 50%; background: var(--c); margin-inline-end: .5ex; vertical-align: -.02em; }
     .legend .ramp { display: inline-block; inline-size: 60px; block-size: .7em; border-radius: .3em; vertical-align: -.02em; margin-inline: .6ex;
-      background: linear-gradient(90deg, color-mix(in oklab, var(--a2) 15%, transparent), var(--a2)); }`;
+      background: linear-gradient(90deg, color-mix(in oklab, var(--a2) 15%, transparent), var(--a2)); }
+    .legend .web b { display: inline-block; inline-size: .8em; block-size: .8em; margin-inline-end: .5ex; vertical-align: -.02em; border-radius: .15em;
+      background: linear-gradient(var(--a2) 50%, var(--a1) 50%); }`;
 
   async init(m) {
     if (this.m) return;
@@ -1043,7 +1093,7 @@ class ActivityHeatmap extends Base {
   }
 
   legend() {
-    this.$('.legend').innerHTML = `<span>keyboard time<span class="ramp"></span>more</span><span class="hue-3" style="--c:var(--a3)"><i></i>commits</span>`
+    this.$('.legend').innerHTML = `<span>keyboard time<span class="ramp"></span>more</span><span class="web"><b></b>in the browser</span><span class="hue-3" style="--c:var(--a3)"><i></i>commits</span>`
       + KINDS.filter(k => k.id !== 'commits').map(k => `<span style="--c:var(--a${k.hue})"><i></i>${k.label.toLowerCase()}</span>`).join('');
   }
 
@@ -1086,7 +1136,7 @@ class ActivityHeatmap extends Base {
     g.fillStyle = col('--fg-dim');
     g.textBaseline = 'middle';
     for (const hr of [0, 6, 12, 18]) g.fillText(`${String(hr).padStart(2, '0')}`, 2, TOP + hr * ch + ch / 2);
-    const heat = col('--a2'), base = col('--line-soft'), peakCommits = Math.max(1, ...[...this.commits].filter(([d]) => d >= a && d <= b).map(([, c]) => c));
+    const heat = col('--a2'), web = col('--a1'), base = col('--line-soft'), peakCommits = Math.max(1, ...[...this.commits].filter(([d]) => d >= a && d <= b).map(([, c]) => c));
     for (let i = 0; i < n; i++) {
       const d = a + i, x0 = LBL + i * cw, p = pulse.get(d);
       for (let hr = 0; hr < 24; hr++) {
@@ -1094,6 +1144,11 @@ class ActivityHeatmap extends Base {
         g.globalAlpha = v ? .18 + .82 * Math.min(1, v) : .22;
         g.fillStyle = v ? heat : base;
         g.fillRect(x0 + .5, TOP + hr * ch + .5, cw - 1, ch - 1);
+        const share = v && Math.min(1, (p.web?.[hr] ?? 0) / p.hours[hr]);
+        if (share) {
+          g.fillStyle = web;
+          g.fillRect(x0 + .5, TOP + (hr + 1) * ch - .5 - (ch - 1) * share, cw - 1, (ch - 1) * share);
+        }
       }
       g.globalAlpha = 1;
       const c = this.commits.get(d);
@@ -1127,10 +1182,11 @@ class ActivityHeatmap extends Base {
     }
     this.$('.range').textContent = `${fmt('short', a)} – ${b === TODAY ? 'today' : fmt('short', b)}`;
     this.$('[name=next]').disabled = b >= TODAY;
-    const active = sum([...pulse].filter(([d]) => d >= a && d <= b).map(([, v]) => v.active ?? 0));
+    const days = [...pulse].filter(([d]) => d >= a && d <= b).map(([, v]) => v), active = sum(days.map(v => v.active ?? 0));
     const projects = new Map();
-    for (const [d, v] of pulse) if (d >= a && d <= b) for (const [id, pv] of Object.entries(v.projects ?? {})) projects.set(id, (projects.get(id) ?? 0) + pv.minutes);
-    const top = [...projects].sort((x, y) => y[1] - x[1]).slice(0, 3).map(([id, mins]) => `${this.m.byId.get(id)?.title ?? id} ${hours(mins)}`);
+    for (const v of days) for (const [id, pv] of Object.entries(v.projects ?? {})) { const p = this.m.byId.get(id)?.title ?? id; projects.set(p, (projects.get(p) ?? 0) + pv.minutes); }
+    const top = [...projects].sort((x, y) => y[1] - x[1]).slice(0, 3).map(([t, mins]) => `${t} ${hours(mins)}`);
+    this.emit('pulse-range', { a, b, days });
     const commits = sum([...this.commits].filter(([d]) => d >= a && d <= b).map(([, c]) => c));
     this.$('.stats').textContent = [active ? `${hours(active)} at the keyboard` : 'keyboard time appears once the pulse daemon reports in',
       top.length ? `most on ${top.join(', ')}` : null, plural(commits, 'commit')].filter(Boolean).join(' · ');
@@ -1148,12 +1204,78 @@ class ActivityHeatmap extends Base {
     const p = this.pulse.get(c.day), kinds = this.feed.get(c.day) ?? [], commits = this.commits.get(c.day) ?? 0;
     const lines = [`<b>${fmt('day', c.day)}</b>`];
     if (c.hr >= 0 && c.hr < 24 && p) lines.push(`${String(c.hr).padStart(2, '0')}:00 · ${Math.round(p.hours?.[c.hr] ?? 0)} min at the keyboard`);
-    if (p?.active) lines.push(`${hours(p.active)} that day${Object.keys(p.projects ?? {}).length ? `, on ${Object.entries(p.projects).sort((x, y) => y[1].minutes - x[1].minutes).slice(0, 3).map(([id]) => esc(this.m.byId.get(id)?.title ?? id)).join(', ')}` : ''}`);
+    if (c.hr >= 0 && c.hr < 24 && p?.web?.[c.hr]) lines.push(`<span class="dim">${Math.round(p.web[c.hr])} min of it in the browser</span>`);
+    if (p?.active) lines.push(`${hours(p.active)} that day${Object.keys(p.projects ?? {}).length ? `, on ${Object.entries(p.projects).sort((x, y) => y[1].minutes - x[1].minutes).slice(0, 3)
+      .map(([id, pv]) => esc(this.m.byId.get(id)?.title ?? id) + (tally(pv.activity, 2) ? ` <span class="dim">(${esc(tally(pv.activity, 2, DOING))})</span>` : '')).join(', ')}` : ''}`);
+    if (tally(p?.sites)) lines.push(`on the web: ${esc(tally(p.sites))}`);
     if (commits) lines.push(plural(commits, 'commit'));
     if (kinds.length) lines.push(Object.entries(kinds.reduce((o, k) => ({ ...o, [k]: (o[k] ?? 0) + 1 }), {})).map(([k, n]) => `${n} ${KIND[k]?.label.toLowerCase() ?? k}`).join(', '));
     if (lines.length === 1) lines.push('<span class="dim">nothing recorded</span>');
     const pr = this.$('.plot').getBoundingClientRect();
     this.tip.show([c.x + c.r.left - pr.left, this.TOP + c.r.top - pr.top, this.cw, 24 * this.ch], lines.join('<br>'));
+  }
+}
+
+/* ---------- activity: where the time went ---------- */
+
+// Totals for the days the heatmap shows: kinds of app, site categories in the browser, and projects with what was done on them.
+class PulseBreakdown extends Base {
+  static css = `:host { display: grid; gap: 2.4ex 3.2ex; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); align-items: start; }
+    :host([hidden]) { display: none; }
+    section { display: grid; gap: 1ex; }
+    h3 { margin: 0; font-size: .8rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--fg-strong); }
+    h3 small { font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--fg-dim); font-size: .85rem; margin-inline-start: .8ex; }
+    .stack { display: flex; gap: 2px; block-size: 1.2ex; border-radius: .6ex; overflow: hidden; background: var(--bg-sunk); }
+    .stack i { background: var(--c); min-inline-size: 2px; }
+    ul, ol { display: grid; gap: .5ex; margin: 0; padding: 0; list-style: none; font-size: .9rem; }
+    .keys { grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: .4ex 2ex; }
+    .keys li { display: flex; gap: .8ex; align-items: baseline; min-inline-size: 0; }
+    .keys li::before { content: ''; flex: none; inline-size: .7em; block-size: .7em; border-radius: .2em; background: var(--c); }
+    .keys .n, .projects .n { margin-inline-start: auto; color: var(--fg-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .projects li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .3ex 1.4ex; }
+    .projects a { color: var(--fg-strong); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .projects a:hover { text-decoration: underline; }
+    .projects .meter { grid-column: 1 / -1; block-size: 4px; border-radius: 2px; background: var(--bg-sunk); }
+    .projects .meter i { display: block; block-size: 100%; border-radius: inherit; background: var(--c); }
+    .projects .what { grid-column: 1 / -1; font-size: .82rem; color: var(--fg-dim); }
+    .rest { font-size: .85rem; color: var(--fg-dim); }`;
+
+  // A stacked bar and its key for a {name: minutes} tally; past six entries the smallest fold into "other".
+  shares(title, note, o) {
+    let rows = Object.entries(o).filter(([, v]) => v >= 1).sort((a, b) => b[1] - a[1]);
+    if (rows.length > 7) rows = [...rows.slice(0, 6), ['other', sum(rows.slice(6).map(r => r[1]))]];
+    if (!rows.length) return null;
+    const c = i => i < 4 ? `var(--a${i})` : `color-mix(in oklab, var(--a${i % 4}) 50%, var(--fg-dim))`, total = sum(rows.map(r => r[1]));
+    return h('section', {}, h('h3', {}, title, h('small', {}, note)),
+      h('div', { class: 'stack', role: 'img', 'aria-label': rows.map(([k, v]) => `${k} ${Math.round(100 * v / total)}%`).join(', ') },
+        rows.map(([k, v], i) => h('i', { style: `flex: ${v}; --c: ${c(i)}`, title: `${k} · ${hours(v)}` }))),
+      h('ul', { class: 'keys' }, rows.map(([k, v], i) => h('li', { style: `--c: ${c(i)}` }, k, h('span', { class: 'n' }, hours(v))))));
+  }
+
+  show({ days }, m) {
+    const add = (into, o, f = v => v) => { for (const [k, v] of Object.entries(o ?? {})) into[k] = (into[k] ?? 0) + f(v); return into; };
+    const apps = days.reduce((o, v) => add(o, v.apps), {}), sites = days.reduce((o, v) => add(o, v.sites), {});
+    const active = sum(days.map(v => v.active ?? 0)), web = sum(days.flatMap(v => v.web ?? []));
+    const byProject = new Map();
+    for (const v of days) for (const [id, pv] of Object.entries(v.projects ?? {})) {
+      const p = m.byId.get(id) ?? { id, title: id, hue: 0 }, t = byProject.get(p) ?? byProject.set(p, { minutes: 0, activity: {} }).get(p);
+      t.minutes += pv.minutes ?? 0;
+      add(t.activity, pv.activity);
+    }
+    const top = [...byProject].sort((a, b) => b[1].minutes - a[1].minutes), named = sum(top.map(([, t]) => t.minutes)), peak = top[0]?.[1].minutes ?? 1;
+    this.hidden = !active;
+    if (!active) return this.shadowRoot.replaceChildren();
+    this.shadowRoot.replaceChildren(...[
+      this.shares('Apps', `${hours(active)} at the keyboard`, apps),
+      this.shares('On the web', web >= 1 ? `${hours(web)} in the browser` : '', sites),
+      top.length ? h('section', {}, h('h3', {}, 'Projects', h('small', {}, `${hours(named)} on named projects`)),
+        h('ol', { class: 'projects' }, top.slice(0, 8).map(([p, t]) => h('li', { style: `--c: var(--a${p.hue})` },
+          m.byId.has(p.id) ? h('a', { href: `#projects/${encodeURIComponent(p.id)}` }, p.title) : h('span', {}, p.title),
+          h('span', { class: 'n' }, hours(t.minutes)),
+          h('div', { class: 'meter' }, h('i', { style: `inline-size: ${(100 * t.minutes / peak).toFixed(1)}%` })),
+          tally(t.activity) ? h('div', { class: 'what' }, tally(t.activity, 4, DOING)) : null))),
+        active - named >= 30 ? h('p', { class: 'rest' }, `${hours(active - named)} on things not named here: private repos, other people's pages, or nothing in particular.`) : null) : null,
+    ].filter(Boolean));
   }
 }
 
@@ -1239,7 +1361,8 @@ class ActivityFeed extends Base {
     if (!v?.active) return;
     const top = Object.entries(v.projects ?? {}).sort((a, b) => b[1].minutes - a[1].minutes).slice(0, 3)
       .map(([id, p]) => `${this.m.byId.get(id)?.title ?? id} ${hours(p.minutes)}`);
-    li.querySelector('h3').append(h('small', { class: 'digest' }, icon('pulse'), ` ${hours(v.active)} at the keyboard${top.length ? `: ${top.join(', ')}` : ''}`));
+    const web = sum(v.web ?? []);
+    li.querySelector('h3').append(h('small', { class: 'digest' }, icon('pulse'), ` ${hours(v.active)} at the keyboard${top.length ? `: ${top.join(', ')}` : ''}${web >= 1 ? `; ${hours(web)} of it in the browser` : ''}`));
   }
 
   add(entries) {
@@ -1420,7 +1543,7 @@ class MediaViewer extends Base {
 }
 
 for (const [name, C] of Object.entries({ 'x-icon': XIcon, 'tab-frame': TabFrame, 'bracket-card': BracketCard, 'theme-toggle': ThemeToggle, 'chip-set': ChipSet,
-  'project-gantt': ProjectGantt, 'project-detail': ProjectDetail, 'activity-heatmap': ActivityHeatmap, 'activity-feed': ActivityFeed,
+  'project-gantt': ProjectGantt, 'project-detail': ProjectDetail, 'activity-heatmap': ActivityHeatmap, 'pulse-breakdown': PulseBreakdown, 'activity-feed': ActivityFeed,
   'media-wall': MediaWall, 'media-viewer': MediaViewer })) customElements.define(name, C);
 
 /* ---------- page ---------- */
@@ -1434,7 +1557,7 @@ function projectCard(p) {
     p.summary ? h('div', { class: 'md', '.innerHTML': md(p.summary) }) : h('p', { class: 'dim' }, 'No description yet.'),
     h('div', { class: 'card-meta' },
       h('span', { class: `status ${p.status === 'active' ? 'active' : p.status === 'in progress' ? 'progress' : ''}` }, statusText),
-      h('span', {}, period(p.first, p.last)), p.commits ? h('span', {}, plural(p.commits, 'commit')) : null),
+      h('span', {}, period(p.first, p.last)), p.commits ? h('span', {}, plural(p.commits, 'commit')) : null, p.time >= 30 ? h('span', {}, `${hours(p.time)} tracked`) : null),
     p.tags?.length ? h('ul', { class: 'tags' }, p.tags.map(t => h('li', {}, t))) : null,
     p.demo?.path ? h('div', { class: 'card-actions' }, h('a', { class: 'btn', href: `#demos/${p.demo.id}` }, icon('play'), 'Play')) : null);
 }
@@ -1457,7 +1580,7 @@ function demoCard(d) {
 function renderProjects() {
   const ps = m.projects, years = new Date().getFullYear() - new Date(Math.min(...ps.map(p => p.first)) * DAY).getUTCFullYear();
   $('#project-stats').innerHTML = [`<span><b>${ps.filter(p => p.group !== 'forks').length}</b> projects</span>`, `<span><b>${sum(ps.map(p => p.commits)).toLocaleString()}</b> commits</span>`,
-    `<span><b>${years}</b> years</span>`, `<span><b>${ps.filter(p => p.status === 'active' || p.status === 'in progress').length}</b> on the go right now</span>`].join('');
+    `<span><b>${years}</b> years</span>`, ...(sum(ps.map(p => p.time)) >= 60 ? [`<span><b>${Math.round(sum(ps.map(p => p.time)) / 60).toLocaleString()} h</b> tracked</span>`] : []), `<span><b>${ps.filter(p => p.status === 'active' || p.status === 'in progress').length}</b> on the go right now</span>`].join('');
   $('project-gantt').model = m;
   const cards = $('#project-cards'), groups = $('#project-groups'), search = $('#project-search');
   const visible = [...ps].filter(p => p.group !== 'forks').sort((a, b) => b.last - a.last);
@@ -1586,6 +1709,7 @@ async function route() {
 renderProjects();
 renderAbout();
 $('#demo-cards').replaceChildren(...m.demos.map(demoCard));
+$('activity-heatmap').addEventListener('pulse-range', e => $('pulse-breakdown').show(e.detail, m));
 addEventListener('hashchange', route);
 route();
 presence();
