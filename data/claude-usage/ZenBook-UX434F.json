@@ -1,0 +1,108 @@
+{
+ "generated": "2026-11-14T23:00:41Z",
+ "machine": "ZenBook-UX434F",
+ "publish": [
+  "sessions",
+  "tokens"
+ ],
+ "days": {
+  "2026-11-06": {
+   "sessions": 1,
+   "tokens": {
+    "in": 48,
+    "out": 45924,
+    "cache_read": 1520281,
+    "cache_write": 111017
+   },
+   "models": {
+    "claude-opus-5-5": 45972
+   }
+  },
+  "2026-11-08": {
+   "sessions": 1,
+   "tokens": {
+    "in": 66,
+    "out": 30696,
+    "cache_read": 1881011,
+    "cache_write": 128639
+   },
+   "models": {
+    "claude-sonnet-5-5": 30762
+   }
+  },
+  "2026-11-10": {
+   "sessions": 1,
+   "tokens": {
+    "in": 138,
+    "out": 117318,
+    "cache_read": 8843279,
+    "cache_write": 321787
+   },
+   "models": {
+    "claude-sonnet-5-5": 117456
+   }
+  },
+  "2026-11-11": {
+   "sessions": 3,
+   "tokens": {
+    "in": 340,
+    "out": 449184,
+    "cache_read": 35103588,
+    "cache_write": 644742
+   },
+   "models": {
+    "claude-sonnet-5-5": 449524
+   }
+  },
+  "2026-11-12": {
+   "sessions": 2,
+   "tokens": {
+    "in": 320,
+    "out": 280202,
+    "cache_read": 34169171,
+    "cache_write": 600891
+   },
+   "models": {
+    "claude-opus-5-5": 280522
+   }
+  },
+  "2026-11-13": {
+   "sessions": 3,
+   "tokens": {
+    "in": 788,
+    "out": 825096,
+    "cache_read": 125243017,
+    "cache_write": 2737111
+   },
+   "models": {
+    "claude-fable-5-2": 518317,
+    "claude-opus-5-5": 307567
+   }
+  },
+  "2026-11-14": {
+   "sessions": 4,
+   "tokens": {
+    "in": 756,
+    "out": 438509,
+    "cache_read": 103982849,
+    "cache_write": 3253459
+   },
+   "models": {
+    "claude-opus-5-5": 270576,
+    "claude-fable-5-2": 157470,
+    "claude-haiku-5-5": 11219
+   },
+   "repos": {
+    "un1tz3r0/un1tz3r0.github.io": {
+     "sessions": 1,
+     "tokens": {
+      "in": 14,
+      "out": 2792,
+      "cache_read": 352427,
+      "cache_write": 32538
+     }
+    }
+   }
+  }
+ }
+}
