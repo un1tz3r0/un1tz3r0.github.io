@@ -35,7 +35,7 @@
    "projects": {}
   },
   "2026-11-14": {
-   "active": 1037,
+   "active": 1069,
    "hours": [
     20,
     60,
@@ -60,10 +60,10 @@
     38,
     29,
     19,
-    0
+    32
    ],
    "apps": {
-    "other": 1037
+    "other": 1069
    },
    "projects": {
     "raspi-tools": {
