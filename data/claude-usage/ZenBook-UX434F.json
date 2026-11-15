@@ -1,5 +1,5 @@
 {
- "generated": "2026-11-15T00:43:33Z",
+ "generated": "2026-11-15T01:43:33Z",
  "machine": "ZenBook-UX434F",
  "publish": [
   "sessions",
@@ -82,14 +82,14 @@
   "2026-11-14": {
    "sessions": 4,
    "tokens": {
-    "in": 776,
-    "out": 441785,
-    "cache_read": 104484385,
-    "cache_write": 3259473
+    "in": 782,
+    "out": 442696,
+    "cache_read": 104905888,
+    "cache_write": 3430442
    },
    "models": {
     "claude-opus-5-5": 270576,
-    "claude-fable-5-2": 160766,
+    "claude-fable-5-2": 161683,
     "claude-haiku-5-5": 11219
    },
    "repos": {
