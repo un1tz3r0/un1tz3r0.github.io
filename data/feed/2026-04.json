@@ -1,0 +1,5 @@
+{"month": "2026-04", "entries": [
+{"id":"gh:un1tz3r0/diffusers:2026-04-27","time":"2026-04-27T19:56:12Z","kind":"commits","source":"github","repo":"un1tz3r0/diffusers","url":"https://github.com/un1tz3r0/diffusers/commit/0f1abc4ae8b0eb2a3b40e82a310507281144c423","count":2,"claude":2,"items":["[agents docs] update modular.md (#13568)","[agents docs] add pipelines.md etc (#13567)"]},
+{"id":"gh:un1tz3r0/diffusers:2026-04-16","time":"2026-04-16T23:41:48Z","kind":"commits","source":"github","repo":"un1tz3r0/diffusers","url":"https://github.com/un1tz3r0/diffusers/commit/3a7ecb19fc1d2b8448f35225a5ac94db932e76e6","count":1,"claude":1,"items":["[agents docs] add float64 gotcha (#13472)"]},
+{"id":"gh:un1tz3r0/diffusers:2026-04-02","time":"2026-04-02T20:34:45Z","kind":"commits","source":"github","repo":"un1tz3r0/diffusers","url":"https://github.com/un1tz3r0/diffusers/commit/cf6af6b4f8f09278ae801a27aea9f3fbda81409a","count":1,"claude":1,"items":["[docs] add auto docstring and parameter templates documentation for m… (#13382)"]}
+]}

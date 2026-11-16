@@ -1,119 +1,6 @@
 {
- "generated": "2026-11-15T16:27:57Z",
+ "generated": "2026-11-16T19:43:30Z",
  "projects": {
-  "chan_01FKDa5Rn5Hi2cYoGv1SCGAR": {
-   "name": "un1tz3r0.github.io",
-   "site": [
-    "site"
-   ],
-   "repos": [
-    "un1tz3r0/un1tz3r0.github.io"
-   ],
-   "sessions": 4,
-   "commits": 10,
-   "first": "2026-10-21",
-   "last": "2026-11-12",
-   "prs": [
-    {
-     "repo": "un1tz3r0/un1tz3r0.github.io",
-     "number": 7,
-     "title": "Show browser activity from the pulse extension on the site",
-     "url": "https://github.com/un1tz3r0/un1tz3r0.github.io/pull/7",
-     "state": "merged",
-     "created": "2026-11-12",
-     "merged": "2026-11-13",
-     "commits": 1,
-     "files": 2,
-     "additions": 173,
-     "deletions": 42,
-     "by": "un1tz3r0"
-    },
-    {
-     "repo": "un1tz3r0/un1tz3r0.github.io",
-     "number": 6,
-     "title": "Recreate the pulse panel icon and settings window lost from ece6868",
-     "url": "https://github.com/un1tz3r0/un1tz3r0.github.io/pull/6",
-     "state": "merged",
-     "created": "2026-11-08",
-     "merged": "2026-11-08",
-     "commits": 1,
-     "files": 13,
-     "additions": 1230,
-     "deletions": 37,
-     "by": "un1tz3r0"
-    },
-    {
-     "repo": "un1tz3r0/un1tz3r0.github.io",
-     "number": 5,
-     "title": "Add the sitekit pulse browser extension",
-     "url": "https://github.com/un1tz3r0/un1tz3r0.github.io/pull/5",
-     "state": "merged",
-     "created": "2026-11-03",
-     "merged": "2026-11-03",
-     "commits": 3,
-     "files": 15,
-     "additions": 886,
-     "deletions": 27,
-     "by": "un1tz3r0"
-    },
-    {
-     "repo": "un1tz3r0/un1tz3r0.github.io",
-     "number": 4,
-     "title": "Count Claude's commits and link Claude projects, sessions and PRs",
-     "url": "https://github.com/un1tz3r0/un1tz3r0.github.io/pull/4",
-     "state": "merged",
-     "created": "2026-11-03",
-     "merged": "2026-11-03",
-     "commits": 1,
-     "files": 8,
-     "additions": 459,
-     "deletions": 39,
-     "by": "un1tz3r0"
-    },
-    {
-     "repo": "un1tz3r0/un1tz3r0.github.io",
-     "number": 3,
-     "title": "Build the Overlay Studio demo from its repo",
-     "url": "https://github.com/un1tz3r0/un1tz3r0.github.io/pull/3",
-     "state": "merged",
-     "created": "2026-11-03",
-     "merged": "2026-11-03",
-     "commits": 2,
-     "files": 1,
-     "additions": 2,
-     "deletions": 1,
-     "by": "un1tz3r0"
-    },
-    {
-     "repo": "un1tz3r0/un1tz3r0.github.io",
-     "number": 2,
-     "title": "Add Overlay Studio to the demos",
-     "url": "https://github.com/un1tz3r0/un1tz3r0.github.io/pull/2",
-     "state": "merged",
-     "created": "2026-11-02",
-     "merged": "2026-11-03",
-     "commits": 1,
-     "files": 5,
-     "additions": 2511,
-     "deletions": 7,
-     "by": "un1tz3r0"
-    },
-    {
-     "repo": "un1tz3r0/un1tz3r0.github.io",
-     "number": 1,
-     "title": "Rebuild the site around projects, activity, demos and a gallery",
-     "url": "https://github.com/un1tz3r0/un1tz3r0.github.io/pull/1",
-     "state": "merged",
-     "created": "2026-10-21",
-     "merged": "2026-10-28",
-     "commits": 3,
-     "files": 0,
-     "additions": 0,
-     "deletions": 0,
-     "by": "un1tz3r0"
-    }
-   ]
-  },
   "chan_0187qNhzrzSvSUUv8GhrzmWw": {
    "site": [
     "vcvopxyz"
@@ -121,11 +8,24 @@
    "repos": [
     "un1tz3r0/vcvopxyz"
    ],
-   "sessions": 12,
-   "commits": 5,
+   "sessions": 13,
+   "commits": 7,
    "first": "2026-10-09",
-   "last": "2026-11-08",
+   "last": "2026-11-15",
    "prs": [
+    {
+     "repo": "un1tz3r0/vcvopxyz",
+     "number": 54,
+     "title": "Per-pattern mutes and the project-mode copy cycle (2.1.17)",
+     "url": "https://github.com/un1tz3r0/vcvopxyz/pull/54",
+     "state": "open",
+     "created": "2026-11-15",
+     "commits": 2,
+     "files": 9,
+     "additions": 132,
+     "deletions": 39,
+     "by": "un1tz3r0"
+    },
     {
      "repo": "un1tz3r0/vcvopxyz",
      "number": 53,
@@ -430,6 +330,119 @@
      "files": 26,
      "additions": 875,
      "deletions": 1,
+     "by": "un1tz3r0"
+    }
+   ]
+  },
+  "chan_01FKDa5Rn5Hi2cYoGv1SCGAR": {
+   "name": "un1tz3r0.github.io",
+   "site": [
+    "site"
+   ],
+   "repos": [
+    "un1tz3r0/un1tz3r0.github.io"
+   ],
+   "sessions": 4,
+   "commits": 10,
+   "first": "2026-10-21",
+   "last": "2026-11-12",
+   "prs": [
+    {
+     "repo": "un1tz3r0/un1tz3r0.github.io",
+     "number": 7,
+     "title": "Show browser activity from the pulse extension on the site",
+     "url": "https://github.com/un1tz3r0/un1tz3r0.github.io/pull/7",
+     "state": "merged",
+     "created": "2026-11-12",
+     "merged": "2026-11-13",
+     "commits": 1,
+     "files": 2,
+     "additions": 173,
+     "deletions": 42,
+     "by": "un1tz3r0"
+    },
+    {
+     "repo": "un1tz3r0/un1tz3r0.github.io",
+     "number": 6,
+     "title": "Recreate the pulse panel icon and settings window lost from ece6868",
+     "url": "https://github.com/un1tz3r0/un1tz3r0.github.io/pull/6",
+     "state": "merged",
+     "created": "2026-11-08",
+     "merged": "2026-11-08",
+     "commits": 1,
+     "files": 13,
+     "additions": 1230,
+     "deletions": 37,
+     "by": "un1tz3r0"
+    },
+    {
+     "repo": "un1tz3r0/un1tz3r0.github.io",
+     "number": 5,
+     "title": "Add the sitekit pulse browser extension",
+     "url": "https://github.com/un1tz3r0/un1tz3r0.github.io/pull/5",
+     "state": "merged",
+     "created": "2026-11-03",
+     "merged": "2026-11-03",
+     "commits": 3,
+     "files": 15,
+     "additions": 886,
+     "deletions": 27,
+     "by": "un1tz3r0"
+    },
+    {
+     "repo": "un1tz3r0/un1tz3r0.github.io",
+     "number": 4,
+     "title": "Count Claude's commits and link Claude projects, sessions and PRs",
+     "url": "https://github.com/un1tz3r0/un1tz3r0.github.io/pull/4",
+     "state": "merged",
+     "created": "2026-11-03",
+     "merged": "2026-11-03",
+     "commits": 1,
+     "files": 8,
+     "additions": 459,
+     "deletions": 39,
+     "by": "un1tz3r0"
+    },
+    {
+     "repo": "un1tz3r0/un1tz3r0.github.io",
+     "number": 3,
+     "title": "Build the Overlay Studio demo from its repo",
+     "url": "https://github.com/un1tz3r0/un1tz3r0.github.io/pull/3",
+     "state": "merged",
+     "created": "2026-11-03",
+     "merged": "2026-11-03",
+     "commits": 2,
+     "files": 1,
+     "additions": 2,
+     "deletions": 1,
+     "by": "un1tz3r0"
+    },
+    {
+     "repo": "un1tz3r0/un1tz3r0.github.io",
+     "number": 2,
+     "title": "Add Overlay Studio to the demos",
+     "url": "https://github.com/un1tz3r0/un1tz3r0.github.io/pull/2",
+     "state": "merged",
+     "created": "2026-11-02",
+     "merged": "2026-11-03",
+     "commits": 1,
+     "files": 5,
+     "additions": 2511,
+     "deletions": 7,
+     "by": "un1tz3r0"
+    },
+    {
+     "repo": "un1tz3r0/un1tz3r0.github.io",
+     "number": 1,
+     "title": "Rebuild the site around projects, activity, demos and a gallery",
+     "url": "https://github.com/un1tz3r0/un1tz3r0.github.io/pull/1",
+     "state": "merged",
+     "created": "2026-10-21",
+     "merged": "2026-10-28",
+     "commits": 3,
+     "files": 582,
+     "additions": 12135,
+     "deletions": 274,
      "by": "un1tz3r0"
     }
    ]
@@ -744,6 +757,7 @@
   "repos": [
    "un1tz3r0/blenderlauncher",
    "un1tz3r0/controlnetvideo",
+   "un1tz3r0/diffusers",
    "un1tz3r0/geo",
    "un1tz3r0/oeisrlvr",
    "un1tz3r0/raspi-tools",
@@ -751,12 +765,13 @@
    "un1tz3r0/vcvmapper",
    "un1tz3r0/vcvopxyz",
    "un1tz3r0/vcvplugin-installer",
+   "un1tz3r0/vfbd3",
    "un1tz3r0/video-overlay-animation-studio"
   ],
-  "sessions": 20,
-  "commits": 52,
+  "sessions": 22,
+  "commits": 54,
   "first": "2025-09-04",
-  "last": "2026-11-15",
+  "last": "2026-11-16",
   "prs": [
    {
     "repo": "un1tz3r0/vcvmapper",
