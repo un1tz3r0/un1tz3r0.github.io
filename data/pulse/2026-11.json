@@ -209,7 +209,7 @@
    }
   },
   "2026-11-17": {
-   "active": 106,
+   "active": 117,
    "hours": [
     5,
     4,
@@ -222,8 +222,8 @@
     0,
     7,
     18,
-    30,
-    0,
+    39,
+    2,
     0,
     0,
     0,
@@ -238,15 +238,15 @@
    ],
    "apps": {
     "browser": 65,
-    "other": 41
+    "other": 52
    },
    "projects": {
     "un1tz3r0.github.io": {
-     "minutes": 3,
-     "files": 4,
+     "minutes": 14,
+     "files": 6,
      "ext": {
-      ".html": 2,
-      ".json": 2
+      ".json": 4,
+      ".html": 2
      },
      "claude": {
       "conversations": 1,
