@@ -1,19 +1,20 @@
 {
- "updated": "2026-11-16T19:44:32Z",
+ "updated": "2026-11-17T09:28:25Z",
  "months": [
   {
    "month": "2026-11",
-   "count": 32,
+   "count": 35,
    "kinds": {
-    "commits": 31,
+    "commits": 34,
     "status": 1
    }
   },
   {
    "month": "2026-10",
-   "count": 57,
+   "count": 59,
    "kinds": {
-    "commits": 57
+    "commits": 57,
+    "lj": 2
    }
   },
   {
@@ -47,23 +48,26 @@
   },
   {
    "month": "2026-05",
-   "count": 9,
+   "count": 10,
    "kinds": {
-    "commits": 9
+    "commits": 9,
+    "lj": 1
    }
   },
   {
    "month": "2026-04",
-   "count": 3,
+   "count": 4,
    "kinds": {
-    "commits": 3
+    "commits": 3,
+    "lj": 1
    }
   },
   {
    "month": "2026-03",
-   "count": 5,
+   "count": 7,
    "kinds": {
-    "commits": 5
+    "commits": 5,
+    "lj": 2
    }
   },
   {
@@ -74,23 +78,47 @@
    }
   },
   {
-   "month": "2025-10",
+   "month": "2026-01",
+   "count": 1,
+   "kinds": {
+    "lj": 1
+   }
+  },
+  {
+   "month": "2025-12",
    "count": 2,
    "kinds": {
+    "lj": 2
+   }
+  },
+  {
+   "month": "2025-10",
+   "count": 3,
+   "kinds": {
+    "lj": 1,
     "commits": 2
    }
   },
   {
    "month": "2025-09",
-   "count": 1,
+   "count": 7,
    "kinds": {
-    "commits": 1
+    "commits": 1,
+    "lj": 6
+   }
+  },
+  {
+   "month": "2025-08",
+   "count": 6,
+   "kinds": {
+    "lj": 6
    }
   },
   {
    "month": "2025-07",
-   "count": 1,
+   "count": 3,
    "kinds": {
+    "lj": 2,
     "commits": 1
    }
   },
@@ -208,9 +236,9 @@
   },
   {
    "month": "2023-07",
-   "count": 2,
+   "count": 3,
    "kinds": {
-    "commits": 2
+    "commits": 3
    }
   },
   {
