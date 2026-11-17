@@ -19,6 +19,8 @@ SITE_TOML = Path(__file__).resolve().parent.parent.parent / 'site.toml'
 
 
 class NoDaemon:
+    up = False
+
     def __init__(self, on_event, on_update=None):
         pass
 
@@ -132,3 +134,20 @@ def test_an_update_reopens_the_window_only_without_unsaved_edits(env, monkeypatc
     w.github['user'].set_text('changed')
     w.updated('pulse-v1.2.0')
     assert restarted == ['pulse-v1.1.0'] and 'Save, then reopen' in w.toasts_seen[-1]
+
+
+def test_saving_a_new_site_checkout_opens_its_site_toml(env):
+    w = window(env, config(env).replace(str(env / 'site'), str(env / 'missing')))
+    assert w.site_cfg is None
+    w.stack.set_visible_child_name('publishing')
+    w.site['site'].set_text(str(env / 'site'))
+    w.save()
+    assert w.site_cfg is not None and w.github['user'].get_text() == 'un1tz3r0'
+    assert w.stack.get_visible_child_name() == 'publishing'
+
+
+def test_saving_without_a_daemon_says_so_plainly(env):
+    w = window(env, config(env))
+    w.limits['max_idle'].set_text('90d')
+    w.save()
+    assert w.toasts_seen == ['Saved 1 change; they apply when the daemon starts']
