@@ -622,12 +622,19 @@ class Window(Adw.ApplicationWindow):
             conversations.KEY_FILE.chmod(0o600)
             conversations.KEY_FILE.write_text(key + '\n')
             self.key.set_text('')
+        old_site = self.site_path
         self.cfg = load_toml(self.path)
         self.site_cfg = load_toml(self.site_path) if self.site_path.exists() else None
-        if changes:
+        if expand(self.cfg.get('site', '~/.local/share/sitekit/site')) / 'site.toml' != old_site:
+            page = self.stack.get_visible_child_name()     # the Site tab edits the checkout just saved
+            self.build()
+            self.stack.set_visible_child_name(page)
+        restarting = bool(changes) and self.link.up
+        if restarting:
             self.send('reload')
         n = len(changes) + len(site) + bool(key)
-        self.toast(f'Saved {n} change{"s" * (n != 1)}' + ('; the daemon is restarting' if changes else '')
+        self.toast(f'Saved {n} change{"s" * (n != 1)}'
+                   + ('; the daemon is restarting' if restarting else '; they apply when the daemon starts' if changes else '')
                    + ('; commit site.toml from the Site tab' if site else ''))
 
     def post(self) -> None:

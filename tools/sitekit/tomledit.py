@@ -51,6 +51,20 @@ def key_of(line: str) -> str | None:
         return None
 
 
+def trailing_comment(line: str) -> str:
+    """The `  # comment` after a key's value, quotes and all: it starts at the first # where the text before it parses
+    on its own, so a # inside a string value isn't mistaken for one."""
+    for i, ch in enumerate(line):
+        if ch != '#':
+            continue
+        try:
+            tomllib.loads(line[:i])
+        except tomllib.TOMLDecodeError:
+            continue
+        return line[len(line[:i].rstrip()):]
+    return ''
+
+
 class Doc:
     def __init__(self, text: str):
         self.lines = text.splitlines()
@@ -122,8 +136,7 @@ class Doc:
         line = f'{key(k)} = {dump(value)}'
         if (i := self.find(table, k)) is not None:
             end = self.extent(i)
-            comment = re.search(r'(\s+#[^"\']*)$', self.lines[end - 1])
-            self.lines[i:end] = [line + (comment[1] if comment and end == i + 1 else '')]
+            self.lines[i:end] = [line + (trailing_comment(self.lines[i]) if end == i + 1 else '')]
             return
         if (sp := self.span(table)) is None:
             self.lines += ['', f'[{table}]', line]
