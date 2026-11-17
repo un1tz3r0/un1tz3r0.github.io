@@ -127,6 +127,30 @@ def test_a_release_that_fails_its_check_is_never_switched_to(installed):
     assert 'check failed' in w.l.bad_file.read_text() and any('failed' in x for x in log.lines)
 
 
+def test_a_failed_pip_install_is_retried_not_marked_bad(installed, monkeypatch):
+    w = installed
+    path = w.remote / 'tools' / 'pyproject.toml'
+    path.write_text(path.read_text().replace('"yarl>=1.9"', '"yarl>=1.9", "rich>=13"'))
+    git(w.remote, 'commit', '-qam', 'deps')
+    tag(w, 'pulse-v1.1.0')
+
+    async def offline(layout, reqs):
+        raise RuntimeError('pip install: network unreachable')
+    monkeypatch.setattr(update, 'pip_install', offline)
+    assert run(update.update(w.l, w.config, log, current='pulse-v1.0.0')) is None
+    assert 'pulse-v1.1.0' not in w.l.bad() and any('will retry' in x for x in log.lines)
+    monkeypatch.setattr(update, 'pip_install', lambda layout, reqs: asyncio.sleep(0))
+    assert run(update.update(w.l, w.config, log, current='pulse-v1.0.0')) == 'pulse-v1.1.0'
+
+
+def test_install_without_a_config_marks_nothing(world):
+    tag(world, 'pulse-v1.0.0')
+    world.config.unlink()
+    with pytest.raises(RuntimeError, match='no config'):
+        run(update.bootstrap(world.l, world.url, world.config, log))
+    assert world.l.bad() == set() and not world.l.repo.exists()
+
+
 def test_a_tag_off_master_is_refused(installed):
     w = installed
     git(w.remote, 'switch', '-qc', 'side')
