@@ -8,7 +8,7 @@ from datetime import date, datetime
 
 import pytest
 
-from sitekit import claude, pulse
+from sitekit import pulse
 
 
 def mode(path):
@@ -125,40 +125,20 @@ def test_bad_config_does_not_load(tmp_path, discover):
 # ── publish ──────────────────────────────────────────────────────────────────────────────────────────────────────
 
 
-def published(tmp_path, monkeypatch, extra='', setup=lambda db: None):
-    """Run publish() into a local git checkout with pushing off, and return today's published record."""
-    monkeypatch.setattr(claude, 'TRANSCRIPTS', tmp_path / 'no-transcripts')
-    site = tmp_path / 'site'
-    site.mkdir(exist_ok=True)
-    subprocess.run(['git', 'init', '-q', str(site)], check=True)
-    subprocess.run(['git', '-C', str(site), 'config', 'user.email', 't@t'], check=True)
-    subprocess.run(['git', '-C', str(site), 'config', 'user.name', 't'], check=True)
-    config = tmp_path / 'pulse.toml'
-    config.write_text(f'site = "{site}"\ndb = "{tmp_path / "p.sqlite3"}"\npush = false\n'
-                      f'[discover]\nenabled = false\n{extra}\n')
-    s = pulse.Settings.load(config)
-    db = pulse.open_db(s.db)
-    setup(db)
-    db.commit()
-    asyncio.run(pulse.publish(s, db))
-    path = site / 'data' / 'pulse' / f'{date.today():%Y-%m}.json'
-    return json.loads(path.read_text())['days'].get(date.today().isoformat()) if path.exists() else None
-
-
 def midnight():
     return datetime.combine(date.today(), datetime.min.time()).timestamp()
 
 
-def test_publish_adds_browsing_the_rules_allow(tmp_path, monkeypatch):
+def test_publish_adds_browsing_the_rules_allow(published):
     def setup(db):
         db.execute("insert into pages (start, end, url, title) values (?, ?, 'https://github.com/me/x', 'x')", (midnight() + 60, midnight() + 660))
         db.execute("insert into pages (start, end, url, title) values (?, ?, 'https://mail.example/', 'inbox')", (midnight() + 700, midnight() + 900))
-    day = published(tmp_path, monkeypatch, '[browser]\npublish = [{ match = "github.com", level = "page" }]', setup)
+    day = published('[browser]\npublish = [{ match = "github.com", level = "page" }]', setup)
     assert day['domains'] == {'github.com': 10} and day['pages'] == [{'url': 'https://github.com/me/x', 'title': 'x', 'minutes': 10}]
     assert 'mail.example' not in json.dumps(day) and day['active'] == 0
 
 
-def test_publish_without_rules_adds_nothing(tmp_path, monkeypatch):
+def test_publish_without_rules_adds_nothing(published):
     def setup(db):
         db.execute("insert into pages (start, end, url) values (?, ?, 'https://github.com/me/x')", (midnight() + 60, midnight() + 660))
-    assert published(tmp_path, monkeypatch, setup=setup) is None
+    assert published(setup=setup) is None

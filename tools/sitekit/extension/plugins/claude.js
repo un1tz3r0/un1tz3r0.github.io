@@ -10,25 +10,28 @@ export default {
 
   extract: () => {
     const href = sel => document.querySelector(sel)?.getAttribute('href') ?? null;
-    return { code: href('a[href*="/code/project/chan_"]'), project: href('a[href^="/project/"]') };
+    const text = document.querySelector('main')?.innerText?.replace(/\s+/g, ' ').trim().slice(0, 4000) || null;
+    return { code: href('a[href*="/code/project/chan_"]'), project: href('a[href^="/project/"]'), text };
   },
 
-  async classify({ url, title, data }) {
+  async classify({ url, title, data }, { config }) {
     const path = url.pathname, id = (re, s = path) => s?.match(re)?.[1];
+    // The opening of a conversation, kept only when the daemon summarises claude.ai conversations ([claude] web).
+    const excerpt = config.excerpts && data?.text ? { excerpt: data.text } : {};
     const chan = id(/\/code\/project\/(chan_\w+)/);
     if (chan) return { project: { id: `claude-code:${chan}`, type: 'claude-code', name: name(title) }, activity: 'claude-code',
                        site: 'ai', meta: { thread: url.searchParams.get('thread') } };
     const session = id(/\/code\/(session_\w+)/);
     if (session) {
       const parent = id(/(chan_\w+)/, data?.code);
-      return { project: parent ? { id: `claude-code:${parent}`, type: 'claude-code' } : null, activity: 'claude-code', site: 'ai', meta: { session } };
+      return { project: parent ? { id: `claude-code:${parent}`, type: 'claude-code' } : null, activity: 'claude-code', site: 'ai', meta: { session, ...excerpt } };
     }
     const proj = id(/^\/project\/([\w-]+)/);
     if (proj) return { project: { id: `claude:${proj}`, type: 'claude', name: name(title) }, activity: 'chat', site: 'ai' };
     const chat = id(/^\/chat\/([\w-]+)/);
     if (chat) {
       const parent = chatProject.get(chat) ?? id(/^\/project\/([\w-]+)/, data?.project);
-      return { project: parent ? { id: `claude:${parent}`, type: 'claude' } : null, activity: 'chat', site: 'ai', meta: { conversation: chat } };
+      return { project: parent ? { id: `claude:${parent}`, type: 'claude' } : null, activity: 'chat', site: 'ai', meta: { conversation: chat, ...excerpt } };
     }
     return { activity: 'chat', site: 'ai' };
   },

@@ -5,6 +5,14 @@ description = "Data tooling for un1tz3r0.github.io"
 requires-python = ">=3.11"
 dependencies = ["aiohttp>=3.9", "yarl>=1.9"]
 
+[project.optional-dependencies]
+# For the pulse daemon on your machine; the daily workflow doesn't need them. anthropic writes [claude] summaries;
+# browserprofile reads browser history for [browser] history = true, and needs Python 3.13.
+pulse = [
+    "anthropic>=1.0",
+    'browserprofile @ git+https://github.com/un1tz3r0/browserprofile ; python_version >= "3.13"',
+]
+
 [project.scripts]
 sitekit = "sitekit.__main__:main"
 

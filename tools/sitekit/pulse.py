@@ -26,7 +26,7 @@ from datetime import date, datetime, timedelta
 from fnmatch import fnmatch
 from pathlib import Path
 
-from . import browsing, claude
+from . import browsing, claude, conversations
 from .common import expand, load_toml, now, read_json, run, write_json
 
 CONFIG = expand('~/.config/sitekit/pulse.toml')
@@ -75,6 +75,7 @@ class Settings:
     max_idle: int = 0
     max_age: int = 0
     skipped: dict[Path, str] = field(default_factory=dict)     # why the last scan left a repo out
+    claude: dict = field(default_factory=dict)                  # [claude]: see conversations.py
 
     @classmethod
     def load(cls, path: Path = CONFIG) -> Settings:
@@ -93,7 +94,8 @@ class Settings:
                    rescan=int(d.get('every', 86400)) if d.get('enabled', True) else 0, found={},
                    browser=browsing.check(c.get('browser', {})), path=path, pinned={k.lower(): v for k, v in c.get('app_ids', {}).items()},
                    exclude={expand(x).resolve() for x in d.get('exclude', [])}, rules=check_rules(d.get('rules', [])),
-                   max_idle=duration(d.get('max_idle')), max_age=duration(d.get('max_age')))
+                   max_idle=duration(d.get('max_idle')), max_age=duration(d.get('max_age')),
+                   claude=conversations.check(c.get('claude', {})))
 
     def category(self, app: str | None) -> str | None:
         """[app_ids] pins exact app ids (to a category, or "ignore"); otherwise the first [apps] regex that matches."""
@@ -117,7 +119,14 @@ class Settings:
         b = self.browser
         return {'idle': self.idle, 'interval': self.interval, 'owner': self.owner, 'titles': b.get('titles', True),
                 'allow': b.get('allow', []), 'deny': b.get('deny', []), 'sites': b.get('sites', {}),
-                'rules': b.get('rules', []), 'plugins': b.get('plugins', {})}
+                'rules': b.get('rules', []), 'plugins': self.plugins()}
+
+    def plugins(self) -> dict:
+        """[browser.plugins]; the Claude plugin reads the opening of a conversation only when summaries are wanted."""
+        out = dict(self.browser.get('plugins', {}))
+        if conversations.levels(self.claude)['web'] == 'summaries':
+            out['claude'] = {**out.get('claude', {}), 'excerpts': True}
+        return out
 
 
 def site_owner(site: Path) -> str | None:
@@ -362,6 +371,7 @@ create index if not exists pages_start on pages (start);
 create table if not exists catalog (id text primary key, type text, name text, url text, public integer, meta text, updated real);
 create table if not exists history (ts real not null, url text not null, title text);
 create index if not exists history_ts on history (ts);
+create table if not exists summaries (id text primary key, digest text not null, text text not null);
 '''
 
 
@@ -486,6 +496,7 @@ async def publish(s: Settings, db: sqlite3.Connection) -> None:
     allowed, catalog = publishable(s, db), public_catalog(db)
     for v in days.values():
         v['projects'] = {k: p for k, p in v['projects'].items() if k in allowed}
+    await conversations.add(days, db, s.claude, {**s.found, **s.projects}, allowed, start, log)
     enrich_claude(s, db)
     git = lambda *a, **k: run('git', '-C', str(s.site), *a, **k)
     if s.push:
