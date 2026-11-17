@@ -1,0 +1,95 @@
+# Copy to ~/.config/sitekit/pulse.toml and edit, then run `sitekit pulse status` to see what the daemon can detect.
+
+# A checkout of the site that the daemon commits data/pulse/ to. If it doesn't exist yet it is cloned from `remote`
+# as a sparse checkout of data/ only, so it stays small. Use your normal working copy instead if you prefer.
+site = "~/.local/share/sitekit/site"
+remote = "git@github.com:un1tz3r0/un1tz3r0.github.io.git"
+push = true
+db = "~/.local/share/sitekit/pulse.sqlite3"
+
+interval = 60    # seconds between samples
+idle = 180       # seconds without keyboard or mouse input before you count as away
+window = 600     # a project counts as the one you're on for this long after a file in it changes
+publish = 3600   # seconds between publishes
+
+# Extra file or folder names to skip while watching (fnmatch patterns), on top of .git, node_modules, venvs,
+# build output and editor temp files.
+ignore = []
+
+# Folders to watch, and the project id from data/projects.json each one counts toward. Only these projects' minutes,
+# changed-file counts and file extensions are published; nothing about any other folder leaves the machine.
+# Folders found by [discover] below are added to these; a folder listed here keeps the id you give it.
+[projects]
+# "~/src/not-a-git-repo" = "my-project"
+
+# App categories: case-insensitive regexes matched against the focused window's app id or WM class. The first
+# match wins and anything else is "other". Only the category names are published, never app names or titles.
+[apps]
+code = "code|codium|cursor|zed|kate|n?vim|emacs|jetbrains|pycharm|clion|webstorm"
+terminal = "kitty|alacritty|foot|wezterm|ghostty|konsole|gnome-terminal|terminator|xterm"
+browser = "firefox|chrom|brave|vivaldi|epiphany|librewolf"
+graphics = "blender|gimp|inkscape|krita|darktable|godot"
+audio = "vcv|rack|ardour|bitwig|reaper|audacity|carla"
+chat = "discord|slack|signal|telegram|element"
+
+# Find project folders automatically: git repos under `roots` that push to a public GitHub repo owned by one of `owners`.
+# Checked when the daemon starts and again every `rescan`.
+[discover]
+enabled = true
+roots = ["~/prj"]
+depth = 2
+owners = ["un1tz3r0"]
+public_only = true    # private repos' names would otherwise be published; [projects] overrides this one folder at a time
+max_idle = "6m"       # skip repos with no commit or edit for this long (h, d, w, m or y); empty for no limit
+max_age = ""          # skip repos created longer ago than this; empty for no limit
+rescan = "1d"
+
+# Filters, in order; the first match decides. deny leaves a folder out, allow exempts it from max_idle and max_age.
+# when: dir, no-dir (a subfolder is present or missing), file, no-file (a file or dotfile is present or missing),
+# remote, no-remote (a remote URL matches, or none does), name (folder name), path (full path). Values may use * and ?.
+[[discover.rules]]
+action = "deny"
+when = "file"
+value = ".pulse-ignore"
+
+# How much Claude usage to publish, per source: off, counts, titles or summaries. Sessions outside your projects are only
+# ever counted. Summaries need credentials: ~/.config/sitekit/anthropic.key, ANTHROPIC_API_KEY or `ant auth login`.
+# Start with counts and check `sitekit pulse status` before raising these.
+[claude]
+code = "counts"
+web = "counts"
+dir = "~/.claude"
+model = "claude-opus-5-5"
+
+# Browsing, from the extension in tools/sitekit/extension (see tools/README.md) and browser history. Each page is
+# drop (never stored), private (logged here only), domain (domain and minutes published) or page (title and URL too).
+[web]
+enabled = true
+history = true        # also import browser history through browserprofile (Python 3.13+)
+keep_query = false    # query strings often carry tokens and search terms
+default = "private"   # for pages no rule matches
+
+# Rules, in order; the first match decides. when: domain (and its subdomains), url or title. url and title may use * and ?.
+[[web.rules]]
+action = "drop"
+when = "domain"
+value = "accounts.google.com"
+
+[[web.rules]]
+action = "drop"
+when = "domain"
+value = "mail.google.com"
+
+[[web.rules]]
+action = "drop"
+when = "title"
+value = "*bank*"
+
+[[web.rules]]
+action = "domain"
+when = "domain"
+value = "github.com"
+
+# URL patterns that belong to a project. Pages at github.com/owner/repo of a listed project count without being listed.
+[web.projects]
+# "https://docs.example.com/*" = "my-project"

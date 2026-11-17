@@ -21,7 +21,7 @@ no build step. It reads its content from JSON in `data/`:
 - `data/github.json` and `data/feed/` are kept fresh by `tools/` (a small Python package, `sitekit`) and a daily
   GitHub Actions run (`.github/workflows/refresh.yml`) that re-reads commit history and rebuilds the demos that live
   in their own repos.
-- `data/pulse/` is published by `sitekit pulse`, the activity daemon, from my machine.
+- `data/pulse/` is published by `sitekit pulse`, the activity daemon, from my machine. `sitekit config` is its settings app.
 
 See [tools/README.md](tools/README.md) for posting, importing from Twitter and LiveJournal, and running the daemon.
 

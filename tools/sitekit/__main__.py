@@ -8,7 +8,7 @@ import os
 import sys
 from pathlib import Path
 
-from . import compose, demos, gallery, history, importers, mirror, pulse
+from . import compose, demos, gallery, history, importers, mirror, pulse, web
 from .common import expand, find_site, load_toml
 from .feed import Feed
 
@@ -84,21 +84,63 @@ def parser() -> argparse.ArgumentParser:
     sub.add_parser('backup', help="copy the [media].remote bucket to [media].backup, keeping replaced and deleted files by date")
 
     pu = sub.add_parser('pulse', help='the local activity daemon')
-    pu.add_argument('action', choices=['run', 'publish', 'status'])
+    pu.add_argument('action', choices=['run', 'publish', 'status', 'discover', 'log', 'pause', 'resume', 'native-host',
+                                       'install-browser', 'install-service'])
     pu.add_argument('--config', type=Path, default=pulse.CONFIG)
+    pu.add_argument('--json', action='store_true', help='discover: print JSON')
+    pu.add_argument('--days', type=int, default=1, help='log: how many days back')
+
+    co = sub.add_parser('config', help='the settings app (GTK4 and libadwaita)')
+    co.add_argument('--wizard', action='store_true', help='start the walkthrough even if already configured')
+    co.add_argument('--config', type=Path, default=pulse.CONFIG)
+    sub.add_parser('tray', help='the pulse status icon')
 
     de = sub.add_parser('demos', help='build demos that live in other repos (see data/demos.json)')
     de.add_argument('ids', nargs='*')
     return ap
 
 
+def desktop(a: argparse.Namespace) -> None:
+    """The GUI modules need PyGObject, which comes with the system Python rather than a pipx venv, so run them there."""
+    module, args = ('gui', ['--config', str(a.config)] + (['--wizard'] if a.wizard else [])) if a.cmd == 'config' else ('tray', [])
+    if a.site:
+        os.environ['SITEKIT_SITE'] = str(a.site.resolve())
+    try:
+        import gi  # noqa: F401
+    except ImportError:
+        import tomlkit
+        paths = [Path(__file__).parent.parent, Path(tomlkit.__file__).parent.parent]
+        os.environ['PYTHONPATH'] = os.pathsep.join(map(str, paths))
+        os.execv('/usr/bin/python3', ['python3', '-m', f'sitekit.{module}', *args])
+    import importlib
+    importlib.import_module(f'sitekit.{module}').main(args)
+
+
 async def dispatch(a: argparse.Namespace) -> None:
+    if a.cmd in ('config', 'tray'):
+        return desktop(a)
     if a.cmd == 'pulse':
+        if a.action == 'install-browser':
+            print('\n'.join(map(str, web.install_host())) or 'no supported browser found')
+            return print(f'then load {web.EXTENSION} at chrome://extensions (Developer mode, Load unpacked)')
+        if a.action == 'install-service':
+            return await pulse.install_service(a.site.resolve() if a.site else find_site())
         settings = pulse.Settings.load(expand(a.config))
         if a.action == 'run':
             return await pulse.daemon(settings)
         if a.action == 'status':
             return await pulse.status(settings, expand(a.config))
+        if a.action == 'discover':
+            return await pulse.show_discovered(settings, a.json)
+        if a.action == 'log':
+            return pulse.show_log(settings, a.days)
+        if a.action == 'pause':
+            return settings.paused.touch()
+        if a.action == 'resume':
+            return settings.paused.unlink(missing_ok=True)
+        if a.action == 'native-host':
+            return web.native_host(lambda: (s := pulse.Settings.load(expand(a.config)), pulse.open_db(s.db)))
+        await pulse.refresh_projects(settings)
         return await pulse.publish(settings, pulse.open_db(settings.db))
 
     site = a.site.resolve() if a.site else find_site()

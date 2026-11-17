@@ -3,7 +3,9 @@ folders are changing, then publishes daily aggregates to data/pulse/YYYY-MM.json
 
 Raw samples stay in a local SQLite file. Only aggregates leave the machine: active minutes per hour, minutes per app
 category (categories you define; app names and window titles are never published), and for the folders listed under
-[projects] only, active minutes, changed-file counts and file extensions.
+[projects] only, active minutes, changed-file counts and file extensions. Project folders can also be found
+automatically ([discover], see discover.py), and Claude usage and browsing can be added ([claude] and [web], see
+claude.py and web.py); each of those says exactly what it publishes.
 """
 from __future__ import annotations
 
@@ -14,17 +16,19 @@ import errno
 import json
 import os
 import re
+import shutil
 import signal
 import sqlite3
 import struct
 import sys
 import time
 from collections import Counter, defaultdict, deque
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from fnmatch import fnmatch
 from pathlib import Path
 
+from . import claude, discover, web
 from .common import expand, load_toml, now, read_json, run, write_json
 
 CONFIG = expand('~/.config/sitekit/pulse.toml')
@@ -49,11 +53,21 @@ class Settings:
     projects: dict[Path, str]
     apps: list[tuple[str, re.Pattern]]
     ignore: list[str]
+    config: Path = CONFIG
+    discover: dict = field(default_factory=dict)
+    claude: dict = field(default_factory=dict)
+    web: dict = field(default_factory=dict)
+    repos: dict[str, str] = field(default_factory=dict)     # lower-cased owner/name → project id
+
+    @property
+    def paused(self) -> Path:
+        """While this file exists nothing new is recorded. The tray and `sitekit pulse pause` create it."""
+        return self.db.with_suffix('.paused')
 
     @classmethod
     def load(cls, path: Path = CONFIG) -> Settings:
         if not path.exists():
-            sys.exit(f'pulse: no config at {path}; copy tools/pulse.example.toml there and edit it')
+            sys.exit(f'pulse: no config at {path}; run `sitekit config`, or copy tools/sitekit/pulse.example.toml there and edit it')
         c = load_toml(path)
         return cls(site=expand(c.get('site', '~/.local/share/sitekit/site')), remote=c.get('remote'),
                    interval=int(c.get('interval', 60)), idle=int(c.get('idle', 180)), window=int(c.get('window', 600)),
@@ -61,7 +75,8 @@ class Settings:
                    db=expand(c.get('db', '~/.local/share/sitekit/pulse.sqlite3')),
                    projects={expand(k).resolve(): v for k, v in c.get('projects', {}).items()},
                    apps=[(k, re.compile(v, re.I)) for k, v in c.get('apps', {}).items()],
-                   ignore=IGNORE + c.get('ignore', []))
+                   ignore=IGNORE + c.get('ignore', []), config=path, discover=c.get('discover', {}),
+                   claude=c.get('claude', {}), web=c.get('web', {}))
 
     def category(self, app: str | None) -> str | None:
         return None if app is None else next((k for k, rx in self.apps if rx.search(app)), 'other')
@@ -202,12 +217,19 @@ create table if not exists samples (ts integer primary key, active integer not n
 create table if not exists changes (ts integer not null, project text not null, ext text, path text);
 create index if not exists changes_ts on changes (ts);
 create table if not exists meta (key text primary key, value text);
+create table if not exists web_events (ts real not null, kind text not null, tab integer, url text, title text, summary text);
+create index if not exists web_events_ts on web_events (ts);
+create table if not exists web_tabs (tab integer primary key, window integer, url text, title text, active integer);
+create table if not exists summaries (id text primary key, digest text not null, text text not null);
 '''
 
 
 def open_db(path: Path) -> sqlite3.Connection:
     path.parent.mkdir(parents=True, exist_ok=True)
-    db = sqlite3.connect(path)
+    path.touch(mode=0o600)      # holds your browsing history; WAL files inherit this
+    path.chmod(0o600)
+    db = sqlite3.connect(path, timeout=10)     # the daemon and the browser's native host write at the same time
+    db.execute('pragma journal_mode=wal')
     db.executescript(SCHEMA)
     return db
 
@@ -241,6 +263,58 @@ def aggregate(db: sqlite3.Connection, first: date, minutes_per_sample: float) ->
     return out
 
 
+async def refresh_projects(s: Settings) -> dict[Path, str]:
+    """Add what [discover] finds to s.projects; folders listed by hand keep their id. Returns the additions."""
+    s.repos = discover.project_ids(s.site)
+    if not s.discover.get('enabled'):
+        return {}
+    try:
+        found = await discover.discover(s.discover, s.site)
+    except (RuntimeError, ValueError, KeyError) as e:
+        log(f'project discovery failed: {e}')
+        return {}
+    s.repos |= {f.repo.lower(): f.id for f in found if f.id}
+    new = {f.path: f.id for f in found if f.id and f.path not in s.projects}
+    s.projects.update(new)
+    return new
+
+
+def blank_day() -> dict:
+    return {'active': 0, 'hours': [0] * 24, 'apps': {}, 'projects': {}}
+
+
+async def enrich(s: Settings, db: sqlite3.Connection, days: dict, first: date, live: bool = True) -> None:
+    """Add Claude usage and browsing to `days`. `live` also imports browser history and writes new summaries."""
+    start = datetime.combine(first, datetime.min.time()).timestamp()
+    code, chats = s.claude.get('code', 'counts'), s.claude.get('web', 'counts')
+    if s.web.get('enabled', True):
+        if live and s.web.get('history', True):
+            synced = db.execute("select value from meta where key = 'history_synced'").fetchone()
+            web.import_history(db, s.web, max(start, float(synced[0]) if synced else 0))
+        for d, v in web.day_report(db, start, s.web, s.repos).items():
+            day = days.setdefault(d, blank_day())
+            for project, minutes in v.pop('projects').items():
+                day['projects'].setdefault(project, {'minutes': 0})['web'] = minutes
+            if v := {k: x for k, x in v.items() if x}:
+                day['web'] = v
+    sessions = []
+    if code != 'off':
+        sessions += claude.code_sessions(expand(s.claude.get('dir', '~/.claude')), start)
+    if chats != 'off':
+        sessions += claude.web_sessions(db, start)
+    claude.assign(sessions, s.projects)
+    levels = {'code': code, 'web': chats}
+    if live:
+        await claude.summaries(db, [x for x in sessions if levels[x.source] == 'summaries' and (x.project or x.source == 'web')],
+                               s.claude.get('model', claude.MODEL), log)
+    for d, v in claude.report(db, sessions, levels).items():
+        day = days.setdefault(d, blank_day())
+        for project, stats in v.pop('projects').items():
+            day['projects'].setdefault(project, {'minutes': 0})['claude'] = stats
+        if v := {k: x for k, x in v.items() if x}:
+            day['claude'] = v
+
+
 async def ensure_checkout(s: Settings) -> None:
     if (s.site / '.git').exists():
         return
@@ -256,6 +330,7 @@ async def publish(s: Settings, db: sqlite3.Connection) -> None:
     last = db.execute("select value from meta where key = 'published'").fetchone()
     first = min(date.today() - timedelta(days=1), date.fromisoformat(last[0]) if last else date.today())
     days = aggregate(db, first, s.interval / 60)
+    await enrich(s, db, days, first)
     git = lambda *a, **k: run('git', '-C', str(s.site), *a, **k)
     await ensure_checkout(s)
     if s.push:
@@ -283,6 +358,7 @@ async def publish(s: Settings, db: sqlite3.Connection) -> None:
 
 async def daemon(s: Settings) -> None:
     db = open_db(s.db)
+    await refresh_projects(s)
     idle_probe, focus_probe = await first_working(IDLE), await first_working(FOCUS)
     log(f'idle: {idle_probe.__name__ if idle_probe else "none (counting minutes with file changes or focus switches)"}; '
         f'focus: {focus_probe.__name__ if focus_probe else "none"}')
@@ -295,7 +371,7 @@ async def daemon(s: Settings) -> None:
         pending.append((int(t), project, path.suffix.lower(), str(path)))
 
     watcher = None
-    if s.projects:
+    if s.projects or s.discover.get('enabled'):
         try:
             watcher = Watcher(s.projects, s.ignore, changed)
             watcher.start()
@@ -306,10 +382,15 @@ async def daemon(s: Settings) -> None:
     stop = asyncio.Event()
     for sig in (signal.SIGINT, signal.SIGTERM):
         asyncio.get_running_loop().add_signal_handler(sig, stop.set)
-    last_app, next_publish = None, time.time() + 60
+    rescan = discover.duration(s.discover.get('rescan', '1d'))
+    last_app, next_publish, next_scan = None, time.time() + 60, time.time() + rescan
 
     while not stop.is_set():
         t = time.time()
+        paused = s.paused.exists()
+        if paused:
+            recent.clear()
+            pending.clear()
         while recent and recent[0][0] < t - s.window:
             recent.popleft()
         idle = await idle_probe() if idle_probe else None
@@ -317,12 +398,19 @@ async def daemon(s: Settings) -> None:
         touched = Counter(p for ts, p in recent)
         active = idle < s.idle if idle is not None else bool(touched) or (app is not None and app != last_app)
         project = touched.most_common(1)[0][0] if active and touched else None
-        db.execute('insert or replace into samples values (?, ?, ?, ?, ?, ?)',
-                   (int(t), int(active), idle, app if active else None, s.category(app) if active else None, project))
-        db.executemany('insert into changes values (?, ?, ?, ?)', pending)
-        db.commit()
+        if not paused:
+            db.execute('insert or replace into samples values (?, ?, ?, ?, ?, ?)',
+                       (int(t), int(active), idle, app if active else None, s.category(app) if active else None, project))
+            db.executemany('insert into changes values (?, ?, ?, ?)', pending)
+            db.commit()
         pending.clear()
         last_app = app
+        if t >= next_scan:
+            next_scan = t + rescan
+            for path, project in (await refresh_projects(s)).items():
+                log(f'found project {project} at {path}')
+                if watcher:
+                    watcher.add(path, project)
         if t >= next_publish:
             next_publish = t + s.publish
             try:
@@ -342,6 +430,72 @@ async def status(s: Settings, config: Path = CONFIG) -> None:
     print(f'idle    {idle_probe.__name__ if idle_probe else "none"} → {await idle_probe() if idle_probe else "-"}')
     app = await focus_probe() if focus_probe else None
     print(f'focus   {focus_probe.__name__ if focus_probe else "none"} → {app} ({s.category(app)})')
-    if s.db.exists():
-        today = aggregate(open_db(s.db), date.today(), s.interval / 60).get(date.today().isoformat())
-        print(json.dumps(today, indent=1) if today else 'nothing recorded today yet')
+    print(f'tracking {"paused" if s.paused.exists() else "on"}')
+    await refresh_projects(s)
+    db = open_db(s.db)
+    days = aggregate(db, date.today(), s.interval / 60)
+    await enrich(s, db, days, date.today(), live=False)
+    today = days.get(date.today().isoformat())
+    print(json.dumps(today, indent=1) if today else 'nothing recorded today yet')
+
+
+async def show_discovered(s: Settings, as_json: bool) -> None:
+    found = await discover.discover({**s.discover, 'enabled': True}, s.site)
+    if as_json:
+        print(json.dumps([{'path': str(f.path), 'repo': f.repo, 'id': f.id, 'why': f.why} for f in found]))
+        return
+    for f in found:
+        print(f'+ {f.id:<28} {f.path}' if f.id else f'- {f.path}  ({f.why})')
+
+
+def show_log(s: Settings, days: int) -> None:
+    """Your private view of the browser log: everything stored, published or not."""
+    db = open_db(s.db)
+    start = datetime.combine(date.today() - timedelta(days=days - 1), datetime.min.time()).timestamp()
+    for day, sites in sorted(web.ledger(db, start).items()):
+        print(f'{day}  {sum(sites.values()):.0f} min')
+        for host, minutes in sorted(sites.items(), key=lambda x: -x[1])[:15]:
+            print(f'  {minutes:6.1f}  {host}')
+    tabs = db.execute('select url, title, active from web_tabs order by active desc').fetchall()
+    if tabs:
+        print(f'{len(tabs)} open tabs')
+        for url, title, active in tabs:
+            print(f'  {"*" if active else " "} {title or url}')
+
+
+UNIT = '''[Unit]
+Description={description}
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+ExecStart={command}
+Environment=SITEKIT_SITE={site}
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=graphical-session.target
+'''
+DESKTOP = '''[Desktop Entry]
+Type=Application
+Name=sitekit
+Comment=Configure sitekit and the pulse activity daemon
+Exec=env SITEKIT_SITE={site} {exe} config
+Icon=preferences-system-symbolic
+Categories=Settings;Development;
+'''
+
+
+async def install_service(site: Path) -> None:
+    """Start the daemon and tray with the desktop session, and put the settings app in the launcher."""
+    exe = shutil.which('sitekit') or sys.exit('sitekit is not on PATH')
+    units = expand('~/.config/systemd/user')
+    units.mkdir(parents=True, exist_ok=True)
+    for name, description, command in (('sitekit-pulse', 'sitekit pulse', f'{exe} pulse run'), ('sitekit-tray', 'sitekit tray icon', f'{exe} tray')):
+        (units / f'{name}.service').write_text(UNIT.format(description=description, command=command, site=site))
+    apps = expand('~/.local/share/applications')
+    apps.mkdir(parents=True, exist_ok=True)
+    (apps / 'sitekit.desktop').write_text(DESKTOP.format(site=site, exe=exe))
+    await run('systemctl', '--user', 'daemon-reload')
+    await run('systemctl', '--user', 'enable', '--now', 'sitekit-pulse', 'sitekit-tray')

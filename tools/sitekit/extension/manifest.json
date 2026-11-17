@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "sitekit pulse",
+  "version": "0.1.0",
+  "description": "Sends browsing activity to the sitekit pulse log on this computer. Nothing is sent anywhere else.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxSNT07z7UmCvhXdMEKibrbLX8u7Z/X3RcCEXrJb+U2mQrm7/RoEeiquuLWITG5uEopxKVSSb6tmwdboQWbkxjLESaieNYH09lb0jTGieQ53X5RvEDI6f9/OFehhTbIYGm/35FwVX1ylYoTNIOlKHoHBDp/Y0bi7SOHatdr7fLWz27zbiLi7GHWJzm8nRdtJv7zSOpw+Pc3jk2WdSHsN7aiuX1xTPRfH7qvHoz0rGsL/Pr5dSt6jMaUwC2YvL8/psOdKtv1MVM8ac02dRHCKltgCHDO8JTDrtBE3JIm8CB5xwR5AWBaQv07WZJFZLTJn3U6xx7ezr/i8A62fH6Rlx8QIDAQAB",
+  "incognito": "not_allowed",
+  "permissions": ["tabs", "webNavigation", "nativeMessaging", "idle", "alarms"],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [{ "matches": ["http://*/*", "https://*/*"], "js": ["content.js"], "run_at": "document_idle" }]
+}
