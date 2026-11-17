@@ -1,7 +1,8 @@
 """Edit a hand-written TOML file in place, one key at a time, keeping its comments, order and layout.
 
-Enough for pulse.toml: top-level keys and [table] sections holding scalars, arrays (one or several lines) and inline
-tables. Every edit is checked by parsing the result, so a file is never written broken.
+Enough for pulse.toml and site.toml: top-level keys and [table] sections holding scalars, arrays (one or several lines)
+and inline tables, and arrays of tables ([[feeds]]), which are rewritten as a whole where the first one stood. Every
+edit is checked by parsing the result, so a file is never written broken.
 """
 from __future__ import annotations
 
@@ -88,7 +89,36 @@ class Doc:
             return None
         return next((i for i in range(*sp) if key_of(self.lines[i]) == k), None)
 
+    def blocks(self, name: str) -> list[tuple[int, int]]:
+        """Line ranges of each [[name]] table, header included. Comments and blank lines just before the next header
+        belong to what follows, so they are left out."""
+        heads = [i for i, line in enumerate(self.lines) if table_name(line) is not None]
+        out = []
+        for n, i in enumerate(heads):
+            if self.lines[i].lstrip().startswith('[[') and table_name(self.lines[i]) == name:
+                end = heads[n + 1] if n + 1 < len(heads) else len(self.lines)
+                while end > i + 1 and (not self.lines[end - 1].strip() or self.lines[end - 1].lstrip().startswith('#')):
+                    end -= 1
+                out.append((i, end))
+        return out
+
+    def set_blocks(self, name: str, rows: list[dict]) -> None:
+        """Replace every [[name]] table with `rows`, written where the first one was."""
+        found = self.blocks(name)
+        at = found[0][0]
+        for n, (start, end) in reversed(list(enumerate(found))):
+            while n and start > 0 and not self.lines[start - 1].strip():
+                start -= 1      # the blank line separating it from the one before
+            del self.lines[start:end]
+        text = []
+        for row in rows:
+            text += ([''] if text else []) + [f'[[{name}]]'] + [f'{key(k)} = {dump(v)}' for k, v in row.items()]
+        self.lines[at:at] = text
+
     def set(self, table: str, k: str, value) -> None:
+        name = f'{table}.{k}' if table else k
+        if isinstance(value, list) and all(isinstance(r, dict) for r in value) and self.blocks(name):
+            return self.set_blocks(name, value)
         line = f'{key(k)} = {dump(value)}'
         if (i := self.find(table, k)) is not None:
             end = self.extent(i)
@@ -106,6 +136,8 @@ class Doc:
         self.lines.insert(at, line)
 
     def remove(self, table: str, k: str) -> None:
+        if self.blocks(name := f'{table}.{k}' if table else k):
+            return self.set_blocks(name, [])
         if (i := self.find(table, k)) is not None:
             del self.lines[i:self.extent(i)]
 
