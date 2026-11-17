@@ -114,7 +114,7 @@
    "projects": {}
   },
   "2026-11-16": {
-   "active": 2,
+   "active": 10,
    "hours": [
     0,
     0,
@@ -139,33 +139,33 @@
     0,
     0,
     0,
-    2
+    10
    ],
    "apps": {
-    "other": 2
+    "other": 10
    },
    "projects": {
     "un1tz3r0.github.io": {
-     "minutes": 1,
-     "files": 6,
+     "minutes": 2,
+     "files": 9,
      "ext": {
-      ".py": 4,
-      ".json": 2
+      ".json": 5,
+      ".py": 4
      },
      "claude": {
       "conversations": 2,
-      "prompts": 32,
-      "minutes": 63,
-      "tokens": 619195
+      "prompts": 41,
+      "minutes": 69,
+      "tokens": 631463
      }
     }
    },
    "claude": {
     "code": {
      "conversations": 2,
-     "prompts": 32,
-     "minutes": 63,
-     "tokens": 619195
+     "prompts": 41,
+     "minutes": 69,
+     "tokens": 631463
     },
     "items": [
      {
