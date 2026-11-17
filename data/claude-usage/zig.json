@@ -1,0 +1,224 @@
+{
+ "generated": "2026-11-17T07:43:47Z",
+ "machine": "zig",
+ "publish": [
+  "sessions",
+  "tokens"
+ ],
+ "days": {
+  "2026-10-16": {
+   "sessions": 1,
+   "tokens": {
+    "in": 148,
+    "out": 117932,
+    "cache_read": 11806536,
+    "cache_write": 189691
+   },
+   "models": {
+    "claude-opus-5-5": 118080
+   },
+   "repos": {
+    "un1tz3r0/vcvplugin-installer": {
+     "sessions": 1,
+     "tokens": {
+      "in": 148,
+      "out": 117932,
+      "cache_read": 11806536,
+      "cache_write": 189691
+     }
+    }
+   }
+  },
+  "2026-10-30": {
+   "sessions": 3,
+   "tokens": {
+    "in": 104,
+    "out": 167763,
+    "cache_read": 5257679,
+    "cache_write": 466792
+   },
+   "models": {
+    "claude-opus-5-5": 167867
+   },
+   "repos": {
+    "un1tz3r0/browserprofile": {
+     "sessions": 1,
+     "tokens": {
+      "in": 18,
+      "out": 24968,
+      "cache_read": 646817,
+      "cache_write": 86612
+     }
+    },
+    "un1tz3r0/pymanakin": {
+     "sessions": 1,
+     "tokens": {
+      "in": 78,
+      "out": 91964,
+      "cache_read": 4483201,
+      "cache_write": 313432
+     }
+    }
+   }
+  },
+  "2026-10-31": {
+   "sessions": 3,
+   "tokens": {
+    "in": 187,
+    "out": 222340,
+    "cache_read": 19558307,
+    "cache_write": 1261481
+   },
+   "models": {
+    "claude-opus-5-5": 161646,
+    "claude-opus-4-8": 60881
+   },
+   "repos": {
+    "un1tz3r0/pymanakin": {
+     "sessions": 1,
+     "tokens": {
+      "in": 106,
+      "out": 60775,
+      "cache_read": 10337401,
+      "cache_write": 199203
+     }
+    },
+    "un1tz3r0/un1tz3r0.github.io": {
+     "sessions": 1,
+     "tokens": {
+      "in": 79,
+      "out": 161387,
+      "cache_read": 9197829,
+      "cache_write": 867876
+     }
+    },
+    "un1tz3r0/vcvplugin-installer": {
+     "sessions": 1,
+     "tokens": {
+      "in": 2,
+      "out": 178,
+      "cache_read": 23077,
+      "cache_write": 194402
+     }
+    }
+   }
+  },
+  "2026-11-01": {
+   "sessions": 1,
+   "tokens": {
+    "in": 10,
+    "out": 7874,
+    "cache_read": 303369,
+    "cache_write": 52713
+   },
+   "models": {
+    "claude-opus-4-8": 7884
+   },
+   "repos": {
+    "un1tz3r0/pymanakin": {
+     "sessions": 1,
+     "tokens": {
+      "in": 10,
+      "out": 7874,
+      "cache_read": 303369,
+      "cache_write": 52713
+     }
+    }
+   }
+  },
+  "2026-11-03": {
+   "sessions": 3,
+   "tokens": {
+    "in": 120,
+    "out": 78073,
+    "cache_read": 7165210,
+    "cache_write": 217446
+   },
+   "models": {
+    "claude-opus-4-8": 69312,
+    "claude-opus-5-5": 8881
+   },
+   "repos": {
+    "un1tz3r0/pymanakin": {
+     "sessions": 2,
+     "tokens": {
+      "in": 110,
+      "out": 73097,
+      "cache_read": 6984122,
+      "cache_write": 188567
+     }
+    }
+   }
+  },
+  "2026-11-06": {
+   "sessions": 2,
+   "tokens": {
+    "in": 102,
+    "out": 78978,
+    "cache_read": 5247100,
+    "cache_write": 208178
+   },
+   "models": {
+    "claude-opus-5-5": 79080
+   },
+   "repos": {
+    "un1tz3r0/pymanakin": {
+     "sessions": 1,
+     "tokens": {
+      "in": 88,
+      "out": 75225,
+      "cache_read": 4966483,
+      "cache_write": 176411
+     }
+    }
+   }
+  },
+  "2026-11-11": {
+   "sessions": 1,
+   "tokens": {
+    "in": 54,
+    "out": 7970,
+    "cache_read": 1419206,
+    "cache_write": 52517
+   },
+   "models": {
+    "claude-opus-5-5": 8024
+   }
+  },
+  "2026-11-12": {
+   "sessions": 1,
+   "tokens": {
+    "in": 110,
+    "out": 25068,
+    "cache_read": 5500117,
+    "cache_write": 117406
+   },
+   "models": {
+    "claude-opus-5-5": 25178
+   }
+  },
+  "2026-11-16": {
+   "sessions": 2,
+   "tokens": {
+    "in": 544,
+    "out": 321210,
+    "cache_read": 74020039,
+    "cache_write": 776422
+   },
+   "models": {
+    "claude-opus-5-5": 321754
+   },
+   "repos": {
+    "un1tz3r0/un1tz3r0.github.io": {
+     "sessions": 2,
+     "tokens": {
+      "in": 544,
+      "out": 321210,
+      "cache_read": 74020039,
+      "cache_write": 776422
+     }
+    }
+   }
+  }
+ }
+}
