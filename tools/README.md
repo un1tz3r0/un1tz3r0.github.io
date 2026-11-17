@@ -190,8 +190,9 @@ while it has unsaved edits), and the extension reloads, which also restarts the 
 the new files, load it unpacked from `~/.local/share/sitekit/current/tools/sitekit/extension`.
 
 If the new release crashes three times before it confirms that it started, `pulse-launch` (the unit's command, which
-updates never change) switches back to the previous release. Any tag that fails a step is recorded in
-`~/.local/share/sitekit/bad` and never tried again.
+updates never change) switches back to the previous release. A tag that isn't trusted, fails its check or doesn't
+start is recorded in `~/.local/share/sitekit/bad` and never tried again; a checkout or `pip install` that fails (usually
+the network) is retried at the next check.
 
 ```sh
 sitekit pulse update      # look for a release now instead of waiting

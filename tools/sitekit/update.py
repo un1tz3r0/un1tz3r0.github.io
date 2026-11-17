@@ -14,7 +14,8 @@ looks for a newer one every [update] every seconds (default an hour). A tag that
 dependencies installed when they changed, and `sitekit pulse check` run with it against your config and database. Only
 then does `current` switch and the daemon restart into it, and the panel icon, settings window and browser extension
 follow when they see the new version. A release that doesn't start (three crashes before it confirms) is rolled back by
-pulse-launch; a tag that fails any step is recorded in `bad` and never tried again.
+pulse-launch. A tag that isn't trusted, fails its check or doesn't start is recorded in `bad` and never tried again; a
+failure that may pass later (the network during a fetch or pip install) is retried at the next check.
 """
 from __future__ import annotations
 
@@ -228,7 +229,8 @@ def rollback(l: Layout) -> str:
 
 
 async def install_release(l: Layout, tag: str, config: Path, log) -> bool:
-    """Fetch, verify, stage, install dependencies and check one release. False (and marked bad) if any step fails."""
+    """Verify, stage, install dependencies and check one release; False if any step fails. Only the release's own
+    faults (not trusted, failing its check) mark it bad: checkout and pip depend on the network, so they're retried."""
     if why := await verify(l, tag):
         l.mark_bad(tag, why)
         log(f'update {tag} refused: {why}', kind='warning')
@@ -237,10 +239,14 @@ async def install_release(l: Layout, tag: str, config: Path, log) -> bool:
         dest = await stage(l, tag)
         if await ensure_deps(l, dest):
             log(f'update {tag}: installed its dependencies', kind='lifecycle')
+    except RuntimeError as e:
+        log(f'update {tag} could not be installed, will retry: {e}', kind='warning')
+        return False
+    try:
         await check(l, dest, config)
     except RuntimeError as e:
         l.mark_bad(tag, str(e))
-        log(f'update {tag} failed: {e}', kind='error')
+        log(f'update {tag} failed its check: {e}', kind='error')
         return False
     return True
 
@@ -262,6 +268,8 @@ async def bootstrap(l: Layout, url: str, config: Path, log=print) -> str:
     """Set up a managed install: clone, venv, the newest good release as `current`, and pulse-launch."""
     if not l.signers.exists():
         raise RuntimeError(f'trust a release key first: sitekit pulse trust ~/.ssh/id_ed25519.pub (writes {l.signers})')
+    if not config.exists():
+        raise RuntimeError(f'no config at {config}: open `sitekit settings` once to create it, or copy tools/pulse.example.toml there')
     l.versions.mkdir(parents=True, exist_ok=True)
     if not l.repo.exists():
         log(f'cloning {url} → {l.repo}')
