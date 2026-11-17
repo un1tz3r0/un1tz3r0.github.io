@@ -98,3 +98,9 @@ def test_broken_edits_are_refused(tmp_path):
     with pytest.raises(TypeError):
         tomledit.edit(path, [('', 'a', object())])
     assert path.read_text() == 'a = 1\n'
+
+
+def test_comments_with_quotes_survive(tmp_path):
+    text = 'root = "~"          # e.g. "~/Projects"\ndepth = 0  # \'levels\'\nurl = "a#b"  # c\nplain = 1\n'
+    out = edit(tmp_path, [('', 'root', '~/prj'), ('', 'depth', 1), ('', 'url', 'x#y'), ('', 'plain', 2)], text)
+    assert out == 'root = "~/prj"          # e.g. "~/Projects"\ndepth = 1  # \'levels\'\nurl = "x#y"  # c\nplain = 2\n'
