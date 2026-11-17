@@ -26,7 +26,7 @@ from datetime import date, datetime, timedelta
 from fnmatch import fnmatch
 from pathlib import Path
 
-from . import browsing, claude, conversations
+from . import browsing, claude, conversations, update
 from .common import expand, load_toml, now, read_json, run, write_json
 
 CONFIG = expand('~/.config/sitekit/pulse.toml')
@@ -76,6 +76,8 @@ class Settings:
     max_age: int = 0
     skipped: dict[Path, str] = field(default_factory=dict)     # why the last scan left a repo out
     claude: dict = field(default_factory=dict)                  # [claude]: see conversations.py
+    updates: bool = True                                        # [update] enabled: follow signed releases (managed installs)
+    update_every: int = 3600                                    # [update] every: seconds between checks
 
     @classmethod
     def load(cls, path: Path = CONFIG) -> Settings:
@@ -95,7 +97,8 @@ class Settings:
                    browser=browsing.check(c.get('browser', {})), path=path, pinned={k.lower(): v for k, v in c.get('app_ids', {}).items()},
                    exclude={expand(x).resolve() for x in d.get('exclude', [])}, rules=check_rules(d.get('rules', [])),
                    max_idle=duration(d.get('max_idle')), max_age=duration(d.get('max_age')),
-                   claude=conversations.check(c.get('claude', {})))
+                   claude=conversations.check(c.get('claude', {})),
+                   updates=bool(c.get('update', {}).get('enabled', True)), update_every=int(c.get('update', {}).get('every', 3600)))
 
     def category(self, app: str | None) -> str | None:
         """[app_ids] pins exact app ids (to a category, or "ignore"); otherwise the first [apps] regex that matches."""
@@ -576,6 +579,7 @@ class State:
                 'focus_probe': self.focus_probe, 'site': str(s.site), 'config': str(s.path),
                 'browser': bool(self.browser and time.time() - self.browser['t'] < 120),
                 'idle': s.idle, 'window': s.window, 'publish': s.publish, 'pending': round(self.pending * s.interval / 60),
+                'version': update.RUNNING,
                 'app': self.app, 'root': self.root and str(self.root), 'root_project': self.roots.get(self.root) if self.root else None,
                 'categories': [k for k, _ in s.apps], 'project_ids': s.project_ids()}
 
@@ -638,7 +642,7 @@ async def daemon(s: Settings) -> None:
     next_scan = time.time() + s.rescan
 
     stop, wake = asyncio.Event(), asyncio.Event()
-    want = {'publish': False, 'scan': False, 'restart': False}
+    want = {'publish': False, 'scan': False, 'restart': False, 'update': False}
     for sig in (signal.SIGINT, signal.SIGTERM):
         asyncio.get_running_loop().add_signal_handler(sig, stop.set)
     watchers: set[asyncio.StreamWriter] = set()
@@ -649,7 +653,14 @@ async def daemon(s: Settings) -> None:
     LOG_HOOKS[:] = [lambda e: broadcast({'event': 'log', **e})]
     mtime = lambda: s.path.stat().st_mtime if s.path.exists() else None
     loaded = mtime()
-    timing = {'next_publish': time.time() + 60}
+    timing = {'next_publish': time.time() + 60, 'next_update': time.time() + 300}
+    layout = update.Layout.default()
+
+    def remember_pause() -> None:
+        """Keep a pause across restarts, which updates and config changes cause."""
+        value = json.dumps({'until': state.paused_until}) if state.paused else None
+        db.execute("insert or replace into meta values ('paused', ?)", (value,))
+        db.commit()
 
     def save(changes: list[tuple[str, str, object]]) -> None:
         """Write settings that apply live without the restart a config change otherwise triggers."""
@@ -722,10 +733,14 @@ async def daemon(s: Settings) -> None:
                 state.paused, state.paused_until = True, time.time() + minutes * 60 if minutes else None
                 recent.clear()
                 pending.clear()
+                remember_pause()
                 log(f'paused for {minutes:g} min' if minutes else 'paused')
             case 'resume':
                 state.paused, state.paused_until = False, None
+                remember_pause()
                 log('resumed')
+            case 'update':
+                want['update'] = True
             case 'publish':
                 want['publish'] = True
             case 'rescan':
@@ -775,6 +790,13 @@ async def daemon(s: Settings) -> None:
             writer.close()
 
     server = await listen(client)
+    if confirmed := update.confirm(layout):
+        log(f'release {confirmed} started; update complete')
+    if (row := db.execute("select value from meta where key = 'paused'").fetchone()) and row[0]:
+        until = json.loads(row[0]).get('until')
+        if until is None or until > time.time():
+            state.paused, state.paused_until = True, until
+            log('still paused' + (f' for {(until - time.time()) / 60:.0f} min' if until else ''))
 
     def refresh_minutes() -> None:
         today = aggregate(db, date.today(), s.interval / 60).get(date.today().isoformat())
@@ -798,6 +820,7 @@ async def daemon(s: Settings) -> None:
                 break
         if state.paused and state.paused_until and t >= state.paused_until:
             state.paused, state.paused_until = False, None
+            remember_pause()
             log('resumed after the pause ran out')
         if t >= next_sample:
             next_sample = t + s.interval
@@ -847,6 +870,17 @@ async def daemon(s: Settings) -> None:
                 state.error = str(e) or type(e).__name__
                 log(f'publish failed, will retry: {e}', kind='error')
             state.next_publish = timing['next_publish']
+        if want['update'] and not update.RUNNING:
+            want['update'] = False
+            log('not a managed install, so it does not update itself (sitekit pulse install --managed)', kind='warning')
+        if update.RUNNING and s.updates and (t >= timing['next_update'] or want['update']):
+            timing['next_update'], want['update'] = t + s.update_every, False
+            try:
+                if await update.update(layout, s.path, log):
+                    want['restart'] = True
+                    break
+            except (RuntimeError, OSError) as e:
+                log(f'update check failed, will retry: {e}', kind='warning')
         notify()
         due = min(next_sample, state.paused_until or next_sample, time.time() + 5)
         wake.clear()
@@ -875,6 +909,18 @@ async def listen(handler) -> asyncio.AbstractServer:
     server = await asyncio.start_unix_server(handler, SOCKET)
     SOCKET.chmod(0o600)
     return server
+
+
+def check(s: Settings) -> None:
+    """What an update runs with a new release before switching to it: everything loads with your config and database."""
+    import importlib
+    for name in ('browsing', 'claude', 'common', 'conversations', 'feed', 'history', 'native', 'pulse_ctl', 'tomledit', 'update'):
+        importlib.import_module(f'.{name}', __package__)
+    db = open_db(s.db)
+    aggregate(db, date.today(), s.interval / 60)
+    s.browser_config()
+    db.close()
+    print(f'ok {update.RUNNING or "(not a release)"}')
 
 
 async def status(s: Settings, config: Path = CONFIG) -> None:

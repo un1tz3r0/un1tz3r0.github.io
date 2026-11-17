@@ -9,7 +9,7 @@ import os
 import sys
 from pathlib import Path
 
-from . import claude, compose, demos, gallery, history, importers, mirror, pulse
+from . import claude, compose, demos, gallery, history, importers, mirror, pulse, update
 from .common import expand, find_site, load_toml
 from .feed import Feed
 
@@ -85,12 +85,25 @@ def parser() -> argparse.ArgumentParser:
     sub.add_parser('backup', help="copy the [media].remote bucket to [media].backup, keeping replaced and deleted files by date")
 
     pu = sub.add_parser('pulse', help='the local activity daemon')
-    pu.add_argument('action', choices=['run', 'publish', 'status', 'pause', 'resume', 'indicator', 'install', 'uninstall', 'browser'],
+    pu.add_argument('action', choices=['run', 'publish', 'status', 'pause', 'resume', 'indicator', 'install', 'uninstall', 'browser',
+                                       'check', 'update', 'rollback', 'trust'],
                     help='run: the daemon; pause/resume: ask the running daemon; indicator: the panel icon; '
-                         'install: systemd unit, launchers, autostart and icons for this user; '
-                         'browser: register the native messaging host the browser extension talks to')
+                         'install: systemd unit, launchers, autostart and icons for this user (--managed: one that '
+                         'updates itself from signed releases); browser: register the native messaging host the browser '
+                         'extension talks to; check: what an update runs before switching to a release; update: look for '
+                         'a newer release now; rollback: go back to the previous release; trust KEY.pub: accept release '
+                         'tags signed with this SSH key')
+    pu.add_argument('key', nargs='?', type=Path, help='trust: an SSH public key file')
     pu.add_argument('--uninstall', action='store_true', help='with browser: remove the native messaging host')
+    pu.add_argument('--managed', action='store_true', help='with install: clone, venv and the newest signed release under '
+                                                           '~/.local/share/sitekit, following new releases from then on')
+    pu.add_argument('--from', dest='url', default=update.REPO_URL, help='with install --managed: the repo to follow')
+    pu.add_argument('--principal', default='release', help='with trust: a name for the key')
     pu.add_argument('--config', type=Path, default=pulse.CONFIG)
+
+    rel = sub.add_parser('release', help='tag HEAD (pushed to master) as a signed pulse release and push the tag')
+    rel.add_argument('number', help='like 1.4.0; must be newer than the last release')
+    rel.add_argument('-m', '--message', default='', help='the tag message (default: the tag name)')
 
     st = sub.add_parser('settings', help='the GNOME settings window for sitekit and pulse')
     st.add_argument('page', nargs='?', default='pulse', choices=['pulse', 'site', 'projects', 'apps', 'publishing', 'tools', 'log'])
@@ -105,6 +118,30 @@ def parser() -> argparse.ArgumentParser:
     return ap
 
 
+async def releases(a: argparse.Namespace) -> None:
+    """The managed install's commands: install --managed, update, rollback and trust (see update.py)."""
+    from . import native, pulse_ctl
+    layout, config = update.Layout.default(), expand(a.config)
+    if a.action == 'trust':
+        if not a.key:
+            sys.exit('sitekit pulse trust: give the SSH public key file, e.g. ~/.ssh/id_ed25519.pub')
+        return print(f'{layout.signers}: {update.trust(layout, expand(a.key), a.principal)}')
+    if a.action == 'install':
+        tag = await update.bootstrap(layout, a.url, config)
+        print('\n'.join(pulse_ctl.install(layout=layout) + native.install(layout=layout)))
+        return print(f'running {tag}; new signed releases install themselves')
+    if a.action == 'rollback':
+        tag = update.rollback(layout)
+        pulse_ctl.request('reload')
+        return print(f'back on {tag}; the one before is never tried again')
+    if pulse_ctl.request('update'):
+        return print('asked the running daemon to look for a newer release; follow it with: journalctl --user -fu sitekit-pulse')
+    if not layout.current.is_symlink():
+        sys.exit('not a managed install: sitekit pulse install --managed')
+    tag = await update.update(layout, config, lambda text, kind=None: print(text), current=layout.current_tag())
+    print(f'switched to {tag}; it starts with the daemon' if tag else 'up to date')
+
+
 def gui(name: str):
     """The panel icon and settings window need PyGObject with GTK 4 and libadwaita from the system."""
     try:
@@ -115,6 +152,14 @@ def gui(name: str):
 
 
 async def dispatch(a: argparse.Namespace) -> None:
+    try:
+        if a.cmd == 'release':
+            repo = a.site.resolve() if a.site else find_site()
+            return print(f'pushed {await update.release(repo, a.number, a.message, update.Layout.default().signers)}')
+        if a.cmd == 'pulse' and a.action in ('install', 'update', 'rollback', 'trust') and (a.managed or a.action != 'install'):
+            return await releases(a)
+    except (RuntimeError, ValueError, OSError) as e:
+        sys.exit(f'sitekit: {e}')
     if a.cmd == 'settings':
         sys.exit(gui('settings_app').main(a.page))
     if a.cmd == 'pulse' and a.action == 'browser':
@@ -130,6 +175,8 @@ async def dispatch(a: argparse.Namespace) -> None:
         return print(f'pulse: {reply["mode"]}' if reply else 'pulse: the daemon is not running')
     if a.cmd == 'pulse':
         settings = pulse.Settings.load(expand(a.config))
+        if a.action == 'check':
+            return pulse.check(settings)
         if a.action == 'run':
             return await pulse.daemon(settings)
         if a.action == 'status':

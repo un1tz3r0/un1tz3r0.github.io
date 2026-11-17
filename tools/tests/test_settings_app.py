@@ -19,7 +19,7 @@ SITE_TOML = Path(__file__).resolve().parent.parent.parent / 'site.toml'
 
 
 class NoDaemon:
-    def __init__(self, on_event):
+    def __init__(self, on_event, on_update=None):
         pass
 
     def send(self, cmd, **args):
@@ -121,3 +121,14 @@ def test_api_key_is_saved_privately_and_cleared_from_the_form(env):
 def test_without_a_site_checkout_the_site_tab_says_so(env):
     w = window(env, config(env).replace(str(env / 'site'), str(env / 'missing')))
     assert w.site_cfg is None and w.site_values() == []
+
+
+def test_an_update_reopens_the_window_only_without_unsaved_edits(env, monkeypatch):
+    restarted = []
+    monkeypatch.setattr(settings_app, 'restart', restarted.append)
+    w = window(env, config(env))
+    w.updated('pulse-v1.1.0')
+    assert restarted == ['pulse-v1.1.0']
+    w.github['user'].set_text('changed')
+    w.updated('pulse-v1.2.0')
+    assert restarted == ['pulse-v1.1.0'] and 'Save, then reopen' in w.toasts_seen[-1]

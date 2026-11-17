@@ -157,6 +157,51 @@ config without a restart), `assign`, `log`, `reload`, `quit`, and for the browse
 `config`, `focus`, `pages`, `catalog`), which only your user can reach. A request's `id` is echoed in its reply. The
 daemon restarts itself when `pulse.toml` changes.
 
+### Updates: signed releases that install themselves
+
+A managed install follows releases of this repo: every running daemon picks up a new feature or fix on its own, with
+the panel icon, settings window, browser host and extension following it.
+
+```sh
+# once, where you make releases: sign tags with your SSH key
+git config --global gpg.format ssh
+git config --global user.signingkey ~/.ssh/id_ed25519.pub
+
+# once per machine: trust that key, then install (needs ~/.config/sitekit/pulse.toml and at least one release)
+sitekit pulse trust ~/.ssh/id_ed25519.pub
+sitekit pulse install --managed
+
+# each release: merge to master, then from your checkout
+sitekit release 1.4.0 -m "what changed"    # signed tag pulse-v1.4.0 on HEAD, which must be on origin/master
+```
+
+`install --managed` keeps everything under `~/.local/share/sitekit`: a bare clone, a venv (with system site packages,
+for GTK), and each release checked out side by side in `versions/` (just `tools/`), with `current` pointing at the one
+that runs. The systemd unit, launchers, panel icon and browser host all run through `current`.
+
+Every `[update] every` seconds (an hour by default) the daemon lists the remote's `pulse-v*` tags. A newer one is only
+installed when it is an annotated tag signed by a key in `~/.config/sitekit/allowed_signers` and points at a commit on
+master; anything else is refused, whoever pushed it. That matters because Claude sessions and the Copilot agent can push
+to this repo too. Signing is the only thing trusted, and the key file is only ever written by hand on each machine.
+A tag that passes is checked out, its dependencies installed into the venv if `pyproject.toml` changed, and its own
+`sitekit pulse check` run against your config and database. Only then does `current` switch and the daemon restart in
+place. The panel icon and settings window restart themselves when they see the new version (the settings window waits
+while it has unsaved edits), and the extension reloads, which also restarts the browser host. For the extension to load
+the new files, load it unpacked from `~/.local/share/sitekit/current/tools/sitekit/extension`.
+
+If the new release crashes three times before it confirms that it started, `pulse-launch` (the unit's command, which
+updates never change) switches back to the previous release. Any tag that fails a step is recorded in
+`~/.local/share/sitekit/bad` and never tried again.
+
+```sh
+sitekit pulse update      # look for a release now instead of waiting
+sitekit pulse rollback    # go back to the previous release, and never use this one again
+```
+
+Set `[update] enabled = false` to stay on the current release. A pause now survives restarts, including updates.
+Releases should only ever add to the database (new tables and columns, which `open_db` creates), so rolling back stays
+safe.
+
 ### Browser extension
 
 `tools/sitekit/extension/` is a Manifest V3 extension (Chrome first; the manifest also loads in Firefox 128+). It

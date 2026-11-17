@@ -89,3 +89,8 @@ enabled = true
 [claude]
 code = "off"
 web = "off"
+
+# Managed installs (sitekit pulse install --managed) follow signed releases of the repo; see tools/README.md.
+[update]
+enabled = true
+every = 3600     # seconds between checks
