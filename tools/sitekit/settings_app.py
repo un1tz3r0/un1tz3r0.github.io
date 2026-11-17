@@ -2,8 +2,10 @@
 
 Pulse shows live state with a countdown to the next publish, and the controls that act at once (pause, push, publish,
 rescan); Projects, Apps and Publishing edit pulse.toml, which Save and Apply writes in place (keeping comments, the old
-file goes to pulse.toml.bak) and the daemon restarts on; Tools runs the other sitekit commands in the site checkout; Log
-follows the daemon's log with a toggle per kind of line.
+file goes to pulse.toml.bak) and the daemon restarts on; Site edits site.toml in the site checkout, which needs a commit
+to reach the daily workflow; Tools runs the other sitekit commands in the site checkout; Log follows the daemon's log
+with a toggle per kind of line. On first run, or from the header's tour button, Back and Next walk through the tabs
+that need filling in.
 """
 from __future__ import annotations
 
@@ -18,18 +20,22 @@ gi.require_version('Gdk', '4.0')
 gi.require_version('Adw', '1')
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango  # noqa: E402
 
-from . import tomledit  # noqa: E402
+from . import browsing, conversations, tomledit  # noqa: E402
 from .common import expand, load_toml  # noqa: E402
-from .pulse import CONFIG, KINDS  # noqa: E402
+from .pulse import CONDITIONS, CONFIG, KINDS, duration  # noqa: E402
 from .pulse_ctl import APP_ID, ICONS, Link  # noqa: E402
 
-PAGES = {'pulse': ('Pulse', 'sitekit-pulse-active'), 'projects': ('Projects', 'folder-symbolic'),
+PAGES = {'pulse': ('Pulse', 'sitekit-pulse-active'), 'site': ('Site', 'user-home-symbolic'), 'projects': ('Projects', 'folder-symbolic'),
          'apps': ('Apps', 'view-app-grid-symbolic'), 'publishing': ('Publishing', 'send-to-symbolic'),
          'tools': ('Tools', 'utilities-terminal-symbolic'), 'log': ('Log', 'view-list-symbolic')}
+TOUR = ['site', 'projects', 'apps', 'publishing', 'pulse']    # the walkthrough's steps, in order
 EXAMPLE = Path(__file__).resolve().parent.parent / 'pulse.example.toml'
 DEFAULTS = {('', 'interval'): 60, ('', 'idle'): 180, ('', 'window'): 600, ('', 'publish'): 3600,
             ('discover', 'enabled'): True, ('discover', 'root'): '~',
-            ('', 'site'): '~/.local/share/sitekit/site', ('', 'db'): '~/.local/share/sitekit/pulse.sqlite3', ('discover', 'depth'): 0, ('discover', 'every'): 86400, ('browser', 'titles'): True}
+            ('', 'site'): '~/.local/share/sitekit/site', ('', 'db'): '~/.local/share/sitekit/pulse.sqlite3', ('discover', 'depth'): 0, ('discover', 'every'): 86400, ('browser', 'titles'): True,
+            ('browser', 'history'): False, ('browser', 'default'): 'private', ('claude', 'code'): 'off', ('claude', 'web'): 'off',
+            ('claude', 'model'): conversations.MODEL, ('github', 'forks'): True}
+FEED_KINDS = ['', 'post', 'status', 'link', 'media', 'lj']
 TINT = {'lifecycle': '#3584e4', 'sample': '#77767b', 'activity': '#2ec27e', 'scan': '#9141ac', 'publish': '#1c71d8',
         'warning': '#e5a50a', 'error': '#e01b24'}
 CSS = '.kind { border-radius: 99px; padding: 0 8px; font-size: 0.8em; font-weight: 600; min-width: 64px; }\n' + \
@@ -105,10 +111,53 @@ class MapGroup(Adw.PreferencesGroup):
         return {k: r.get_text() for k, r in self.rows.items()}
 
 
+class RowsGroup(Adw.PreferencesGroup):
+    """An array of tables, one line of entries and drop-downs each, with a button to add a line. `cols` are (key, hint,
+    choices): choices make a drop-down. A line is kept once its first text column is filled in; empty values are left out."""
+
+    def __init__(self, title: str, description: str, values: list[dict], cols: list[tuple[str, str, list[str] | None]]):
+        super().__init__(title=title, description=description)
+        self.cols, self.lines = cols, []
+        add = Gtk.Button(icon_name='list-add-symbolic', tooltip_text='Add a line', valign=Gtk.Align.CENTER)
+        add.add_css_class('flat')
+        add.connect('clicked', lambda *_: self.put({}))
+        self.set_header_suffix(add)
+        for v in values:
+            self.put(v)
+
+    def put(self, values: dict) -> None:
+        box = Gtk.Box(spacing=8, margin_top=6, margin_bottom=6, margin_start=12, margin_end=6)
+        widgets = {}
+        for k, hint, choices in self.cols:
+            value = str(values.get(k, ''))
+            if choices:
+                w = Gtk.DropDown.new_from_strings(choices)
+                w.set_selected(choices.index(value) if value in choices else 0)
+            else:
+                w = Gtk.Entry(text=value, placeholder_text=hint, hexpand=True)
+            widgets[k] = w
+            box.append(w)
+        line = Gtk.ListBoxRow(activatable=False, selectable=False, child=box)
+        remove = Gtk.Button(icon_name='user-trash-symbolic', valign=Gtk.Align.CENTER, tooltip_text='Remove')
+        remove.add_css_class('flat')
+        entry = (line, widgets)
+        remove.connect('clicked', lambda *_: (self.remove(line), self.lines.remove(entry)))
+        box.append(remove)
+        self.add(line)
+        self.lines.append(entry)
+
+    def get(self) -> list[dict]:
+        read = lambda w: w.get_text().strip() if isinstance(w, Gtk.Entry) else w.get_selected_item().get_string()
+        first = next(k for k, _, choices in self.cols if not choices)
+        rows = [{k: read(w) for k, w in widgets.items()} for _, widgets in self.lines]
+        return [{k: v for k, v in r.items() if v} for r in rows if r[first]]
+
+
 class Window(Adw.ApplicationWindow):
     def __init__(self, app: Adw.Application):
         super().__init__(application=app, title='Pulse Settings', default_width=760, default_height=760)
         self.path = expand(CONFIG)
+        first_run = not self.path.exists()
         if not self.path.exists() and EXAMPLE.exists():
             self.path.parent.mkdir(parents=True, exist_ok=True)
             self.path.write_text(EXAMPLE.read_text())
@@ -116,16 +165,33 @@ class Window(Adw.ApplicationWindow):
         self.toasts, self.stack = Adw.ToastOverlay(), Adw.ViewStack()
         header = Adw.HeaderBar(title_widget=Adw.ViewSwitcher(stack=self.stack, policy=Adw.ViewSwitcherPolicy.NARROW))
         header.pack_end(button('Save and Apply', self.save, 'suggested-action'))
+        tour = Gtk.Button(icon_name='help-browser-symbolic', tooltip_text='Walk through the settings')
+        tour.connect('clicked', lambda *_: self.show_tour(True))
+        header.pack_end(tour)
+        self.bar, self.back, self.next = Gtk.ActionBar(), Gtk.Button(label='Back'), Gtk.Button(label='Next')
+        self.next.add_css_class('suggested-action')
+        self.back.connect('clicked', lambda *_: self.step(-1))
+        self.next.connect('clicked', lambda *_: self.step(1))
+        self.progress = Gtk.Label()
+        self.progress.add_css_class('dim-label')
+        self.bar.pack_start(self.back)
+        self.bar.set_center_widget(self.progress)
+        self.bar.pack_end(self.next)
         view = Adw.ToolbarView(content=self.toasts)
         view.add_top_bar(header)
+        view.add_bottom_bar(self.bar)
         self.toasts.set_child(self.stack)
         self.set_content(view)
         self.build()
+        self.stack.connect('notify::visible-child-name', lambda *_: self.sync_tour())
+        self.show_tour(first_run)
         self.link = Link(self.event)
         GLib.timeout_add_seconds(1, self.tick)
 
     def build(self) -> None:
         self.cfg = load_toml(self.path)
+        self.site_path = expand(self.cfg.get('site', '~/.local/share/sitekit/site')) / 'site.toml'
+        self.site_cfg = load_toml(self.site_path) if self.site_path.exists() else None
         for child in list(self.stack):
             self.stack.remove(child)
         for name, (title, icon) in PAGES.items():
@@ -135,6 +201,32 @@ class Window(Adw.ApplicationWindow):
     def show_page(self, name: str) -> None:
         self.stack.set_visible_child_name(name if name in PAGES else 'pulse')
         self.present()
+
+    # ── walkthrough ──────────────────────────────────────────────────────────────────────────────────────────────
+
+    def show_tour(self, on: bool) -> None:
+        self.bar.set_revealed(on)
+        if on:
+            self.stack.set_visible_child_name(TOUR[0])
+        self.sync_tour()
+
+    def sync_tour(self) -> None:
+        name = self.stack.get_visible_child_name()
+        if name not in TOUR:
+            return self.progress.set_label('')
+        i = TOUR.index(name)
+        self.progress.set_label(f'Step {i + 1} of {len(TOUR)}: {PAGES[name][0]}')
+        self.back.set_sensitive(i > 0)
+        self.next.set_label('Save and Finish' if i == len(TOUR) - 1 else 'Next')
+
+    def step(self, by: int) -> None:
+        name = self.stack.get_visible_child_name()
+        i = TOUR.index(name) + by if name in TOUR else 0
+        if i == len(TOUR):
+            self.save()
+            self.bar.set_revealed(False)
+        else:
+            self.stack.set_visible_child_name(TOUR[max(0, i)])
 
     def toast(self, text: str) -> None:
         self.toasts.add_toast(Adw.Toast(title=GLib.markup_escape_text(text), timeout=4))
@@ -163,6 +255,12 @@ class Window(Adw.ApplicationWindow):
         self.push.connect('notify::active', lambda r, _: self.quiet or self.send('set', push=r.get_active()))
         status.add(self.paused)
         status.add(self.push)
+        self.install = row('Run in the background', 'Installs the daemon as a user service that starts with your session, '
+                                                    'the panel icon, and this window in the app launcher')
+        self.install.add_suffix(button('Install', lambda: self.run([sys.executable, '-m', 'sitekit', 'pulse', 'install'],
+                                                                  lambda ok: self.toast('Installed; the daemon is starting' if ok
+                                                                                        else 'Install failed; see the Tools tab'))))
+        status.add(self.install)
         timing = group(page, 'Timing', 'Saved to pulse.toml with Save and Apply')
         self.spins = {}
         for key, title, sub, lo, hi, default in [
@@ -176,6 +274,39 @@ class Window(Adw.ApplicationWindow):
             spin.set_value(self.cfg.get(key, default))
             self.spins[key] = spin
             timing.add(spin)
+        return page
+
+    def page_site(self) -> Adw.PreferencesPage:
+        page = Adw.PreferencesPage()
+        c = self.site_cfg
+        if c is None:
+            group(page, 'No site.toml', f'{GLib.markup_escape_text(str(self.site_path))} does not exist yet. Set the checkout on '
+                                        'the Publishing tab and save; the daemon clones it on its first publish.')
+            return page
+        g = c.get('github', {})
+        gh = group(page, 'GitHub', 'sitekit history builds the project timeline from these; the daily workflow reads the same file')
+        self.github = {'user': Adw.EntryRow(title='User', text=g.get('user', '')),
+                       'author': Adw.EntryRow(title='Commit author (regex on “Name &lt;email&gt;”)', text=g.get('author', '')),
+                       'ignore': Adw.EntryRow(title='Hidden repos, comma separated', text=', '.join(g.get('ignore', []))),
+                       'repos': Adw.EntryRow(title='Extra repos (owner/name), comma separated', text=', '.join(g.get('repos', [])))}
+        self.forks = Adw.SwitchRow(title='Include forks', active=g.get('forks', True))
+        for w in [*self.github.values(), self.forks]:
+            gh.add(w)
+        self.feeds = RowsGroup('Feeds', 'sitekit sync imports these every day', c.get('feeds', []),
+                               [('url', 'feed URL', None), ('source', 'name shown on entries', None), ('kind', '', FEED_KINDS)])
+        page.add(self.feeds)
+        m = c.get('media', {})
+        media = group(page, 'Media', 'Where full-size gallery files live; leave empty to serve previews from the repo')
+        self.media = {k: Adw.EntryRow(title=t, text=m.get(k, '')) for k, t in [
+            ('base', 'Public URL of the bucket'), ('masters', 'Local folder of full-size files'),
+            ('remote', 'rclone remote they are mirrored to'), ('backup', 'Backup folder')]}
+        for w in self.media.values():
+            media.add(w)
+        commit = group(page, 'Publish these settings')
+        r = row('Commit and push site.toml', 'Save first. Only site.toml is committed')
+        r.add_suffix(button('Push', lambda: self.run(['sh', '-c', 'git commit -qm "Update site.toml from Pulse Settings" -- site.toml '
+                                                     '&& git push -q && echo pushed || echo nothing to push'])))
+        commit.add(r)
         return page
 
     def page_projects(self) -> Adw.PreferencesPage:
@@ -203,8 +334,14 @@ class Window(Adw.ApplicationWindow):
         self.every.set_title('Rescan every')
         self.every.set_subtitle('hours')
         self.every.set_value(d.get('every', 86400) / 3600)
-        for w in [*self.discover.values(), self.depth, self.every]:
+        self.limits = {'max_idle': Adw.EntryRow(title='Skip repos untouched for (like 90d, 6m, 1y; blank: no limit)', text=str(d.get('max_idle', ''))),
+                       'max_age': Adw.EntryRow(title='Skip repos created over (like 1y; blank: no limit)', text=str(d.get('max_age', '')))}
+        for w in [*self.discover.values(), self.depth, self.every, *self.limits.values()]:
             disc.add(w)
+        self.rules = RowsGroup('Rules', 'The first matching rule decides: deny leaves a repo out, allow exempts it from the two limits. '
+                               + '; '.join(f'{k}: {v[0]}' for k, v in CONDITIONS.items()), d.get('rules', []),
+                               [('action', '', ['deny', 'allow']), ('when', '', list(CONDITIONS)), ('value', 'pattern', None)])
+        page.add(self.rules)
         files = group(page, 'Ignored files')
         self.ignore = Adw.EntryRow(title='Name patterns to skip, comma separated (fnmatch)', text=', '.join(self.cfg.get('ignore', [])))
         files.add(self.ignore)
@@ -237,11 +374,32 @@ class Window(Adw.ApplicationWindow):
         self.titles = Adw.SwitchRow(title='Keep page titles', subtitle='Stored locally only, never published', active=b.get('titles', True))
         self.allow = Adw.EntryRow(title='Allowed hosts, comma separated', text=', '.join(b.get('allow', [])))
         self.deny = Adw.EntryRow(title='Never recorded, comma separated', text=', '.join(b.get('deny', [])))
-        for w in (self.titles, self.allow, self.deny):
+        self.history = Adw.SwitchRow(title='Import browser history', subtitle='Fills in pages visited on days the extension saw '
+                                     'nothing (needs browserprofile and Python 3.13)', active=b.get('history', False))
+        self.default = Adw.ComboRow(title='Pages no rule below matches', subtitle='private: nothing published. domain: its minutes '
+                                    'and pages visited. page: its URL and title too', model=Gtk.StringList.new(browsing.LEVELS))
+        self.default.set_selected(browsing.LEVELS.index(b.get('default', 'private')))
+        for w in (self.titles, self.allow, self.deny, self.history, self.default):
             browser.add(w)
+        self.publish_rules = RowsGroup('What gets published', 'Globs on the hostname, or host + path with a “/”; the first match wins',
+                                       b.get('publish', []), [('match', 'github.com', None), ('level', '', ['page', 'domain', 'private'])])
+        page.add(self.publish_rules)
         self.sites = MapGroup('Site categories', 'Regexes on the hostname, published as minutes per category ([browser.sites])',
                               b.get('sites', {}), 'Add a site category')
         page.add(self.sites)
+        c = self.cfg.get('claude', {})
+        cl = group(page, 'Claude conversations', 'Off, counts, titles too, or a one-sentence summary as well. Claude Code sessions are '
+                   'named only under a published project; claude.ai titles follow the level alone')
+        self.claude = {}
+        for k, title in [('code', 'Claude Code'), ('web', 'claude.ai')]:
+            self.claude[k] = Adw.ComboRow(title=title, model=Gtk.StringList.new(conversations.LEVELS))
+            self.claude[k].set_selected(conversations.LEVELS.index(c.get(k, 'off')))
+            cl.add(self.claude[k])
+        self.model = Adw.EntryRow(title='Model for summaries', text=c.get('model', conversations.MODEL))
+        have = 'saved' if conversations.KEY_FILE.exists() else 'none saved; ANTHROPIC_API_KEY or ant auth login also work'
+        self.key = Adw.PasswordEntryRow(title=f'Anthropic API key ({have})')
+        cl.add(self.model)
+        cl.add(self.key)
         return page
 
     def page_tools(self) -> Adw.PreferencesPage:
@@ -401,31 +559,66 @@ class Window(Adw.ApplicationWindow):
                 ('discover', 'depth', int(self.depth.get_value())), ('discover', 'every', int(self.every.get_value() * 3600)),
                 ('', 'ignore', blank(words(self.ignore.get_text())))]
         out += [('', k, blank(e.get_text().strip())) for k, e in self.site.items()]
+        out += [('discover', k, blank(e.get_text().strip())) for k, e in self.limits.items()]
+        out += [('discover', 'rules', blank(self.rules.get()))]
         out += [('browser', 'titles', self.titles.get_active()), ('browser', 'allow', blank(words(self.allow.get_text()))),
-                ('browser', 'deny', blank(words(self.deny.get_text())))]
+                ('browser', 'deny', blank(words(self.deny.get_text()))), ('browser', 'history', self.history.get_active()),
+                ('browser', 'default', browsing.LEVELS[self.default.get_selected()]),
+                ('browser', 'publish', blank(self.publish_rules.get()))]
+        out += [('claude', k, conversations.LEVELS[w.get_selected()]) for k, w in self.claude.items()]
+        out += [('claude', 'model', blank(self.model.get_text().strip()))]
         for table, m in [('projects', self.projects), ('apps', self.apps), ('app_ids', self.pins), ('browser.sites', self.sites)]:
             new, old = m.get(), self.lookup(table) or {}
             out += [(table, k, None) for k in old if k not in new] + [(table, k, v) for k, v in new.items()]
         return out
 
-    def lookup(self, table: str, key: str | None = None):
-        node = self.cfg
+    def site_values(self) -> list[tuple[str, str, object]]:
+        if self.site_cfg is None:
+            return []
+        blank = lambda v: v if v not in ('', []) else None
+        out = [('github', 'user', blank(self.github['user'].get_text().strip())),
+               ('github', 'author', blank(self.github['author'].get_text().strip())),
+               ('github', 'forks', self.forks.get_active()), ('', 'feeds', self.feeds.get())]
+        out += [('github', k, words(self.github[k].get_text())) for k in ('ignore', 'repos')]
+        out += [('media', k, e.get_text().strip()) for k, e in self.media.items()]
+        return out
+
+    def lookup(self, table: str, key: str | None = None, cfg: dict | None = None):
+        node = self.cfg if cfg is None else cfg
         for part in [p for p in table.split('.') if p] + ([key] if key else []):
             node = node.get(part) if isinstance(node, dict) else None
         return node
 
     def save(self) -> None:
-        changes = [(t, k, v) for t, k, v in self.values()
-                   if v != (old := self.lookup(t, k)) and not (old is None and v == DEFAULTS.get((t, k)))]
-        if not changes:
+        def changed(values, cfg):
+            return [(t, k, v) for t, k, v in values
+                    if v != (old := self.lookup(t, k, cfg)) and not (old is None and (v in ('', [], None) or v == DEFAULTS.get((t, k))))]
+        changes, site = changed(self.values(), self.cfg), changed(self.site_values(), self.site_cfg or {})
+        key = self.key.get_text().strip()
+        if not changes and not site and not key:
             return self.toast('Nothing to save')
         try:
-            tomledit.edit(self.path, changes)
+            for k in ('max_idle', 'max_age'):
+                duration(self.limits[k].get_text().strip())
+            if changes:
+                tomledit.edit(self.path, changes)
+            if site:
+                tomledit.edit(self.site_path, site)
         except (ValueError, TypeError, OSError) as e:
             return self.toast(f'Not saved: {e}')
+        if key:
+            conversations.KEY_FILE.parent.mkdir(parents=True, exist_ok=True)
+            conversations.KEY_FILE.touch(mode=0o600)
+            conversations.KEY_FILE.chmod(0o600)
+            conversations.KEY_FILE.write_text(key + '\n')
+            self.key.set_text('')
         self.cfg = load_toml(self.path)
-        self.send('reload')
-        self.toast(f'Saved {len(changes)} change{"s" * (len(changes) != 1)}; the daemon is restarting')
+        self.site_cfg = load_toml(self.site_path) if self.site_path.exists() else None
+        if changes:
+            self.send('reload')
+        n = len(changes) + len(site) + bool(key)
+        self.toast(f'Saved {n} change{"s" * (n != 1)}' + ('; the daemon is restarting' if changes else '')
+                   + ('; commit site.toml from the Site tab' if site else ''))
 
     def post(self) -> None:
         text = self.post_text.get_text().strip()
