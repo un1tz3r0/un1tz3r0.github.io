@@ -26,7 +26,7 @@ from datetime import date, datetime, timedelta
 from fnmatch import fnmatch
 from pathlib import Path
 
-from . import claude
+from . import browsing, claude
 from .common import expand, load_toml, now, read_json, run, write_json
 
 CONFIG = expand('~/.config/sitekit/pulse.toml')
@@ -91,7 +91,7 @@ class Settings:
                    ignore=IGNORE + c.get('ignore', []), root=expand(d.get('root', '~')).resolve(),
                    depth=int(d['depth']) if d.get('depth') else None, owner=d.get('owner') or site_owner(expand(c.get('site', '~/.local/share/sitekit/site'))),
                    rescan=int(d.get('every', 86400)) if d.get('enabled', True) else 0, found={},
-                   browser=c.get('browser', {}), path=path, pinned={k.lower(): v for k, v in c.get('app_ids', {}).items()},
+                   browser=browsing.check(c.get('browser', {})), path=path, pinned={k.lower(): v for k, v in c.get('app_ids', {}).items()},
                    exclude={expand(x).resolve() for x in d.get('exclude', [])}, rules=check_rules(d.get('rules', [])),
                    max_idle=duration(d.get('max_idle')), max_age=duration(d.get('max_age')))
 
@@ -360,6 +360,8 @@ create table if not exists pages (start real not null, end real not null, tab in
                                   project text, activity text, input integer, meta text);
 create index if not exists pages_start on pages (start);
 create table if not exists catalog (id text primary key, type text, name text, url text, public integer, meta text, updated real);
+create table if not exists history (ts real not null, url text not null, title text);
+create index if not exists history_ts on history (ts);
 '''
 
 
@@ -474,6 +476,12 @@ async def publish(s: Settings, db: sqlite3.Connection) -> None:
     last = db.execute("select value from meta where key = 'published'").fetchone()
     first = min(date.today() - timedelta(days=1), date.fromisoformat(last[0]) if last else date.today())
     days = aggregate(db, first, s.interval / 60)
+    if s.browser.get('history'):
+        if added := browsing.import_history(db, s.browser):
+            log(f'imported {added} browser history rows', kind='publish')
+    start = datetime.combine(first, datetime.min.time()).timestamp()
+    for d, v in browsing.day_report(db, start, s.browser).items():
+        days.setdefault(d, {'active': 0, 'hours': [0] * 24, 'apps': {}, 'projects': {}}).update(v)
     await ensure_checkout(s)
     allowed, catalog = publishable(s, db), public_catalog(db)
     for v in days.values():
