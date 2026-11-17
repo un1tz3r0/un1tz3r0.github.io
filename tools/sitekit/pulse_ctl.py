@@ -1,7 +1,11 @@
 """Talk to the running pulse daemon, and install pulse for this user: systemd unit, launchers, panel-icon autostart, icons.
 
 request() is plain sockets, for the CLI and scripts. Link keeps a watch connection on the GLib main loop for the panel
-icon and the settings window, and reconnects whenever the daemon restarts.
+icon and the settings window, reconnects whenever the daemon restarts, and restarts its own process when the daemon
+comes back as a newer release (see update.py).
+
+A managed install (`sitekit pulse install --managed`) points everything at ~/.local/share/sitekit/current, so it follows
+updates; otherwise at the Python and package that ran the install.
 """
 from __future__ import annotations
 
@@ -13,6 +17,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from . import update
 from .common import expand
 from .pulse import SOCKET
 
@@ -41,9 +46,10 @@ class Link:
     """A watch connection to the daemon on the GLib main loop. on_event gets every message the daemon sends (state
     events, log lines, replies), and None whenever the connection drops; it reconnects every few seconds."""
 
-    def __init__(self, on_event):
+    def __init__(self, on_event, on_update=None):
         from gi.repository import Gio, GLib
         self.Gio, self.GLib, self.on_event = Gio, GLib, on_event
+        self.on_update, self.updating = on_update or restart, False
         self.conn = self.out = None
         self.connect()
 
@@ -88,37 +94,63 @@ class Link:
             self.on_event(None)
             return self.retry()
         try:
-            self.on_event(json.loads(text))
+            msg = json.loads(text)
         except ValueError:
-            pass
+            msg = None
+        if isinstance(msg, dict):
+            version = msg.get('version')
+            if version and update.RUNNING and version != update.RUNNING and not self.updating:
+                self.updating = True
+                self.on_update(version)
+            self.on_event(msg)
         self.read()
 
     def retry(self) -> None:
         self.GLib.timeout_add_seconds(3, self.connect)
 
 
-def command(*args: str) -> str:
-    """How a launcher runs `sitekit <args>` with this interpreter, wherever the package lives."""
-    package = Path(__file__).resolve().parent.parent
-    return f'env PYTHONPATH={package} {sys.executable} -m sitekit {" ".join(args)}'
+def restart(version: str) -> None:
+    """Start this program again from the same command, which now loads the new release through `current`."""
+    os.execv(sys.executable, sys.orig_argv)
 
 
-def desktop(name: str, comment: str, args: str, categories: str, extra: str = '') -> str:
-    return (f'[Desktop Entry]\nType=Application\nName={name}\nComment={comment}\nExec={command(args)}\n'
+def managed() -> update.Layout | None:
+    """The managed install's layout when this code runs from one of its releases."""
+    return update.Layout.default() if update.RUNNING else None
+
+
+def runtime(layout: update.Layout | None = None) -> tuple[Path, Path]:
+    """(python, package folder) that launchers run: through `current` for a managed install, never a resolved release."""
+    if layout:
+        return layout.python, layout.package
+    return Path(sys.executable), Path(__file__).resolve().parent.parent
+
+
+def command(*args: str, layout: update.Layout | None = None) -> str:
+    """How a launcher runs `sitekit <args>`."""
+    python, package = runtime(layout)
+    return f'env PYTHONPATH={package} {python} -m sitekit {" ".join(args)}'
+
+
+def desktop(name: str, comment: str, args: str, categories: str, extra: str = '', layout: update.Layout | None = None) -> str:
+    return (f'[Desktop Entry]\nType=Application\nName={name}\nComment={comment}\nExec={command(args, layout=layout)}\n'
             f'Icon=sitekit-pulse\nTerminal=false\nCategories={categories}\nStartupWMClass={APP_ID}\n{extra}')
 
 
-def files() -> dict[Path, str]:
-    package = Path(__file__).resolve().parent.parent
+def files(layout: update.Layout | None = None) -> dict[Path, str]:
+    python, package = runtime(layout)
+    # A managed install starts through pulse-launch, which can roll back a release that doesn't start.
+    start = f'ExecStart={layout.launch}\n' if layout else f'Environment=PYTHONPATH={package}\nExecStart={python} -m sitekit pulse run\n'
+    entry = lambda *a, **k: desktop(*a, **k, layout=layout)
     return {
         UNIT: ('[Unit]\nDescription=sitekit pulse\nAfter=graphical-session.target\nPartOf=graphical-session.target\n\n'
-               f'[Service]\nEnvironment=PYTHONPATH={package}\nExecStart={sys.executable} -m sitekit pulse run\n'
+               f'[Service]\n{start}'
                'Restart=on-failure\nRestartSec=30\n\n[Install]\nWantedBy=graphical-session.target\n'),
-        APPS / 'sitekit-pulse-settings.desktop': desktop('Pulse Settings', 'Settings and log for the sitekit pulse daemon',
+        APPS / 'sitekit-pulse-settings.desktop': entry('Pulse Settings', 'Settings and log for the sitekit pulse daemon',
                                                          'settings', 'Settings;Utility;GTK;', 'Keywords=sitekit;pulse;activity;\n'),
-        APPS / 'sitekit-pulse-indicator.desktop': desktop('Pulse Indicator', 'Panel icon for the sitekit pulse daemon',
+        APPS / 'sitekit-pulse-indicator.desktop': entry('Pulse Indicator', 'Panel icon for the sitekit pulse daemon',
                                                           'pulse indicator', 'Utility;', 'NoDisplay=true\n'),
-        AUTOSTART / 'sitekit-pulse-indicator.desktop': desktop('Pulse Indicator', 'Panel icon for the sitekit pulse daemon',
+        AUTOSTART / 'sitekit-pulse-indicator.desktop': entry('Pulse Indicator', 'Panel icon for the sitekit pulse daemon',
                                                                'pulse indicator', 'Utility;', 'X-GNOME-Autostart-enabled=true\nNoDisplay=true\n'),
     }
 
@@ -130,19 +162,20 @@ def systemctl(*args: str) -> str | None:
     return None if r.returncode else ' '.join(args)
 
 
-def install(uninstall: bool = False) -> list[str]:
+def install(uninstall: bool = False, layout: update.Layout | None = None) -> list[str]:
+    layout = layout or managed()
     done = []
     icons = [(p, ICON_HOME / p.relative_to(ICONS)) for p in ICONS.rglob('*.svg')]
     if uninstall:
         if systemctl('disable', '--now', 'sitekit-pulse'):
             done.append('stopped and disabled sitekit-pulse.service')
-        for path in [*files(), *(dst for _, dst in icons)]:
+        for path in [*files(layout), *(dst for _, dst in icons)]:
             if path.exists():
                 path.unlink()
                 done.append(f'removed {path}')
         systemctl('daemon-reload')
         return done or ['nothing to remove']
-    for path, text in files().items():
+    for path, text in files(layout).items():
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text)
         done.append(f'wrote {path}')
@@ -159,7 +192,7 @@ def install(uninstall: bool = False) -> list[str]:
     if not os.environ.get('DISPLAY') and not os.environ.get('WAYLAND_DISPLAY'):
         done.append('no desktop session here; the panel icon starts at your next login')
     else:
-        subprocess.Popen(command('pulse', 'indicator').split(), start_new_session=True,
+        subprocess.Popen(command('pulse', 'indicator', layout=layout).split(), start_new_session=True,
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         done.append('started the panel icon')
     return done

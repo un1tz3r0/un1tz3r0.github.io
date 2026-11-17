@@ -23,7 +23,7 @@ from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango  # noqa: E402
 from . import browsing, conversations, tomledit  # noqa: E402
 from .common import expand, load_toml  # noqa: E402
 from .pulse import CONDITIONS, CONFIG, KINDS, duration  # noqa: E402
-from .pulse_ctl import APP_ID, ICONS, Link  # noqa: E402
+from .pulse_ctl import APP_ID, ICONS, Link, restart  # noqa: E402
 
 PAGES = {'pulse': ('Pulse', 'sitekit-pulse-active'), 'site': ('Site', 'user-home-symbolic'), 'projects': ('Projects', 'folder-symbolic'),
          'apps': ('Apps', 'view-app-grid-symbolic'), 'publishing': ('Publishing', 'send-to-symbolic'),
@@ -185,7 +185,7 @@ class Window(Adw.ApplicationWindow):
         self.build()
         self.stack.connect('notify::visible-child-name', lambda *_: self.sync_tour())
         self.show_tour(first_run)
-        self.link = Link(self.event)
+        self.link = Link(self.event, self.updated)
         GLib.timeout_add_seconds(1, self.tick)
 
     def build(self) -> None:
@@ -510,7 +510,7 @@ class Window(Adw.ApplicationWindow):
         self.mode_icon.set_from_icon_name(f'sitekit-pulse-{mode}')
         s['mode'].set_subtitle({'active': 'Active', 'idle': 'Idle, away from the keyboard', 'paused': 'Paused',
                                 'offline': f'Publishing failed: {st.get("error")}' if st.get('error') else 'Not running'}[mode]
-                               + (f' · pid {st["pid"]}' if st.get('pid') else ''))
+                               + (f' · pid {st["pid"]}' if st.get('pid') else '') + (f' · {st["version"]}' if st.get('version') else ''))
         s['today'].set_subtitle(f'{hours(st.get("minutes") or 0)} at the keyboard' if st else '—')
         now = ' · '.join(filter(None, [st.get('category'), st.get('project')]))
         s['now'].set_subtitle(f'{now or "active"} (sampled {ago(st.get("sampled"))})' if st.get('active') else
@@ -589,11 +589,21 @@ class Window(Adw.ApplicationWindow):
             node = node.get(part) if isinstance(node, dict) else None
         return node
 
-    def save(self) -> None:
+    def changes(self) -> tuple[list, list]:
+        """(pulse.toml changes, site.toml changes) the form holds that aren't saved yet."""
         def changed(values, cfg):
             return [(t, k, v) for t, k, v in values
                     if v != (old := self.lookup(t, k, cfg)) and not (old is None and (v in ('', [], None) or v == DEFAULTS.get((t, k))))]
-        changes, site = changed(self.values(), self.cfg), changed(self.site_values(), self.site_cfg or {})
+        return changed(self.values(), self.cfg), changed(self.site_values(), self.site_cfg or {})
+
+    def updated(self, version: str) -> None:
+        """The daemon came back as a newer release: reopen on it, unless that would lose edits."""
+        if any(self.changes()) or self.key.get_text().strip():
+            return self.toast(f'Pulse updated to {version}. Save, then reopen this window to use it')
+        restart(version)
+
+    def save(self) -> None:
+        changes, site = self.changes()
         key = self.key.get_text().strip()
         if not changes and not site and not key:
             return self.toast('Nothing to save')

@@ -7,7 +7,7 @@ const HOST = 'io.github.un1tz3r0.sitekit_pulse';
 const DEFAULTS = { idle: 180, interval: 60, owner: null, titles: true, allow: [], deny: [], sites: {}, rules: [], plugins: {} };
 const QUEUE_MAX = 5000, MIN_SPAN = 2, MAX_SPAN = 600, BROWSER = /Firefox\//.test(navigator.userAgent) ? 'firefox' : 'chrome';
 
-const local = { config: DEFAULTS, queue: [], synced: {} };   // mirrored to storage.local
+const local = { config: DEFAULTS, queue: [], synced: {}, version: null };   // mirrored to storage.local
 const live = { span: null, idle: 'active', window: null };    // mirrored to storage.session, survives worker restarts
 let port = null, daemon = null, error = null, nextId = 1;
 const pending = new Map(), extracted = new Map(), announced = new Set();
@@ -64,8 +64,22 @@ async function onDaemon(msg) {
       return applyConfig(msg.config);
     case 'state':
       daemon = msg;
+      if (msg.version && msg.version !== local.version) return updated(msg.version);
       return paint();
   }
+}
+
+// The daemon came back as a newer release (a managed install updates itself). Reloading picks up this folder's new
+// files when it was loaded from ~/.local/share/sitekit/current, and restarts the native host from there too. The page
+// being timed is queued first, since session storage doesn't survive a reload.
+async function updated(version) {
+  const first = local.version == null;
+  local.version = version;
+  await save('local', local, ['version']);
+  if (first) return paint();
+  close();
+  await save('local', local, ['queue']);
+  api.runtime.reload();
 }
 
 async function applyConfig(config) {
@@ -264,7 +278,7 @@ api.alarms.onAlarm.addListener(() => (connect(), refresh(), flush(), syncDue()))
 api.runtime.onStartup.addListener(() => {});   // having a listener is what starts the worker with the browser
 
 (async () => {
-  Object.assign(local, await api.storage.local.get(['config', 'queue', 'synced']));
+  Object.assign(local, await api.storage.local.get(['config', 'queue', 'synced', 'version']));
   local.config = { ...DEFAULTS, ...local.config }, local.queue ??= [], local.synced ??= {};
   Object.assign(live, await api.storage.session.get(['span', 'idle', 'window']));
   live.idle = await api.idle.queryState(Math.max(15, Math.round(local.config.idle)));
