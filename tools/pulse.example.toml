@@ -34,6 +34,10 @@ depth = 0           # folders below root to search; 0 = no limit (e.g. 1 with ro
 # owner = "un1tz3r0"  # defaults to [github].user in the site checkout's site.toml
 every = 86400
 exclude = []        # folders never watched, e.g. "~/src/scratch" (the panel menu's "Ignore this folder" adds here)
+# max_idle = "6m"   # skip repos untouched this long (newest commit or uncommitted edit); also max_age, from the first commit
+# Rules decide first, in order: deny leaves a repo out, allow exempts it from the limits. `when` is dir, no-dir, file,
+# no-file, remote, no-remote, name or path; see tools/README.md.
+# rules = [{ action = "deny", when = "name", value = "scratch*" }]
 
 # App categories: case-insensitive regexes matched against the focused window's app id or WM class. The first
 # match wins and anything else is "other". Only the category names are published, never app names or titles.
@@ -57,6 +61,10 @@ chat = "discord|slack|signal|telegram|element"
 titles = true
 allow = []
 deny = ["*.bank.*", "mail.google.com"]
+# Nothing about single sites is published unless a rule says so: domain publishes a site's minutes and pages visited,
+# page also each page's URL and title. Globs like allow and deny; the first match wins, else `default` (private).
+# publish = [{ match = "github.com", level = "page" }]
+# history = true   # fill days the extension missed from the browsers' history (needs the [pulse] extra, Python 3.13)
 
 # Site categories: regexes on the hostname, like [apps]. These win over the ones plugins set ("code" for GitHub and CodePen, "ai" for Claude).
 [browser.sites]
@@ -75,3 +83,9 @@ social = "x\\.com|mastodon|bsky\\.app|reddit\\.com"
 # user = "un1tz3r0"   # defaults to the owner
 [browser.plugins.claude]
 enabled = true
+
+# Claude conversations in the daily record, for Claude Code sessions (code) and claude.ai (web): off, counts, titles,
+# or summaries (one sentence each from the Claude API; needs the [pulse] extra and a key). See tools/README.md.
+[claude]
+code = "off"
+web = "off"

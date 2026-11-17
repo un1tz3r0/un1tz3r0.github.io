@@ -1358,11 +1358,17 @@ class ActivityFeed extends Base {
   async digest(li, d) {
     if (!this.pulseIndex.months.includes(d.slice(0, 7))) return;
     const v = (await load(`data/pulse/${d.slice(0, 7)}.json`, { days: {} })).days[d];
-    if (!v?.active) return;
-    const top = Object.entries(v.projects ?? {}).sort((a, b) => b[1].minutes - a[1].minutes).slice(0, 3)
+    if (!v?.active && !v?.claude) return;
+    const top = Object.entries(v.projects ?? {}).filter(([, p]) => p.minutes).sort((a, b) => b[1].minutes - a[1].minutes).slice(0, 3)
       .map(([id, p]) => `${this.m.byId.get(id)?.title ?? id} ${hours(p.minutes)}`);
     const web = sum(v.web ?? []);
-    li.querySelector('h3').append(h('small', { class: 'digest' }, icon('pulse'), ` ${hours(v.active)} at the keyboard${top.length ? `: ${top.join(', ')}` : ''}${web >= 1 ? `; ${hours(web)} of it in the browser` : ''}`));
+    const c = v.claude ?? {}, talks = (c.code?.conversations ?? 0) + (c.web?.conversations ?? 0);
+    const parts = [v.active ? `${hours(v.active)} at the keyboard${top.length ? `: ${top.join(', ')}` : ''}${web >= 1 ? `; ${hours(web)} of it in the browser` : ''}` : null,
+                   talks ? plural(talks, 'Claude conversation') : null];
+    const head = li.querySelector('h3');
+    head.append(h('small', { class: 'digest' }, icon('pulse'), ` ${parts.filter(Boolean).join(' · ')}`));
+    if (c.items?.length) head.after(h('ul', { class: 'msgs' }, ...c.items.map(i => h('li', {},
+      i.project ? `${this.m.byId.get(i.project)?.title ?? i.project}: ` : '', i.summary ?? i.title))));
   }
 
   add(entries) {

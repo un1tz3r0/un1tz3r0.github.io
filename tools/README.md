@@ -70,7 +70,9 @@ Imports are idempotent, so re-running one after a fresh export only adds what's 
 of your listed project folders are changing. Raw samples stay in a local SQLite file; once an hour it publishes daily
 totals to `data/pulse/` and pushes. What leaves the machine is: active minutes per hour of the day, minutes per app
 category, and, for the folders you list only, minutes, number of files changed and their extensions. App names,
-window titles, file names and anything outside the listed folders never do.
+window titles, file names and anything outside the listed folders never do, unless you opt in to publishing chosen
+sites and pages (`[browser] publish`, below) or Claude conversation titles (`[claude]`, below). The local database is
+readable only by you.
 
 ```sh
 mkdir -p ~/.config/sitekit && cp tools/pulse.example.toml ~/.config/sitekit/pulse.toml   # then edit it
@@ -81,7 +83,20 @@ sitekit pulse publish    # publish now instead of waiting for the hour
 Listing every folder gets old, so `[discover]` in the config makes the daemon scan `root` (default `~`, optionally
 limited by `depth`) at startup and daily for git repos whose remote is on `github.com/<owner>`, and watch them under the
 repo's name. A repo only appears in the published data if the site lists it as public; private ones are tracked
-locally and never named. `sitekit pulse status` shows what the scan finds and what would be held back.
+locally and never named. `sitekit pulse status` shows what the scan finds, what it left out and why, and what would be
+held back.
+
+`max_idle` and `max_age` (`"90d"`, `"6m"`, `"1y"`) skip repos untouched for that long (newest commit or uncommitted
+edit) or created that long ago (first commit). `rules` decide first, in order: `deny` leaves a repo out, `allow` exempts it
+from both limits. Each matches `when` one of `dir`, `no-dir`, `file`, `no-file` (globs inside the repo), `remote`,
+`no-remote` (globs on remote URLs), `name` (the folder name) or `path` (the full path) against `value`:
+
+```toml
+[discover]
+max_idle = "6m"
+rules = [{ action = "deny", when = "name", value = "scratch*" },
+         { action = "allow", when = "file", value = "pinned.txt" }]
+```
 
 Idle time comes from GNOME (Mutter), `xprintidle` on X11, or logind. The focused app comes from Hyprland, Sway, KDE
 (`kdotool`), X11 (`xprop`) or, on GNOME Wayland, the *Focused Window D-Bus* shell extension. Without an idle probe a
@@ -114,7 +129,7 @@ service needs your session's `DISPLAY`/`WAYLAND_DISPLAY` and `SSH_AUTH_SOCK` (GN
 ```sh
 sitekit pulse install      # systemd unit, launcher, panel-icon autostart and icons, all under ~ (`uninstall` reverses it)
 sitekit pulse indicator    # the panel icon, run by hand
-sitekit settings [page]    # the settings window; page is pulse, projects, apps, publishing, tools or log
+sitekit settings [page]    # the settings window; page is pulse, site, projects, apps, publishing, tools or log
 sitekit pulse pause        # or resume: ask the running daemon from a script or keybinding
 ```
 
@@ -129,8 +144,10 @@ needs no extra packages on GNOME with the AppIndicator extension (on by default 
 The settings window (libadwaita: `python3-gi` and `gir1.2-adw-1`, so a venv needs `--system-site-packages`) shows
 live state with a countdown to the next publish and edits `pulse.toml` in place, keeping your comments and writing the
 previous file to `pulse.toml.bak`. Changes apply when you press *Save and Apply*, which restarts the daemon; pause and
-push take effect at once. The *Tools* page runs the other sitekit commands in the site checkout, posts quick statuses
-and commits and pushes `data/`. The *Log* page follows the daemon's log, with a toggle per kind of line (lifecycle,
+push take effect at once. The *Site* page edits `site.toml` in the site checkout the same way, and commits and pushes
+just that file. The *Tools* page runs the other sitekit commands in the site checkout, posts quick statuses
+and commits and pushes `data/`. The first time it opens, and from the tour button in the header, *Back* and *Next* walk
+through Site, Projects, Apps, Publishing and Pulse, where *Install* runs `sitekit pulse install`. The *Log* page follows the daemon's log, with a toggle per kind of line (lifecycle,
 samples, activity, scans, publishing, warnings, errors) and a filter. GNOME Settings itself has no plug-in API for third-party panels, so this is
 a separate app with a Settings-category launcher rather than a page inside it.
 
@@ -162,6 +179,19 @@ category, project and activity. Private windows, non-http pages and `deny`ed hos
 minutes per site category, and per project the minutes by activity, only for projects that the site already names or
 that a plugin marks as yours and public.
 
+Nothing about individual sites is published unless you add `publish` rules. Each sets matching pages (a glob on the
+hostname, or on host + path when it contains a `/`; the first match wins, else `default`, which is `private`) to
+`domain`, publishing the domain's minutes and pages visited per day, or `page`, publishing each page's URL and title
+too. Rules, `allow` and `deny` are applied at publish time, so tightening one covers what is already stored. With
+`history = true`, the browsers' own history (through `browserprofile`, Python 3.13+, from `pip install "./tools[pulse]"`)
+fills in pages visited on days the extension saw nothing; `allow` and `deny` apply to it too.
+
+```toml
+[browser]
+publish = [{ match = "github.com", level = "page" }, { match = "*.wikipedia.org", level = "domain" }]
+history = true
+```
+
 Plugins live in `extension/plugins/` (the interface is documented in `index.js`) and ship with the extension, since MV3
 can't load code from elsewhere. Simple cases need no code: `[[browser.rules]]` map URLs to projects.
 
@@ -192,6 +222,31 @@ Claude Code deletes transcripts after a month, so the scan keeps per-session tot
 reads and writes, per model), split by public repo; cost only if `[claude].publish` lists `"cost"`. Each machine writes
 its own file (`SITEKIT_MACHINE` overrides the host name). The pulse daemon runs the scan with every publish. Costs are the
 API list-price equivalent, which on a subscription is notional.
+
+### Conversations in the daily record
+
+Separately, `[claude]` in `pulse.toml` puts conversations into `data/pulse/`, and the activity feed shows them under
+each day. `code` (Claude Code sessions, from the transcripts) and `web` (claude.ai conversations, from the browser
+extension) each take a level, and both are `off` until you set them:
+
+| level | published |
+|---|---|
+| `counts` | conversations, prompts, minutes and tokens, in total and per publishable project |
+| `titles` | also each conversation's title |
+| `summaries` | also one sentence on what was worked on, written by the Claude API |
+
+A Claude Code session is named only when its folder belongs to a publishable project; otherwise it is just counted. A
+claude.ai conversation has no folder, so its title follows the level alone. Titles and summaries are scrubbed of keys,
+email addresses and home paths. Summaries send your prompts (for claude.ai, the opening of the page, which the extension
+only reads at this level) to `model` (default `claude-opus-5-5`), only for conversations that would be published, and
+are cached per conversation per day. They need `pip install "./tools[pulse]"` and a key: the settings window saves one
+to `~/.config/sitekit/anthropic.key`, or set `ANTHROPIC_API_KEY`, or run `ant auth login`.
+
+```toml
+[claude]
+code = "titles"
+web = "counts"
+```
 
 ## The gallery
 

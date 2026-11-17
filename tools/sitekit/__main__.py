@@ -93,7 +93,7 @@ def parser() -> argparse.ArgumentParser:
     pu.add_argument('--config', type=Path, default=pulse.CONFIG)
 
     st = sub.add_parser('settings', help='the GNOME settings window for sitekit and pulse')
-    st.add_argument('page', nargs='?', default='pulse', choices=['pulse', 'projects', 'apps', 'publishing', 'tools', 'log'])
+    st.add_argument('page', nargs='?', default='pulse', choices=['pulse', 'site', 'projects', 'apps', 'publishing', 'tools', 'log'])
 
     cl = sub.add_parser('claude', help='Claude Code usage from this machine (scan publishes aggregates, report shows it all)')
     cl.add_argument('action', choices=['scan', 'report'])
