@@ -297,7 +297,10 @@ create table if not exists catalog (id text primary key, type text, name text, u
 
 def open_db(path: Path) -> sqlite3.Connection:
     path.parent.mkdir(parents=True, exist_ok=True)
-    db = sqlite3.connect(path)
+    path.touch(mode=0o600)      # holds your browsing history; the WAL files sqlite creates beside it copy this mode
+    path.chmod(0o600)
+    db = sqlite3.connect(path, timeout=10)     # `pulse status` and publish can open it while the daemon writes
+    db.execute('pragma journal_mode=wal')
     db.executescript(SCHEMA)
     have = {r[1] for r in db.execute('pragma table_info(samples)')}
     for col in ('site', 'activity'):
