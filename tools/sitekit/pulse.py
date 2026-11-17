@@ -21,7 +21,7 @@ import struct
 import sys
 import time
 from collections import Counter, defaultdict, deque
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from fnmatch import fnmatch
 from pathlib import Path
@@ -71,6 +71,10 @@ class Settings:
     path: Path
     pinned: dict[str, str]
     exclude: set[Path]
+    rules: list[dict] = field(default_factory=list)
+    max_idle: int = 0
+    max_age: int = 0
+    skipped: dict[Path, str] = field(default_factory=dict)     # why the last scan left a repo out
 
     @classmethod
     def load(cls, path: Path = CONFIG) -> Settings:
@@ -88,7 +92,8 @@ class Settings:
                    depth=int(d['depth']) if d.get('depth') else None, owner=d.get('owner') or site_owner(expand(c.get('site', '~/.local/share/sitekit/site'))),
                    rescan=int(d.get('every', 86400)) if d.get('enabled', True) else 0, found={},
                    browser=c.get('browser', {}), path=path, pinned={k.lower(): v for k, v in c.get('app_ids', {}).items()},
-                   exclude={expand(x).resolve() for x in d.get('exclude', [])})
+                   exclude={expand(x).resolve() for x in d.get('exclude', [])}, rules=check_rules(d.get('rules', [])),
+                   max_idle=duration(d.get('max_idle')), max_age=duration(d.get('max_age')))
 
     def category(self, app: str | None) -> str | None:
         """[app_ids] pins exact app ids (to a category, or "ignore"); otherwise the first [apps] regex that matches."""
@@ -138,18 +143,81 @@ def find_repos(root: Path, depth: int | None, ignore: list[str]) -> list[Path]:
     return out
 
 
+# [[discover.rules]] conditions: name → (description, test of a folder and its remote URLs against the rule's value)
+CONDITIONS = {
+    'dir': ('subfolder is present', lambda p, r, v: any(x.is_dir() for x in p.glob(v))),
+    'no-dir': ('subfolder is missing', lambda p, r, v: not any(x.is_dir() for x in p.glob(v))),
+    'file': ('file or dotfile is present', lambda p, r, v: any(x.is_file() for x in p.glob(v))),
+    'no-file': ('file or dotfile is missing', lambda p, r, v: not any(x.is_file() for x in p.glob(v))),
+    'remote': ('a remote URL matches', lambda p, r, v: any(fnmatch(u, v) for u in r)),
+    'no-remote': ('no remote URL matches', lambda p, r, v: not any(fnmatch(u, v) for u in r)),
+    'name': ('folder name matches', lambda p, r, v: fnmatch(p.name, v)),
+    'path': ('full path matches', lambda p, r, v: fnmatch(str(p), str(expand(v)))),
+}
+UNITS = {'h': 3600, 'd': 86400, 'w': 604800, 'm': 2592000, 'y': 31536000}
+
+
+def duration(text: str | int | None) -> int:
+    """'90d', '6m', '1y', '2w', '12h' or plain seconds; empty means no limit."""
+    if not text:
+        return 0
+    if isinstance(text, int) or text.isdigit():
+        return int(text)
+    if not (m := re.fullmatch(r'(\d+)\s*([hdwmy])', text.strip().lower())):
+        raise ValueError(f'bad duration {text!r}: use a number and one of h, d, w, m, y')
+    return int(m[1]) * UNITS[m[2]]
+
+
+def check_rules(rules: list[dict]) -> list[dict]:
+    for r in rules:
+        if r.get('action') not in ('allow', 'deny') or r.get('when') not in CONDITIONS or 'value' not in r:
+            raise ValueError(f'[[discover.rules]] needs action = "allow" or "deny", when = one of {", ".join(CONDITIONS)}, '
+                             f'and a value: {r}')
+    return rules
+
+
+async def git_times(repo: Path) -> tuple[float, float]:
+    """(last touched: the newest commit or uncommitted edit, created: the first commit), as unix times."""
+    git = lambda *a: run('git', '-C', str(repo), *a, check=False)
+    last = (await git('log', '-1', '--format=%ct')).strip()
+    first = (await git('log', '--max-parents=0', '--format=%ct')).split()
+    edited = [(repo / f).stat().st_mtime for f in (await git('ls-files', '-z', '-m', '-o', '--exclude-standard')).split('\0')
+              if f and (repo / f).exists()]
+    return max(edited + [int(last or 0)]), min(map(int, first)) if first else 0
+
+
+async def verdict(s: Settings, repo: Path, urls: list[str], t: float) -> str | None:
+    """Why [discover] leaves out a repo of yours, or None to watch it. The first matching rule decides: deny leaves the
+    repo out, allow exempts it from max_idle and max_age."""
+    rule = next((r for r in s.rules if CONDITIONS[r['when']][1](repo, urls, r['value'])), None)
+    if rule and rule['action'] == 'deny':
+        return f'denied: {rule["when"]} {rule["value"]}'
+    if rule or not (s.max_idle or s.max_age):
+        return None
+    touched, created = await git_times(repo)
+    if s.max_idle and t - touched > s.max_idle:
+        return f'untouched for {(t - touched) / 86400:.0f} days'
+    if s.max_age and created and t - created > s.max_age:
+        return f'created {(t - created) / 86400:.0f} days ago'
+    return None
+
+
 async def discover(s: Settings) -> dict[Path, str]:
-    """Repos under s.root with a GitHub remote owned by s.owner, as {path: repo name}."""
-    found = {}
+    """Repos under s.root with a GitHub remote owned by s.owner that [discover] lets through, as {path: repo name}.
+    Records why the others of yours were left out in s.skipped."""
+    found, s.skipped, t = {}, {}, time.time()
     for repo in await asyncio.to_thread(find_repos, s.root, s.depth, s.ignore):
         if repo.resolve() in s.exclude:
             continue
-        urls = (await run('git', '-C', str(repo), 'config', '--get-regexp', r'^remote\..*\.url$', check=False)).splitlines()
-        for line in urls:
-            m = GITHUB_REMOTE.search(line.split(None, 1)[-1].strip())
-            if m and m[1].lower() == s.owner.lower():
-                found[repo.resolve()] = m[2]
-                break
+        urls = [line.split(None, 1)[-1].strip() for line in
+                (await run('git', '-C', str(repo), 'config', '--get-regexp', r'^remote\..*\.url$', check=False)).splitlines()]
+        name = next((m[2] for u in urls if (m := GITHUB_REMOTE.search(u)) and m[1].lower() == s.owner.lower()), None)
+        if name is None:
+            continue
+        if why := await verdict(s, repo.resolve(), urls, t):
+            s.skipped[repo.resolve()] = why
+        else:
+            found[repo.resolve()] = name
     return found
 
 
@@ -541,7 +609,8 @@ async def daemon(s: Settings) -> None:
             for p, n in new.items():
                 watcher.add(p, n)
         state.projects = len(roots)
-        log(f'scan of {s.root}: {len(s.found)} repos owned by {s.owner}, {len(new)} new', kind='scan')
+        log(f'scan of {s.root}: {len(s.found)} repos owned by {s.owner}, {len(new)} new'
+            + (f', {len(s.skipped)} left out by [discover] rules and limits' if s.skipped else ''), kind='scan')
 
     await scan()
     state.projects = len(roots)
@@ -800,6 +869,8 @@ async def status(s: Settings, config: Path = CONFIG) -> None:
         print(f'scan    {s.root} (depth {s.depth or "unlimited"}) for github.com/{s.owner}: {len(s.found)} repos')
         for path, name in sorted(s.found.items()):
             print(f'  {name:30} {path}' + (f'  (listed under [projects] as {s.projects[path]})' if path in s.projects else ''))
+        for path, why in sorted(s.skipped.items()):
+            print(f'  - {path}  ({why})')
         print(f'unpublished (not public on the site): {sorted(private_slugs(s)) or "none"}')
     if s.db.exists():
         today = aggregate(open_db(s.db), date.today(), s.interval / 60).get(date.today().isoformat())
