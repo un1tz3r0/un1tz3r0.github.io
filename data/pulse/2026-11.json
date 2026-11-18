@@ -308,7 +308,7 @@
    }
   },
   "2026-11-18": {
-   "active": 188,
+   "active": 225,
    "hours": [
     0,
     0,
@@ -319,8 +319,8 @@
     0,
     0,
     1,
-    49,
-    0,
+    58,
+    28,
     0,
     0,
     0,
@@ -336,8 +336,8 @@
     0
    ],
    "apps": {
-    "browser": 125,
-    "other": 63
+    "browser": 148,
+    "other": 77
    },
    "projects": {
     "un1tz3r0.github.io": {
@@ -353,11 +353,14 @@
      },
      "claude": {
       "conversations": 1,
-      "prompts": 3,
-      "minutes": 31,
-      "tokens": 1821566
+      "prompts": 5,
+      "minutes": 37,
+      "tokens": 1830841
      }
     }
+   },
+   "sites": {
+    "code": 20
    },
    "web": [
     0,
@@ -369,8 +372,8 @@
     0,
     0,
     1,
-    39,
-    0,
+    41,
+    21,
     0,
     0,
     0,
@@ -388,9 +391,9 @@
    "claude": {
     "code": {
      "conversations": 2,
-     "prompts": 4,
-     "minutes": 39,
-     "tokens": 1918531
+     "prompts": 6,
+     "minutes": 45,
+     "tokens": 1927806
     },
     "items": [
      {
