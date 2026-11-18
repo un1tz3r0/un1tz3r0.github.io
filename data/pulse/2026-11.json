@@ -209,7 +209,7 @@
    }
   },
   "2026-11-17": {
-   "active": 172,
+   "active": 210,
    "hours": [
     5,
     4,
@@ -230,14 +230,14 @@
     21,
     3,
     16,
-    0,
+    38,
     0,
     0,
     0,
     0
    ],
    "apps": {
-    "browser": 87,
+    "browser": 125,
     "other": 85
    },
    "projects": {
@@ -249,9 +249,9 @@
       ".html": 2
      },
      "claude": {
-      "conversations": 1,
-      "prompts": 1,
-      "tokens": 86
+      "conversations": 2,
+      "prompts": 4,
+      "tokens": 24424
      }
     }
    },
@@ -278,7 +278,7 @@
     3,
     3,
     16,
-    0,
+    38,
     0,
     0,
     0,
@@ -286,9 +286,10 @@
    ],
    "claude": {
     "code": {
-     "conversations": 1,
-     "prompts": 1,
-     "tokens": 86
+     "conversations": 3,
+     "prompts": 6,
+     "minutes": 3,
+     "tokens": 56050
     },
     "items": [
      {
