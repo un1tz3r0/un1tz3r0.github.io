@@ -1,5 +1,5 @@
 {
- "generated": "2026-11-18T06:50:42Z",
+ "generated": "2026-11-18T07:50:42Z",
  "machine": "zig",
  "publish": [
   "sessions",
@@ -223,13 +223,13 @@
   "2026-11-17": {
    "sessions": 3,
    "tokens": {
-    "in": 6,
-    "out": 6323,
-    "cache_read": 531658,
-    "cache_write": 49721
+    "in": 34,
+    "out": 30556,
+    "cache_read": 1540794,
+    "cache_write": 107820
    },
    "models": {
-    "claude-opus-4-8": 6282,
+    "claude-opus-4-8": 30543,
     "claude-opus-5-5": 47
    },
    "repos": {
