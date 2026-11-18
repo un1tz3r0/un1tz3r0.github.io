@@ -1,0 +1,47 @@
+/* Page-level styles. Component styles live with their elements. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: var(--font-size) / 1.4 var(--font);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Layout of <mis-app> itself is set in its shadow styles (:host); page styles would
+   override those, so only the size is given here. */
+mis-app {
+  height: 100%;
+}
+
+/* Shown until the elements are defined, and if scripting is unavailable. */
+mis-app:not(:defined) {
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,5 +1,11 @@
 {
  "demos": [
+  {"id": "icons", "title": "Material Icon Studio", "path": "demos/icons/", "thumb": "demos/thumbs/icons.jpg", "project": "icons", "added": "2026-11-18",
+   "summary": "Compose SVG images from 250+ free icon sets, shapes, paths and open typefaces on a snapping canvas, combine them with exact boolean operations, and export a clean SVG or PNG.",
+   "tags": ["svg", "geometry", "pwa"],
+   "build": {"repo": "https://github.com/un1tz3r0/material-icon-studio.git", "ref": "main", "run": ["git submodule update --init --depth 1 vendor/geo"],
+             "copy": {"index.html": "index.html", "sw.js": "sw.js", "manifest.webmanifest": "manifest.webmanifest", "precache.json": "precache.json",
+                      "assets": "assets", "src": "src", "vendor/geo/src": "vendor/geo/src", "vendor/opentype/opentype.mjs": "vendor/opentype/opentype.mjs"}}},
   {"id": "overlay", "title": "Overlay Studio", "path": "demos/overlay/", "thumb": "demos/thumbs/overlay.jpg", "project": "overlay", "added": "2026-11-02",
    "summary": "Composite video, audio, stills, three.js avatars, procedural skies and speech bubbles on a keyframed timeline, then export MP4 or WebM straight from the browser.",
    "tags": ["three.js", "webcodecs", "timeline"],

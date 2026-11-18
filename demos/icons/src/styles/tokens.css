@@ -1,0 +1,134 @@
+/* Design tokens. Custom properties cross shadow boundaries, so every element reads these. */
+
+:root {
+  color-scheme: light dark;
+
+  /* Surfaces */
+  --bg: #f4f5f7;
+  --bg-raised: #ffffff;
+  --bg-sunken: #e4e6ea;
+  --bg-hover: rgb(15 23 42 / 0.06);
+  --bg-active: rgb(15 23 42 / 0.11);
+  --bg-field: #ffffff;
+  --border: #d5d8de;
+  --border-strong: #b6bbc5;
+
+  /* Text */
+  --text: #1c2027;
+  --text-muted: #626b7a;
+  --text-faint: #666f7e;
+
+  /* Accent and status */
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-text: #ffffff;
+  --accent-soft: rgb(37 99 235 / 0.13);
+  --danger: #dc2626;
+  --warning: #b45309;
+  --success: #15803d;
+  --focus: #2563eb;
+
+  /* Canvas overlay */
+  --selection: #2563eb;
+  --guide: #e11d74;
+  --snap: #e11d74;
+  --artboard-shadow: 0 0 0 1px rgb(0 0 0 / 0.12), 0 4px 18px rgb(0 0 0 / 0.1);
+  --checker-a: #ffffff;
+  --checker-b: #eceef1;
+
+  /* Metrics */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --radius: 6px;
+  --radius-sm: 4px;
+  --control-h: 26px;
+  --icon-size: 16px;
+
+  /* Type */
+  --font: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, Consolas, monospace;
+  --font-size: 12px;
+  --font-size-sm: 11px;
+
+  --shadow-pop: 0 6px 24px rgb(0 0 0 / 0.18), 0 0 0 1px rgb(0 0 0 / 0.08);
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #1b1d21;
+    --bg-raised: #24272c;
+    --bg-sunken: #131417;
+    --bg-hover: rgb(255 255 255 / 0.07);
+    --bg-active: rgb(255 255 255 / 0.13);
+    --bg-field: #17191c;
+    --border: #353941;
+    --border-strong: #4a4f5a;
+    --text: #e7e9ee;
+    --text-muted: #a0a7b4;
+    --text-faint: #8f97a5;
+    --accent: #4c8dff;
+    --accent-hover: #6aa0ff;
+    --accent-text: #0b1220;
+    --accent-soft: rgb(76 141 255 / 0.2);
+    --danger: #f87171;
+    --warning: #fbbf24;
+    --success: #4ade80;
+    --focus: #6aa0ff;
+    --selection: #4c8dff;
+    --guide: #ff5fa2;
+    --snap: #ff5fa2;
+    --artboard-shadow: 0 0 0 1px rgb(255 255 255 / 0.1), 0 4px 18px rgb(0 0 0 / 0.5);
+    --checker-a: #ffffff;
+    --checker-b: #e3e5e9;
+    --shadow-pop: 0 6px 24px rgb(0 0 0 / 0.5), 0 0 0 1px rgb(255 255 255 / 0.1);
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #1b1d21;
+  --bg-raised: #24272c;
+  --bg-sunken: #131417;
+  --bg-hover: rgb(255 255 255 / 0.07);
+  --bg-active: rgb(255 255 255 / 0.13);
+  --bg-field: #17191c;
+  --border: #353941;
+  --border-strong: #4a4f5a;
+  --text: #e7e9ee;
+  --text-muted: #a0a7b4;
+  --text-faint: #8f97a5;
+  --accent: #4c8dff;
+  --accent-hover: #6aa0ff;
+  --accent-text: #0b1220;
+  --accent-soft: rgb(76 141 255 / 0.2);
+  --danger: #f87171;
+  --warning: #fbbf24;
+  --success: #4ade80;
+  --focus: #6aa0ff;
+  --selection: #4c8dff;
+  --guide: #ff5fa2;
+  --snap: #ff5fa2;
+  --artboard-shadow: 0 0 0 1px rgb(255 255 255 / 0.1), 0 4px 18px rgb(0 0 0 / 0.5);
+  --checker-a: #ffffff;
+  --checker-b: #e3e5e9;
+  --shadow-pop: 0 6px 24px rgb(0 0 0 / 0.5), 0 0 0 1px rgb(255 255 255 / 0.1);
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+
+@media (forced-colors: active) {
+  :root {
+    --border: CanvasText;
+    --border-strong: CanvasText;
+    --accent: Highlight;
+    --accent-text: HighlightText;
+    --accent-soft: Highlight;
+    --focus: Highlight;
+    --selection: Highlight;
+  }
+}

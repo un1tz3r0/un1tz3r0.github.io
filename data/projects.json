@@ -46,6 +46,9 @@
    "summary": "Generative vector art built from Apollonian gaskets: the paisl, the teardrop that every paisley pattern is made of, packed with circles and exported as SVG."},
   {"id": "squid", "title": "Squid", "group": "graphics", "spans": [["2023-09-27", "2023-11-08"]], "demo": "squid", "related": [{"to": "site", "kind": "part"}], "tags": ["javascript", "three.js"],
    "summary": "A procedural, seamlessly looping ball of tentacles in three.js."},
+  {"id": "icons", "title": "Material Icon Studio", "group": "graphics", "repos": ["un1tz3r0/material-icon-studio"], "spans": [["2026-11-14", null]], "demo": "icons", "status": "in progress",
+   "related": [{"to": "geo", "kind": "uses"}], "tags": ["javascript", "svg", "web components", "pwa"],
+   "summary": "An SVG editor for composing icons and logos from free icon sets, shapes, pen paths and open-licensed type, with snapping, exact booleans through @geo/paths, offline support and license-aware export."},
   {"id": "geo", "title": "@geo/paths", "group": "graphics", "repos": ["un1tz3r0/geo"], "tags": ["javascript", "geometry", "svg"],
    "summary": "Zero-dependency 2D path geometry for JavaScript: SVG path parsing, Bézier and true elliptical arcs, exact winding, rasterization, offsets and exact boolean operations on curves."},
 
