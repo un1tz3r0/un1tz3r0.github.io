@@ -165,7 +165,9 @@ The settings window (libadwaita: `python3-gi` and `gir1.2-adw-1`, so a venv need
 live state with a countdown to the next publish and edits `pulse.toml` in place, keeping your comments and writing the
 previous file to `pulse.toml.bak`. Changes apply when you press *Save and Apply*, which restarts the daemon; pause and
 push take effect at once. The *Site* page edits `site.toml` in the site checkout the same way, and commits and pushes
-just that file. The *Tools* page runs the other sitekit commands in the site checkout, posts quick statuses
+just that file. Lists are edited a line at a time: + in a list's header adds one, and each line's … menu edits, moves
+(where order matters) or removes it; in rule lists the +/− button sets allow or deny and the next one the priority
+(·, `!` or `?`; see [Rule lists](#rule-lists)). The *Tools* page runs the other sitekit commands in the site checkout, posts quick statuses
 and commits and pushes `data/`. The first time it opens, and from the tour button in the header, *Back* and *Next* walk
 through Site, Projects, Apps, Publishing and Pulse, where *Install* runs `sitekit pulse install`. The *Log* page follows the daemon's log, with a toggle per kind of line (lifecycle,
 samples, activity, scans, publishing, warnings, errors) and a filter. GNOME Settings itself has no plug-in API for third-party panels, so this is
