@@ -1,13 +1,14 @@
 """What the daemon publishes about the pages the browser extension recorded, and browser history for days it didn't.
 
-Every stored page is private until a [browser] publish rule says otherwise. The first rule whose `match` fits decides,
-else `default` (private):
+Every stored page is private until a [browser] publish rule says otherwise. Publish rules are a rule map (see rules.py)
+whose key is `level`; a page no rule gives a level gets `default` (private):
   private  nothing published about it (it still counts toward minutes, site categories and projects, as before)
   domain   the domain's minutes and number of pages visited are published
   page     the page's URL and title are published too
 
-`match` is a glob on the hostname, or on host + path when it contains a "/", like `allow` and `deny`. Rules, allow and
-deny are applied at publish time, so tightening one takes effect on everything not yet published.
+`match` is a glob on the hostname, or on host + path when it contains a "/", as in the [browser] filter that decides what
+is recorded at all. Both are applied again at publish time, so tightening one takes effect on everything not yet
+published.
 
 With `history = true`, rows from the browsers' own history (through browserprofile) fill in pages visited on days the
 extension recorded nothing. History has no durations, so those days only get visit counts.
@@ -20,6 +21,8 @@ import sqlite3
 from collections import defaultdict
 from datetime import datetime
 from urllib.parse import urlsplit
+
+from . import rules
 
 LEVELS = ['private', 'domain', 'page']
 
@@ -35,27 +38,50 @@ def listed(patterns: list[str], url: str) -> bool:
     return any(glob(p).match(f'{host}{u.path}' if '/' in p else host) for p in patterns)
 
 
+def filter_rules(c: dict) -> list[dict]:
+    """[browser] filter, or the older allow and deny lists as one: denied hosts first, so they still always win."""
+    if 'filter' in c:
+        return list(c['filter'])
+    return ([{'match': m, 'action': 'deny', 'priority': '!'} for m in c.get('deny', [])]
+            + [{'match': m} for m in c.get('allow', [])])
+
+
+def site_rules(c: dict) -> list[dict]:
+    """[browser.sites] rules (regexes on the hostname giving a site category), or its older `name = "regex"` entries."""
+    table = c.get('sites', {})
+    return list(table.get('rules', [])) + [{'match': v, 'to': k} for k, v in table.items() if isinstance(v, str)]
+
+
 def recordable(url: str | None, c: dict) -> bool:
-    """What the extension would record: http(s), not denied, and allowed when an allow list is set."""
+    """What the extension records: http(s) pages the filter allows. Its first matching rule decides; a page no rule
+    matches is recorded unless the filter has allow rules, which then list the only hosts recorded."""
     if not url or not url.startswith(('http://', 'https://')):
         return False
-    allow, deny = c.get('allow', []), c.get('deny', [])
-    return not (allow and not listed(allow, url)) and not listed(deny, url)
+    found = filter_rules(c)
+    hit = rules.decide(found, lambda r: listed([r['match']], url))
+    return rules.allowed(hit) if hit else not any(rules.allowed(r) for r in found)
 
 
 def level(url: str, c: dict) -> str:
     if not recordable(url, c):
         return 'private'
-    rule = next((r for r in c.get('publish', []) if listed([r['match']], url)), None)
-    return rule['level'] if rule else c.get('default', 'private')
+    found = rules.lookup(c.get('publish', []), lambda r: listed([r['match']], url), key='level')
+    return 'private' if found is rules.STOP else found or c.get('default', 'private')
 
 
 def check(c: dict) -> dict:
+    rules.check(filter_rules(c), '[browser] filter')
+    rules.check(c.get('publish', []), '[browser] publish')
     for r in c.get('publish', []):
-        if r.get('level') not in LEVELS or not r.get('match'):
-            raise ValueError(f'[browser] publish rules need a match and level = one of {", ".join(LEVELS)}: {r}')
+        if r.get('level', 'private' if not rules.allowed(r) else None) not in LEVELS:
+            raise ValueError(f'[browser] publish: an allow rule needs level = one of {", ".join(LEVELS)}: {r}')
     if c.get('default', 'private') not in LEVELS:
         raise ValueError(f'[browser] default must be one of {", ".join(LEVELS)}')
+    for r in rules.check(site_rules(c), '[browser.sites] rules'):
+        try:
+            re.compile(r['match'])
+        except re.error as e:
+            raise ValueError(f'[browser.sites] rules: {r["match"]!r} is not a valid regex: {e}') from None
     return c
 
 

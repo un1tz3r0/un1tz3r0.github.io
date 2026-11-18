@@ -3,8 +3,10 @@ import json
 import os
 import stat
 import subprocess
+import sys
 import time
 from datetime import date, datetime
+from pathlib import Path
 
 import pytest
 
@@ -142,3 +144,76 @@ def test_publish_without_rules_adds_nothing(published):
     def setup(db):
         db.execute("insert into pages (start, end, url) values (?, ?, 'https://github.com/me/x')", (midnight() + 60, midnight() + 660))
     assert published(setup=setup) is None
+
+
+# ── rule lists in pulse.toml ────────────────────────────────────────────────────────────────────────────────────
+
+def load(tmp_path, text):
+    path = tmp_path / 'pulse.toml'
+    path.write_text(f'site = "{tmp_path / "site"}"\n[discover]\nenabled = false\n' + text)
+    return pulse.Settings.load(path)
+
+
+def test_app_rules_and_the_older_map(tmp_path):
+    s = load(tmp_path, '[apps]\ncode = "code|zed"\nrules = [{ match = "insiders", to = "code", action = "deny", priority = "!" },\n'
+                       '  { match = "insiders", to = "beta" }, { match = "steam", action = "deny" }]\n[app_ids]\nzed = "ignore"\n')
+    assert [s.category(a) for a in ('code', 'code-insiders', 'steam', 'zed', 'blender')] == ['code', 'beta', 'other', 'ignore', 'other']
+    assert s.categories() == ['beta', 'code']
+
+
+def test_a_bad_app_regex_refuses_the_config(tmp_path):
+    with pytest.raises(ValueError, match='not a valid regex'):
+        load(tmp_path, '[apps]\nrules = [{ match = "(", to = "x" }]\n')
+
+
+def test_old_exclude_becomes_rules_and_still_excludes(tmp_path):
+    path = tmp_path / 'pulse.toml'
+    path.write_text(f'site = "{tmp_path}"\n[discover]\nenabled = false\nrules = [{{ action = "allow", when = "name", value = "x" }}]\n'
+                    'exclude = ["~/scratch"]\n')
+    s = pulse.Settings.load(path)
+    assert s.rules[-1] == {'action': 'deny', 'priority': '!', 'when': 'path', 'value': '~/scratch'}
+    assert s.exclude == {(Path.home() / 'scratch').resolve()}
+
+
+def test_browser_config_sends_rules_and_the_older_forms(tmp_path):
+    s = load(tmp_path, '[browser]\ndeny = ["*.bank.*"]\n[browser.sites]\ndocs = "docs\\\\."\n')
+    c = s.browser_config()
+    assert c['filter'] == [{'match': '*.bank.*', 'action': 'deny', 'priority': '!'}] and c['deny'] == ['*.bank.*']
+    assert c['site_rules'] == [{'match': 'docs\\.', 'to': 'docs'}] and c['sites'] == {'docs': 'docs\\.'}
+
+
+def test_ignoring_a_folder_from_the_panel_writes_a_rule(tmp_path):
+    import site
+    import socket
+    run_dir, folder = tmp_path / 'run', tmp_path / 'scratch'
+    run_dir.mkdir()
+    folder.mkdir()
+    config = tmp_path / 'pulse.toml'
+    config.write_text(f'site = "{tmp_path / "site"}"\ndb = "{tmp_path / "p.sqlite3"}"\npush = false\n[projects]\n"{folder}" = "scratch"\n'
+                      f'[discover]\nenabled = false\nexclude = ["{tmp_path / "old"}"]\n')
+    env = {**os.environ, 'XDG_RUNTIME_DIR': str(run_dir), 'PYTHONUSERBASE': site.getuserbase(),
+           'PYTHONPATH': str(Path(pulse.__file__).parent.parent)}
+    daemon = subprocess.Popen([sys.executable, '-m', 'sitekit', 'pulse', 'run', '--config', str(config)], env=env,
+                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        sock = run_dir / 'sitekit-pulse.sock'
+        for _ in range(100):
+            if sock.exists():
+                break
+            time.sleep(0.1)
+        with socket.socket(socket.AF_UNIX) as s:
+            s.connect(str(sock))
+            s.sendall((json.dumps({'cmd': 'assign', 'what': 'folder', 'path': str(folder), 'project': 'ignore'}) + '\n').encode())
+            assert json.loads(s.makefile().readline())['ok']
+    finally:
+        daemon.terminate()      # it may be restarting for the config change, which a SIGTERM can miss; then kill, as systemd does
+        try:
+            daemon.wait(5)
+        except subprocess.TimeoutExpired:
+            daemon.kill()
+            daemon.wait()
+    c = __import__('tomllib').loads(config.read_text())
+    assert 'projects' not in c or str(folder) not in c['projects']
+    assert 'exclude' not in c['discover']
+    assert c['discover']['rules'] == [{'action': 'deny', 'priority': '!', 'when': 'path', 'value': str(tmp_path / 'old')},
+                                      {'action': 'deny', 'priority': '!', 'when': 'path', 'value': str(folder)}]

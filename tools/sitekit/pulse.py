@@ -26,7 +26,7 @@ from datetime import date, datetime, timedelta
 from fnmatch import fnmatch
 from pathlib import Path
 
-from . import browsing, claude, conversations, update
+from . import browsing, claude, conversations, rules, update
 from .common import expand, load_toml, now, read_json, run, write_json
 
 CONFIG = expand('~/.config/sitekit/pulse.toml')
@@ -60,7 +60,7 @@ class Settings:
     push: bool
     db: Path
     projects: dict[Path, str]
-    apps: list[tuple[str, re.Pattern]]
+    apps: list[dict]                # [apps] rules, each with its compiled regex as 'rx'
     ignore: list[str]
     root: Path
     depth: int | None
@@ -85,26 +85,33 @@ class Settings:
             sys.exit(f'pulse: no config at {path}; copy tools/pulse.example.toml there and edit it')
         c = load_toml(path)
         d = c.get('discover', {})
+        found = check_rules(discover_rules(d))
         return cls(site=expand(c.get('site', '~/.local/share/sitekit/site')), remote=c.get('remote'),
                    interval=int(c.get('interval', 60)), idle=int(c.get('idle', 180)), window=int(c.get('window', 600)),
                    publish=int(c.get('publish', 3600)), push=bool(c.get('push', True)),
                    db=expand(c.get('db', '~/.local/share/sitekit/pulse.sqlite3')),
                    projects={expand(k).resolve(): v for k, v in c.get('projects', {}).items()},
-                   apps=[(k, re.compile(v, re.I)) for k, v in c.get('apps', {}).items()],
+                   apps=compiled(map_rules(c.get('apps', {})), '[apps] rules'),
                    ignore=IGNORE + c.get('ignore', []), root=expand(d.get('root', '~')).resolve(),
                    depth=int(d['depth']) if d.get('depth') else None, owner=d.get('owner') or site_owner(expand(c.get('site', '~/.local/share/sitekit/site'))),
                    rescan=int(d.get('every', 86400)) if d.get('enabled', True) else 0, found={},
                    browser=browsing.check(c.get('browser', {})), path=path, pinned={k.lower(): v for k, v in c.get('app_ids', {}).items()},
-                   exclude={expand(x).resolve() for x in d.get('exclude', [])}, rules=check_rules(d.get('rules', [])),
+                   exclude=excluded(found), rules=found,
                    max_idle=duration(d.get('max_idle')), max_age=duration(d.get('max_age')),
                    claude=conversations.check(c.get('claude', {})),
                    updates=bool(c.get('update', {}).get('enabled', True)), update_every=int(c.get('update', {}).get('every', 3600)))
 
     def category(self, app: str | None) -> str | None:
-        """[app_ids] pins exact app ids (to a category, or "ignore"); otherwise the first [apps] regex that matches."""
+        """[app_ids] pins exact app ids (to a category, or "ignore"); otherwise what the [apps] rules give, or "other"."""
         if app is None:
             return None
-        return self.pinned.get(app.lower()) or next((k for k, rx in self.apps if rx.search(app)), 'other')
+        if pinned := self.pinned.get(app.lower()):
+            return pinned
+        found = rules.lookup(self.apps, lambda r: bool(r['rx'].search(app)))
+        return 'other' if found is None or found is rules.STOP else found
+
+    def categories(self) -> list[str]:
+        return rules.keys(self.apps)
 
     def project_ids(self) -> list[str]:
         return sorted(set(self.projects.values()) | set(self.found.values()))
@@ -120,8 +127,12 @@ class Settings:
     def browser_config(self) -> dict:
         """What the browser extension needs: thresholds, URL filters, site categories, URL rules and plugin settings."""
         b = self.browser
+        filt, sites = browsing.filter_rules(b), browsing.site_rules(b)
+        # allow, deny and sites are the older forms, for an extension loaded from somewhere that doesn't update
         return {'idle': self.idle, 'interval': self.interval, 'owner': self.owner, 'titles': b.get('titles', True),
-                'allow': b.get('allow', []), 'deny': b.get('deny', []), 'sites': b.get('sites', {}),
+                'filter': filt, 'site_rules': sites,
+                'allow': [r['match'] for r in filt if rules.allowed(r)], 'deny': [r['match'] for r in filt if not rules.allowed(r)],
+                'sites': {k: next(r['match'] for r in sites if r.get('to') == k and rules.allowed(r)) for k in rules.keys(sites)},
                 'rules': b.get('rules', []), 'plugins': self.plugins()}
 
     def plugins(self) -> dict:
@@ -180,12 +191,40 @@ def duration(text: str | int | None) -> int:
     return int(m[1]) * UNITS[m[2]]
 
 
-def check_rules(rules: list[dict]) -> list[dict]:
-    for r in rules:
-        if r.get('action') not in ('allow', 'deny') or r.get('when') not in CONDITIONS or 'value' not in r:
-            raise ValueError(f'[[discover.rules]] needs action = "allow" or "deny", when = one of {", ".join(CONDITIONS)}, '
-                             f'and a value: {r}')
-    return rules
+def check_rules(found: list[dict]) -> list[dict]:
+    rules.check(found, '[discover] rules', ('when', 'value'))
+    for r in found:
+        if r['when'] not in CONDITIONS:
+            raise ValueError(f'[discover] rules: when must be one of {", ".join(CONDITIONS)}: {r}')
+    return found
+
+
+def discover_rules(d: dict) -> list[dict]:
+    """[discover] rules, with the older `exclude` folders as deny rules on their path that come first."""
+    return list(d.get('rules', [])) + [{'action': 'deny', 'priority': '!', 'when': 'path', 'value': x} for x in d.get('exclude', [])]
+
+
+def excluded(found: list[dict]) -> set[Path]:
+    """Folders a deny rule names exactly (no wildcards): never watched, even when listed under [projects]."""
+    return {expand(r['value']).resolve() for r in found
+            if not rules.allowed(r) and r['when'] == 'path' and not any(ch in r['value'] for ch in '*?[')}
+
+
+def map_rules(table: dict) -> list[dict]:
+    """A pattern map's rules: its `rules` list, then any older `name = "regex"` entries as rules giving that name."""
+    return list(table.get('rules', [])) + [{'match': v, 'to': k} for k, v in table.items() if isinstance(v, str)]
+
+
+def compiled(found: list[dict], where: str) -> list[dict]:
+    """Rules with their regex (case-insensitive) compiled as 'rx'; a bad one is a ValueError, so the config is refused."""
+    rules.check(found, where)
+    out = []
+    for r in found:
+        try:
+            out.append({**r, 'rx': re.compile(r['match'], re.I)})
+        except re.error as e:
+            raise ValueError(f'{where}: {r["match"]!r} is not a valid regex: {e}') from None
+    return out
 
 
 async def git_times(repo: Path) -> tuple[float, float]:
@@ -201,8 +240,8 @@ async def git_times(repo: Path) -> tuple[float, float]:
 async def verdict(s: Settings, repo: Path, urls: list[str], t: float) -> str | None:
     """Why [discover] leaves out a repo of yours, or None to watch it. The first matching rule decides: deny leaves the
     repo out, allow exempts it from max_idle and max_age."""
-    rule = next((r for r in s.rules if CONDITIONS[r['when']][1](repo, urls, r['value'])), None)
-    if rule and rule['action'] == 'deny':
+    rule = rules.decide(s.rules, lambda r: CONDITIONS[r['when']][1](repo, urls, r['value']))
+    if rule and not rules.allowed(rule):
         return f'denied: {rule["when"]} {rule["value"]}'
     if rule or not (s.max_idle or s.max_age):
         return None
@@ -581,7 +620,7 @@ class State:
                 'idle': s.idle, 'window': s.window, 'publish': s.publish, 'pending': round(self.pending * s.interval / 60),
                 'version': update.RUNNING,
                 'app': self.app, 'root': self.root and str(self.root), 'root_project': self.roots.get(self.root) if self.root else None,
-                'categories': [k for k, _ in s.apps], 'project_ids': s.project_ids()}
+                'categories': s.categories(), 'project_ids': s.project_ids()}
 
     @property
     def root(self) -> Path | None:
@@ -681,9 +720,11 @@ async def daemon(s: Settings) -> None:
         if not path:
             raise ValueError('no project folder has changed yet')
         if msg['project'] == 'ignore':
-            excluded = load_toml(s.path).get('discover', {}).get('exclude', [])
-            s.save([('projects', k, None) for k in load_toml(s.path).get('projects', {}) if expand(k).resolve() == path]
-                   + [('discover', 'exclude', sorted({*excluded, s.tilde(path)}))])
+            c = load_toml(s.path)
+            listed = discover_rules(c.get('discover', {}))
+            rule = {'action': 'deny', 'priority': '!', 'when': 'path', 'value': s.tilde(path)}
+            s.save([('projects', k, None) for k in c.get('projects', {}) if expand(k).resolve() == path]
+                   + [('discover', 'rules', listed + ([rule] if rule not in listed else [])), ('discover', 'exclude', None)])
             return f'ignoring {path}'
         s.save([('projects', s.tilde(path), msg['project'])])
         return f'{path} → {msg["project"]}'

@@ -1,10 +1,11 @@
 // Tracks the active tab of the focused window while you're not idle, as spans of one page each, classifies each page
 // with the plugins and the config's rules, and reports to the pulse daemon through the native messaging host.
 import plugins from './plugins/index.js';
+import { STOP, allowed as allows, decide, lookup } from './rules.js';
 
 const api = globalThis.browser ?? globalThis.chrome;
 const HOST = 'io.github.un1tz3r0.sitekit_pulse';
-const DEFAULTS = { idle: 180, interval: 60, owner: null, titles: true, allow: [], deny: [], sites: {}, rules: [], plugins: {} };
+const DEFAULTS = { idle: 180, interval: 60, owner: null, titles: true, filter: null, site_rules: null, allow: [], deny: [], sites: {}, rules: [], plugins: {} };
 const QUEUE_MAX = 5000, MIN_SPAN = 2, MAX_SPAN = 600, BROWSER = /Firefox\//.test(navigator.userAgent) ? 'firefox' : 'chrome';
 
 const local = { config: DEFAULTS, queue: [], synced: {}, version: null };   // mirrored to storage.local
@@ -114,10 +115,15 @@ function report() {
 const glob = g => new RegExp(`^${g.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*')}$`, 'i');
 const listed = (list, url) => list.some(g => glob(g).test(g.includes('/') ? url.host + url.pathname : url.hostname));
 
+// The [browser] filter (or, from an older daemon, allow and deny): the first matching rule decides; a page no rule
+// matches is recorded unless the filter has allow rules, which then list the only hosts recorded. Same as browsing.py.
+const filterRules = c => c.filter ?? [...c.deny.map(match => ({ match, action: 'deny', priority: '!' })), ...c.allow.map(match => ({ match }))];
+const siteRules = c => c.site_rules ?? Object.entries(c.sites).map(([to, match]) => ({ match, to }));
+
 function allowed(tab) {
   if (!tab || tab.incognito || !/^https?:/.test(tab.url ?? '')) return null;
-  const url = new URL(tab.url), { allow, deny } = local.config;
-  return (allow.length && !listed(allow, url)) || listed(deny, url) ? null : url;
+  const url = new URL(tab.url), rules = filterRules(local.config), hit = decide(rules, r => listed([r.match], url));
+  return (hit ? allows(hit) : !rules.some(allows)) ? url : null;
 }
 
 async function extract(tab, plugin) {
@@ -141,7 +147,8 @@ function byRule(url) {
 }
 
 async function classify(tab, url) {
-  const site = Object.entries(local.config.sites).find(([, rx]) => new RegExp(rx, 'i').test(url.hostname))?.[0] ?? null;
+  const found = lookup(siteRules(local.config), r => new RegExp(r.match, 'i').test(url.hostname));
+  const site = found === STOP ? null : found;
   const rule = byRule(url);
   if (rule) return { site, ...rule, meta: null };
   for (const p of plugins) {
