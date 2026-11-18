@@ -229,13 +229,15 @@ noscript p { padding: 4ex; }
 <template id="t-gantt">
   <div class="bar">
     <div class="ranges" role="group" aria-label="Time range">
-      <button class="chip" data-range="all">all</button><button class="chip" data-range="1826">5y</button><button class="chip" data-range="730">2y</button><button class="chip" data-range="365">1y</button><button class="chip" data-range="120">4m</button>
+      <button class="chip" data-range="auto" title="The past week, or the past month or three when the week was quiet">auto</button><button class="chip" data-range="7">week</button><button class="chip" data-range="31">month</button><button class="chip" data-range="92">3m</button><button class="chip" data-range="365">year</button><button class="chip" data-range="all">all</button>
     </div>
+    <label class="field zoom">zoom <input type="range" name="zoom" min="0" max="1000" step="1" aria-label="Zoom: drag right to zoom in"></label>
+    <span class="span dim"></span>
     <label class="field">sort <select name="sort"><option value="group">by group</option><option value="start">by start</option><option value="recent">by latest</option></select></label>
     <label class="field"><input type="checkbox" name="forks"> show forks</label>
     <span class="hint dim">drag to pan · ctrl + wheel to zoom</span>
   </div>
-  <div class="plot"><svg role="img" aria-label="Timeline of projects, with commit activity per project"></svg></div>
+  <div class="plot"><svg role="img" aria-label="Timeline of keyboard, browser and Claude activity, and of projects with their commits"></svg></div>
   <div class="legend"></div>
 </template>
 <template id="t-heatmap">
@@ -523,6 +525,17 @@ async function buildModel() {
   const tokens = {};
   for (const u of U) for (const day of Object.values(u.days)) for (const [r, v] of Object.entries(day.repos ?? {}))
     tokens[r] = (tokens[r] ?? 0) + sum(Object.values(v.tokens ?? {}));
+  // The timeline's activity lanes: keyboard and browser minutes per hour of each local day, and Claude Code tokens (in
+  // and out) and sessions per day, over every machine.
+  const lanes = { keyboard: new Map(), browser: new Map(), claude: new Map() };
+  for (const mo of PM) for (const [d, v] of Object.entries(mo.days ?? {})) {
+    if (v.hours?.some(Boolean)) lanes.keyboard.set(dnum(d), v.hours);
+    if (v.web?.some(Boolean)) lanes.browser.set(dnum(d), v.web);
+  }
+  for (const u of U) for (const [d, v] of Object.entries(u.days ?? {})) {
+    const n = dnum(d), was = lanes.claude.get(n) ?? [0, 0], tk = (v.tokens?.in ?? 0) + (v.tokens?.out ?? 0);
+    if (tk || v.sessions) lanes.claude.set(n, [was[0] + tk, was[1] + (v.sessions ?? 0)]);
+  }
   const claudeOf = p => {
     const repos = new Set(p.repos ?? []), cps = [C.unlinked, ...Object.values(C.projects)].filter(c => c && (c.site?.includes(p.id) || c.repos?.some(r => repos.has(r))));
     const prs = cps.flatMap(c => c.prs ?? []).filter(pr => repos.has(pr.repo));
@@ -556,7 +569,7 @@ async function buildModel() {
   for (const p of projects) for (const r of [...p.repos.map(r => r.name), ...p.pulseIds]) if (!byId.has(r)) byId.set(r, p);
   const relations = projects.flatMap(p => (p.related ?? []).map(r => ({ from: p, to: byId.get(r.to), kind: r.kind })).filter(r => r.to));
   for (const d of D.demos) d.projectRef = byId.get(d.project);
-  return { site: S, groups, groupOf, projects, byId, relations, kinds: P.kinds ?? {}, demos: D.demos, github: G };
+  return { site: S, groups, groupOf, projects, byId, relations, kinds: P.kinds ?? {}, demos: D.demos, github: G, lanes };
 }
 
 // Pulse publishes minutes per project id: a site project id, a bare repo name, "claude-code:<chan>" for a Claude project
@@ -737,6 +750,18 @@ class ProjectGantt extends Base {
     svg { display: block; inline-size: 100%; font-family: var(--font); overflow: visible; }
     .axis text { fill: var(--fg-dim); font-size: 12px; }
     .axis line { stroke: var(--line-soft); stroke-width: 1; }
+    .zoom input { inline-size: 9rem; accent-color: var(--fill); }
+    .span { font-size: .85rem; min-inline-size: 5.5em; }
+    .axis .coarse line { stroke-opacity: 1; }
+    .axis .coarse text { fill: var(--fg); font-weight: 600; }
+    .axis .fine text { font-size: 11px; }
+    .axis .base { stroke: var(--line-soft); }
+    .weekend { fill: color-mix(in oklab, var(--fg) 4.5%, transparent); }
+    .lane .lbl { fill: var(--fg-dim); }
+    .lane .bars { fill: var(--c); fill-opacity: .75; }
+    .lane .day { fill: var(--c); fill-opacity: .3; }
+    .lanes-rule { stroke: var(--line-soft); }
+    .empty { fill: var(--fg-dim); font-size: 13px; }
     .today line { stroke: var(--brand); stroke-dasharray: 3 4; }
     .today text { fill: var(--brand); font-size: 11px; font-weight: 600; }
     .grp text { fill: var(--fg-strong); font-size: 12.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
@@ -772,6 +797,7 @@ class ProjectGantt extends Base {
     this.$('select').addEventListener('change', e => this.set('sort', e.target.value));
     this.$('[name=forks]').addEventListener('change', e => this.set('forks', e.target.checked));
     this.$('.ranges').addEventListener('click', e => e.target.dataset.range && this.range(e.target.dataset.range));
+    this.$('[name=zoom]').addEventListener('input', e => this.zoom(this.fromSlider(+e.target.value)));
     new ResizeObserver(() => this.schedule()).observe(this.plot);
     addEventListener('themechange', () => this.schedule());
     this.pointer();
@@ -780,9 +806,28 @@ class ProjectGantt extends Base {
   set model(m) {
     this.m = m;
     this.extent = [Math.min(...m.projects.map(p => p.first)) - 45, TODAY + 45];
-    this.range(store.get('gantt.range', 'all'));
+    this.lanesCache = new Map();
+    const saved = store.get('gantt.range', 'auto');
+    saved.startsWith?.('span:') ? this.zoom(+saved.slice(5), 1) : this.range(['auto', 'all', '7', '31', '92', '365'].includes(saved) ? saved : 'auto');
     this.legend();
   }
+
+  // The default: the past week, or the past month or three months when the week was quiet (under 3 days with commits
+  // and under 5 hours at the keyboard).
+  auto() {
+    const busy = n => {
+      const from = TODAY - n + 1, commitDays = new Set();
+      for (const p of this.m.projects) for (const [d, c] of p.days) if (d >= from && c) commitDays.add(d);
+      const minutes = sum([...this.m.lanes.keyboard].filter(([d]) => d >= from).map(([, hs]) => sum(hs)));
+      return commitDays.size >= 3 || minutes >= 300;
+    };
+    return busy(7) ? 7 : busy(31) ? 31 : 92;
+  }
+
+  maxSpan() { return (this.extent[1] - this.extent[0]) * 1.1; }
+  // The zoom slider is logarithmic: 1 day at the right end, everything at the left.
+  toSlider(span) { return Math.round(1000 * (1 - Math.log(span) / Math.log(this.maxSpan()))); }
+  fromSlider(v) { return Math.exp(Math.log(this.maxSpan()) * (1 - v / 1000)); }
 
   set(key, v) {
     this.state[key] = v;
@@ -792,16 +837,40 @@ class ProjectGantt extends Base {
 
   range(r) {
     store.set('gantt.range', r);
-    this.view = r === 'all' ? [...this.extent] : [TODAY - +r, TODAY + Math.max(14, +r * .04)];
-    for (const b of this.$$('.ranges .chip')) b.setAttribute('aria-pressed', String(b.dataset.range === r));
+    if (r === 'all') this.view = [...this.extent];
+    else {
+      const span = r === 'auto' ? this.auto() : +r, end = TODAY + 1 + span * .03;
+      this.view = [end - span * 1.03, end];
+    }
+    this.pressed(r);
     this.schedule();
+  }
+
+  // Zoom to `span` days, keeping the point at fraction `at` of the view in place (by default today when it's in view,
+  // else the middle).
+  zoom(span, at) {
+    span = clamp(span, 1, this.maxSpan());
+    const [t0, t1] = this.view ?? [TODAY + 1 - span, TODAY + 1];
+    at ??= TODAY >= t0 && TODAY <= t1 ? (TODAY + 1 - t0) / (t1 - t0) : .5;
+    const pin = t0 + at * (t1 - t0);
+    this.view = [pin - at * span, pin + (1 - at) * span];
+    store.set('gantt.range', `span:${span.toFixed(3)}`);
+    this.pressed(null);
+    this.schedule();
+  }
+
+  pressed(r) {
+    for (const b of this.$$('.ranges .chip')) b.setAttribute('aria-pressed', String(b.dataset.range === r));
   }
 
   $$(sel) { return [...this.shadowRoot.querySelectorAll(sel)]; }
   schedule() { this.frame ??= requestAnimationFrame(() => { this.frame = null; this.draw(); }); }
 
+  // Projects with something (commits, tracked time or a span worked on) in view, by group.
   rows() {
-    const vis = this.m.projects.filter(p => this.state.forks || p.group !== 'forks');
+    const [t0, t1] = this.view, within = d => d >= t0 - 1 && d <= t1;
+    const seen = p => [...p.days.keys()].some(within) || [...p.minutes.keys()].some(within) || p.spans.some(([a, b]) => b >= t0 && a <= t1);
+    const vis = this.m.projects.filter(p => (this.state.forks || p.group !== 'forks') && seen(p));
     if (this.state.sort !== 'group')
       return [...vis].sort(this.state.sort === 'start' ? (a, b) => a.first - b.first : (a, b) => b.last - a.last).map(p => ({ p }));
     return this.m.groups.flatMap(g => {
@@ -816,35 +885,98 @@ class ProjectGantt extends Base {
     return p.bins[key + size] ??= [...p[key]].reduce((m, [d, c]) => m.set(Math.floor(d / size) * size, (m.get(Math.floor(d / size) * size) ?? 0) + c), new Map());
   }
 
-  // Month ticks every 1, 3, 6, 12, 24 or 60 months, whichever first leaves room for a label; weekly ticks when zoomed in far.
-  ticks(t0, t1, k, gap) {
-    const out = [];
-    if (k * 7 >= gap) {
-      for (let d = Math.ceil(t0 / 7) * 7 - 3; d <= t1; d += 7) out.push([d, fmt('short', d)]);
+  // The ruler: fine ticks in the smallest unit that leaves room for labels (hours, days, weeks, months or years), and
+  // coarse ticks with labels in the unit above (days, months, years). Days are local dates, so hour h of day d is d + h/24.
+  ruler(t0, t1, k, gap) {
+    const H = 1 / 24, HOUR = utcFmt({ hour: 'numeric' }), DAYN = utcFmt({ weekday: 'short', day: 'numeric' });
+    // Tick positions in [t0, t1]; with `before`, also the one at or before t0, whose label then sticks to the left edge.
+    const monthStarts = (step, before = false) => {
+      const out = [], a = new Date(Math.floor(t0) * DAY);
+      let i = a.getUTCFullYear() * 12 + a.getUTCMonth();
+      if (before) i -= i % step;
+      for (; ; i++) {
+        const d = Date.UTC(Math.floor(i / 12), i % 12, 1) / DAY;
+        if (d > t1) break;
+        if ((before || d >= t0) && i % step === 0) out.push(d);
+      }
       return out;
+    };
+    const every = (from, step, before = false) => {
+      const out = [];
+      let d = Math.floor((t0 - from) / step) * step + from;
+      if (!before && d < t0) d += step;
+      for (; d <= t1; d += step) out.push(d);
+      return out;
+    };
+    const units = [
+      ...[1, 3, 6, 12].map(s => ({ size: s * H, at: () => every(0, s * H).map(d => Math.round(d * 24) / 24), label: d => HOUR.format(d * DAY), up: 'day' })),
+      ...[1, 2].map(s => ({ size: s, at: () => every(0, s), label: d => k >= 70 ? DAYN.format(d * DAY) : fmt('short', d).replace(/\D+$/, ''), up: 'month' })),
+      { size: 7, at: () => every(4, 7), label: d => fmt('short', d), up: 'month' },   // Mondays
+      ...[1, 3, 6].map(s => ({ size: s * 30.44, at: () => monthStarts(s), label: d => fmt('mon', d), up: 'year' })),
+      ...[1, 2, 5, 10].map(s => ({ size: s * 365.25, at: () => monthStarts(12 * s), label: d => fmt('year', d), up: null })),
+    ];
+    const fine = units.find(u => u.size * k >= gap) ?? units.at(-1);
+    const coarse = { day: { at: () => every(0, 1, true), label: d => fmt('day', d) },
+                     month: { at: () => monthStarts(1, true), label: d => fmt('month', d) },
+                     year: { at: () => monthStarts(12, true), label: d => fmt('year', d) } }[fine.up];
+    return { fine: fine.at().map(d => [d, fine.label(d)]), coarse: coarse ? coarse.at().map(d => [d, coarse.label(d)]) : [] };
+  }
+
+  // Keyboard and browser minutes per hour (when zoomed in that far) or summed per bin of `size` days, and Claude tokens
+  // per day; each value is [amount, extra] (extra: Claude sessions). Cached per lane and size.
+  laneBins(lane, size) {
+    const key = `${lane}:${size}`;
+    if (this.lanesCache.has(key)) return this.lanesCache.get(key);
+    const out = new Map(), data = this.m.lanes[lane], add = (t, v, n = 0) => { const c = out.get(t) ?? [0, 0]; out.set(t, [c[0] + v, c[1] + n]); };
+    for (const [d, v] of data) {
+      if (lane === 'claude') add(size < 1 ? d : Math.floor(d / size) * size, v[0], v[1]);
+      else if (size < 1) v.forEach((m, h) => m && add((d * 24 + h) / 24, m));     // the same key laneTip computes
+      else add(Math.floor(d / size) * size, sum(v));
     }
-    const step = [1, 3, 6, 12, 24, 60].find(n => n * 30.44 * k >= gap) ?? 120;
-    const a = new Date(t0 * DAY);
-    for (let i = a.getUTCFullYear() * 12 + a.getUTCMonth(); ; i++) {
-      const d = Date.UTC(Math.floor(i / 12), i % 12, 1) / DAY;
-      if (d > t1) break;
-      if (d >= t0 && i % step === 0) out.push([d, i % 12 ? fmt('mon', d) : fmt('year', d)]);
-    }
-    return out;
+    const peak = Math.max(1, ...[...out.values()].map(v => v[0]));
+    this.lanesCache.set(key, { bins: out, peak });
+    return this.lanesCache.get(key);
   }
 
   draw() {
     if (!this.m) return;
     const W = this.plot.clientWidth;
     if (!W) return;
-    const narrow = W < 600, L = narrow ? 118 : Math.min(240, W * .24), R = 18, AX = 26, RH = narrow ? 22 : 24, GH = 34;
+    const narrow = W < 600, L = narrow ? 118 : Math.min(240, W * .24), R = 18, AX = 40, RH = narrow ? 22 : 24, GH = 34, LH = 30;
     let [t0, t1] = this.view;
     const k = this.k = (W - L - R) / (t1 - t0), x = t => L + (t - t0) * k;
-    const size = k >= 3 ? 1 : k * 7 >= 3 ? 7 : k * 30.44 >= 3 ? 30.44 : 91.31;
+    const size = k >= 3 ? 1 : k * 7 >= 3 ? 7 : k * 30.44 >= 3 ? 30.44 : 91.31, lsize = k / 24 >= 2.5 ? 1 / 24 : size;
     const rows = this.rows(), parts = [], rels = [], layout = [], pos = new Map();
     const peak = Math.max(1, ...rows.flatMap(r => r.p ? [...this.bins(r.p, size).values()] : []));
     const peakT = Math.max(1, ...rows.flatMap(r => r.p ? [...this.bins(r.p, size, 'minutes').values()] : []));
+    this.$('[name=zoom]').value = this.toSlider(t1 - t0);
+    const span = t1 - t0;
+    this.$('.span').textContent = span < 1.5 ? `${Math.round(span * 24)} hours` : span < 60 ? `${Math.round(span)} days` : span < 730 ? `${Math.round(span / 30.44)} months` : `${(span / 365.25).toFixed(span < 3650 ? 1 : 0)} years`;
     let y = AX + 6;
+    // Activity lanes: the same scale as the projects below.
+    const lanes = [['keyboard', 'at the keyboard', 2], ['browser', 'in the browser', 0], ['claude', 'Claude', 3]].filter(([id]) => this.m.lanes[id].size);
+    for (const [id, label, hue] of lanes) {
+      const { bins, peak: top } = this.laneBins(id, id === 'claude' ? Math.max(1, lsize) : lsize), bin = id === 'claude' ? Math.max(1, lsize) : lsize;
+      let d = '';
+      for (const [t, [v]] of bins) {
+        if (t + bin < t0 || t > t1 || !v) continue;
+        const hh = Math.max(1.5, (LH - 8) * v / top), w = Math.max(1.2, bin * k - (bin * k > 4 ? 1 : .2));
+        d += `M${x(t).toFixed(1)} ${(y + LH - 3).toFixed(1)}h${w.toFixed(1)}v${(-hh).toFixed(1)}h${(-w).toFixed(1)}z`;
+      }
+      parts.push(`<g class="lane" style="--c:var(--a${hue})"><rect class="hit" x="0" y="${y}" width="${W}" height="${LH}"/>
+        <text class="lbl" x="${L - 12}" y="${y + LH / 2 + 4.5}" text-anchor="end">${label}</text>
+        <g clip-path="url(#clip)"><path class="${id === 'claude' && lsize < 1 ? 'day' : 'bars'}" d="${d}"/></g></g>`);
+      layout.push([y, y + LH, { lane: id, label, size: bin }]);
+      y += LH;
+    }
+    if (lanes.length) {
+      parts.push(`<line class="lanes-rule" x1="${L}" x2="${W - R}" y1="${y + 5}" y2="${y + 5}"/>`);
+      y += 10;
+    }
+    if (!rows.length) {
+      parts.push(`<text class="empty" x="${L}" y="${y + 18}">No project activity in this range. Zoom out or pick a longer one.</text>`);
+      y += 28;
+    }
     for (const r of rows) {
       if (r.g) {
         const collapsed = this.state.collapsed.has(r.g.id), ty = y + GH - 11;
@@ -886,10 +1018,21 @@ class ProjectGantt extends Base {
         d="M${rx.toFixed(1)} ${ya}C${(rx + bulge).toFixed(1)} ${ya} ${(rx + bulge).toFixed(1)} ${yb} ${(rx + 3).toFixed(1)} ${yb}"/>
         <circle class="rel-end" cx="${rx.toFixed(1)}" cy="${ya}" r="2.6" style="fill:var(--k-${rel.kind})"/></g>`);
     }
-    const H = y + 8;
-    const axis = this.ticks(t0, t1, k, narrow ? 36 : 52).map(([d, label]) =>
-      `<line x1="${x(d).toFixed(1)}" x2="${x(d).toFixed(1)}" y1="${AX - 4}" y2="${H}" stroke-opacity=".55"/>${Math.abs(x(d) + 20 - x(TODAY)) < 60 ? '' : `<text x="${(x(d) + 4).toFixed(1)}" y="${AX - 10}">${label}</text>`}`).join('');
-    const today = TODAY >= t0 && TODAY <= t1 ? `<g class="today"><line x1="${x(TODAY)}" x2="${x(TODAY)}" y1="${AX - 4}" y2="${H}"/><text x="${x(TODAY) - 4}" y="${AX - 10}" text-anchor="end">today</text></g>` : '';
+    const H = y + 8, { fine, coarse } = this.ruler(t0, t1, k, narrow ? 34 : 46), inside = d => x(d) >= L - 1 && x(d) <= W - R + 1;
+    const weekend = k >= 6 ? Array.from({ length: Math.ceil(t1) - Math.floor(t0) + 1 }, (_, i) => Math.floor(t0) + i)
+      .filter(d => [0, 6].includes((d + 4) % 7)).map(d => `<rect class="weekend" x="${x(d).toFixed(1)}" y="${AX}" width="${k.toFixed(1)}" height="${H - AX}"/>`).join('') : '';
+    const now = (Date.now() - new Date().getTimezoneOffset() * 6e4) / DAY;      // local time, on the same day scale
+    // Coarse labels: the period the left edge is in sticks there, unless the next boundary's label would overlap it.
+    const coarseMarks = coarse.map(([d, label]) => [d, label, inside(d)])
+      .filter(([d, , shown], i, all) => shown || !(all[i + 1] && x(all[i + 1][0]) - L < 130))
+      .map(([d, label, shown]) => [d, W - R - Math.max(x(d), L) < label.length * 6.5 + 8 ? '' : label, shown]);   // no room left of the edge
+    const axis = `<g clip-path="url(#clip)">${weekend}</g>`
+      + `<g class="coarse">${coarseMarks.map(([d, label, shown]) => (shown ? `<line x1="${x(d).toFixed(1)}" x2="${x(d).toFixed(1)}" y1="4" y2="${H}" stroke-opacity=".9"/>` : '')
+          + `<text x="${(Math.max(x(d), L) + 4).toFixed(1)}" y="15">${esc(label)}</text>`).join('')}</g>`
+      + `<g class="fine">${fine.filter(([d]) => inside(d)).map(([d, label]) => `<line x1="${x(d).toFixed(1)}" x2="${x(d).toFixed(1)}" y1="${AX - 14}" y2="${H}" stroke-opacity=".45"/>${W - R - x(d) < label.length * 6 + 4 ? '' : `<text x="${(x(d) + 3).toFixed(1)}" y="${AX - 5}">${esc(label)}</text>`}`).join('')}</g>`
+      + `<line class="base" x1="${L}" x2="${W - R}" y1="${AX}" y2="${AX}"/>`;
+    const tx = k >= 24 ? now : TODAY;
+    const today = tx >= t0 && tx <= t1 ? `<g class="today"><line x1="${x(tx)}" x2="${x(tx)}" y1="${AX - 14}" y2="${H}"/><text x="${x(tx) - 4}" y="${AX - 18}" text-anchor="end">${k >= 24 ? 'now' : 'today'}</text></g>` : '';
     const defs = [0, 1, 2, 3].map(i => `<pattern id="hatch-${i}" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="2.2" height="5" style="fill:var(--a${i})"/></pattern>`).join('')
       + Object.keys(REL).map(kd => `<marker id="arr-${kd}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 1L9 5L0 9z" style="fill:var(--k-${kd})"/></marker>`).join('')
       + `<clipPath id="clip"><rect x="${L}" y="0" width="${W - L - R + 4}" height="${H}"/></clipPath>`;
@@ -927,8 +1070,22 @@ class ProjectGantt extends Base {
     for (const row of this.svg.querySelectorAll('.row')) row.classList.toggle('hot', linked.has(row.dataset.id));
   }
 
+  laneTip(e, r) {
+    const { x, L } = this.geom, svgTop = this.svg.getBoundingClientRect(), top = svgTop.top - this.plot.getBoundingClientRect().top;
+    const t = this.view[0] + (e.clientX - svgTop.left - L) / this.k, size = r.size;
+    const at = size < 1 ? Math.floor(t * 24) / 24 : Math.floor(t / size) * size, v = this.laneBins(r.lane, size).bins.get(at);
+    const hour = utcFmt({ hour: 'numeric' }).format(at * DAY);
+    const when = size < 1 ? `${fmt('day', Math.floor(at))}, ${hour}` : size === 1 ? fmt('day', at) : size === 7 ? `the week of ${fmt('short', at)}` : fmt('month', at);
+    const big = n => n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : `${n}`;
+    const what = !v ? '<span class="dim">nothing recorded</span>' : r.lane === 'claude' ? `${big(v[0])} Claude Code tokens · ${plural(v[1], 'session')}` : `${hours(v[0])} ${r.label}`;
+    const row = this.layout.find(l => l[2] === r);
+    this.focus(null);
+    this.tip.show([x(at), row[0] + top, Math.max(4, size * this.k), row[1] - row[0]], `<b>${when}</b><br>${what}`);
+  }
+
   hover(e) {
     const r = this.rowAt(e.clientY);
+    if (r?.lane) return this.laneTip(e, r);
     if (!r?.p) { this.focus(null); this.tip.hide(); return; }
     const p = r.p, { x, RH } = this.geom, top = this.svg.getBoundingClientRect().top - this.plot.getBoundingClientRect().top;
     const [a, b] = [clamp(x(p.first), this.geom.L, this.geom.W - this.geom.R), clamp(x(p.last + 1), this.geom.L, this.geom.W - this.geom.R)];
@@ -970,11 +1127,9 @@ class ProjectGantt extends Base {
       if (horizontal) { const dt = e.deltaX / this.k; this.view = [t0 + dt, t1 + dt]; }
       else {
         const at = t0 + (e.clientX - rect.left - this.geom.L) / this.k, f = Math.exp(e.deltaY * .0025);
-        const span = clamp((t1 - t0) * f, 21, (this.extent[1] - this.extent[0]) * 1.6);
-        const g = (at - t0) / (t1 - t0);
-        this.view = [at - g * span, at + (1 - g) * span];
+        return this.zoom((t1 - t0) * f, (at - t0) / (t1 - t0));
       }
-      for (const b of this.$$('.ranges .chip')) b.setAttribute('aria-pressed', 'false');
+      this.pressed(null);
       this.schedule();
     }, { passive: false });
   }
@@ -986,7 +1141,7 @@ class ProjectGantt extends Base {
       c.has(r.g.id) ? c.delete(r.g.id) : c.add(r.g.id);
       store.set('gantt.collapsed', [...c]);
       this.schedule();
-    } else if (r?.p) this.emit('open-project', r.p.id);
+    } else if (r?.p) this.emit('open-project', r.p.id);     // lanes have nothing to open
   }
 }
 
