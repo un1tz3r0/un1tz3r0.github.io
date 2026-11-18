@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Material Icon Studio</title>
+    <!--
+      Content Security Policy. Script may come only from this origin, plus the one inline
+      import map below (identified by hash; `npm run precache` keeps the hash current).
+      Network access is limited to the icon and font hosts. Inline styles are allowed
+      because SVG artwork carries them.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'sha256-Cwus7xMIWr4RJaZ4aT4r6iGY8ahRhEN/KI51KVRJil8='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://api.iconify.design; font-src 'self' data: blob: https://cdn.jsdelivr.net; connect-src 'self' blob: https://api.iconify.design https://cdn.jsdelivr.net https://api.fontsource.org; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <meta name="description" content="Compose SVG images from free icon sets, shapes and text." />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#24272c" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./assets/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./assets/icon-192.png" />
+    <link rel="stylesheet" href="./src/styles/tokens.css" />
+    <link rel="stylesheet" href="./src/styles/base.css" />
+
+    <!-- No build step: bare specifiers are resolved here. See DESIGN.md §3.1. -->
+    <script type="importmap">
+      {
+        "imports": {
+          "@geo/paths": "./vendor/geo/src/index.js",
+          "@geo/paths/svg": "./vendor/geo/src/svg/index.js",
+          "#svg-host": "./vendor/geo/src/svg/host-browser.js",
+          "opentype.js": "./vendor/opentype/opentype.mjs"
+        }
+      }
+    </script>
+    <script type="module" src="./src/main.js"></script>
+  </head>
+  <body>
+    <!--
+      The application shell. <mis-app> clones this template into its shadow root; the
+      children of each element below are filled in by the elements themselves.
+    -->
+    <template id="mis-app-template">
+      <mis-topbar class="top"><slot name="brand" slot="brand"></slot></mis-topbar>
+
+      <nav class="tools" aria-label="Tools">
+        <mis-toolbar id="palette" orientation="vertical" label="Drawing tools"></mis-toolbar>
+      </nav>
+
+      <mis-canvas class="canvas"></mis-canvas>
+
+      <mis-splitter class="vsplit" orientation="vertical" label="Resize sidebar"></mis-splitter>
+      <aside class="side" aria-label="Properties and layers">
+        <mis-properties></mis-properties>
+        <mis-splitter class="lsplit" orientation="horizontal" label="Resize layers panel"></mis-splitter>
+        <mis-layers></mis-layers>
+      </aside>
+
+      <mis-splitter class="hsplit" orientation="horizontal" label="Resize asset panel"></mis-splitter>
+      <mis-asset-panel class="assets"></mis-asset-panel>
+
+      <mis-statusbar class="status"></mis-statusbar>
+
+      <mis-context-menu id="context"></mis-context-menu>
+      <mis-toast></mis-toast>
+      <mis-tooltip></mis-tooltip>
+      <div id="dialogs"></div>
+      <div id="announcer" class="sr-only" role="status" aria-live="polite"></div>
+      <slot></slot>
+    </template>
+
+    <mis-app>
+      <span slot="brand">
+        <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" style="vertical-align: -4px">
+          <rect x="2" y="2" width="20" height="20" rx="5" fill="#2563eb" />
+          <path d="M7 16.5V8l5 5 5-5v8.5" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <span>Icon Studio</span>
+      </span>
+      <p>Loading Material Icon Studio…</p>
+      <noscript>Material Icon Studio needs JavaScript to run.</noscript>
+    </mis-app>
+  </body>
+</html>

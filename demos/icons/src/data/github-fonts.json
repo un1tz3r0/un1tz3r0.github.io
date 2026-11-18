@@ -1,0 +1,148 @@
+[
+  {
+    "id": "0xproto",
+    "family": "0xProto",
+    "category": "monospace",
+    "license": "OFL-1.1",
+    "repo": "0xType/0xProto",
+    "ref": "2.502",
+    "files": {
+      "400": {
+        "normal": "fonts/0xProto-Regular.ttf",
+        "italic": "fonts/0xProto-Italic.ttf"
+      },
+      "700": {
+        "normal": "fonts/0xProto-Bold.ttf"
+      }
+    }
+  },
+  {
+    "id": "departure-mono",
+    "family": "Departure Mono",
+    "category": "monospace",
+    "license": "MIT",
+    "repo": "rektdeckard/departure-mono",
+    "ref": "v1.500",
+    "files": {
+      "400": {
+        "normal": "public/assets/DepartureMono-Regular.otf"
+      }
+    }
+  },
+  {
+    "id": "monocraft",
+    "family": "Monocraft",
+    "category": "monospace",
+    "license": "OFL-1.1",
+    "repo": "IdreesInc/Monocraft",
+    "ref": "v4.2.1",
+    "files": {
+      "300": {
+        "normal": "dist/Monocraft-otf/weights/Monocraft-Light.otf",
+        "italic": "dist/Monocraft-otf/weights/Monocraft-Light-Italic.otf"
+      },
+      "400": {
+        "normal": "dist/Monocraft-otf/Monocraft.otf",
+        "italic": "dist/Monocraft-otf/weights/Monocraft-Italic.otf"
+      },
+      "600": {
+        "normal": "dist/Monocraft-otf/weights/Monocraft-SemiBold.otf",
+        "italic": "dist/Monocraft-otf/weights/Monocraft-SemiBold-Italic.otf"
+      },
+      "700": {
+        "normal": "dist/Monocraft-otf/weights/Monocraft-Bold.otf",
+        "italic": "dist/Monocraft-otf/weights/Monocraft-Bold-Italic.otf"
+      },
+      "900": {
+        "normal": "dist/Monocraft-otf/weights/Monocraft-Black.otf",
+        "italic": "dist/Monocraft-otf/weights/Monocraft-Black-Italic.otf"
+      }
+    }
+  },
+  {
+    "id": "juliamono",
+    "family": "JuliaMono",
+    "category": "monospace",
+    "license": "OFL-1.1",
+    "repo": "cormullion/juliamono",
+    "ref": "v0.63.2",
+    "files": {
+      "300": {
+        "normal": "JuliaMono-Light.ttf",
+        "italic": "JuliaMono-LightItalic.ttf"
+      },
+      "400": {
+        "normal": "JuliaMono-Regular.ttf",
+        "italic": "JuliaMono-RegularItalic.ttf"
+      },
+      "500": {
+        "normal": "JuliaMono-Medium.ttf",
+        "italic": "JuliaMono-MediumItalic.ttf"
+      },
+      "600": {
+        "normal": "JuliaMono-SemiBold.ttf",
+        "italic": "JuliaMono-SemiBoldItalic.ttf"
+      },
+      "700": {
+        "normal": "JuliaMono-Bold.ttf",
+        "italic": "JuliaMono-BoldItalic.ttf"
+      },
+      "800": {
+        "normal": "JuliaMono-ExtraBold.ttf",
+        "italic": "JuliaMono-ExtraBoldItalic.ttf"
+      },
+      "900": {
+        "normal": "JuliaMono-Black.ttf",
+        "italic": "JuliaMono-BlackItalic.ttf"
+      }
+    }
+  },
+  {
+    "id": "hack",
+    "family": "Hack",
+    "category": "monospace",
+    "license": "MIT AND Bitstream-Vera",
+    "repo": "source-foundry/Hack",
+    "ref": "v3.003",
+    "files": {
+      "400": {
+        "normal": "build/ttf/Hack-Regular.ttf",
+        "italic": "build/ttf/Hack-Italic.ttf"
+      },
+      "700": {
+        "normal": "build/ttf/Hack-Bold.ttf",
+        "italic": "build/ttf/Hack-BoldItalic.ttf"
+      }
+    }
+  },
+  {
+    "id": "agave",
+    "family": "Agave",
+    "category": "monospace",
+    "license": "OFL-1.1",
+    "repo": "blobject/agave",
+    "ref": "v37",
+    "files": {
+      "400": {
+        "normal": "dist/Agave-Regular.ttf"
+      },
+      "700": {
+        "normal": "dist/Agave-Bold.ttf"
+      }
+    }
+  },
+  {
+    "id": "fanwood",
+    "family": "Fanwood",
+    "category": "serif",
+    "license": "OFL-1.1",
+    "repo": "theleagueof/fanwood",
+    "ref": "cbaaed9704e7d37d3dcdbdf0b472e9efd0e39432",
+    "files": {
+      "400": {
+        "normal": "Fanwood.otf",
+        "italic": "Fanwood Italic.otf"
+      }
+    }
+  }
+]
