@@ -308,13 +308,13 @@
    }
   },
   "2026-11-18": {
-   "active": 84,
+   "active": 138,
    "hours": [
     0,
     0,
     40,
-    44,
-    0,
+    53,
+    45,
     0,
     0,
     0,
@@ -336,16 +336,26 @@
     0
    ],
    "apps": {
-    "browser": 50,
-    "other": 34
+    "browser": 85,
+    "other": 53
    },
-   "projects": {},
+   "projects": {
+    "un1tz3r0.github.io": {
+     "minutes": 0,
+     "claude": {
+      "conversations": 1,
+      "prompts": 1,
+      "minutes": 1,
+      "tokens": 464827
+     }
+    }
+   },
    "web": [
     0,
     0,
     40,
     10,
-    0,
+    35,
     0,
     0,
     0,
@@ -368,11 +378,18 @@
    ],
    "claude": {
     "code": {
-     "conversations": 1,
-     "prompts": 1,
-     "minutes": 8,
-     "tokens": 96965
-    }
+     "conversations": 2,
+     "prompts": 2,
+     "minutes": 9,
+     "tokens": 561792
+    },
+    "items": [
+     {
+      "source": "code",
+      "title": "Uncommitted work and upstream conflicts",
+      "project": "un1tz3r0.github.io"
+     }
+    ]
    }
   }
  },
