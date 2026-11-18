@@ -115,3 +115,41 @@ def test_history_import_keeps_no_titles_when_titles_are_off(db, fake_history):
 def test_history_import_without_browserprofile(db, monkeypatch):
     monkeypatch.setitem(sys.modules, 'browserprofile', None)
     assert browsing.import_history(db, C) == 0
+
+
+# ── the [browser] filter, publish and site rules as rule lists ─────────────────────────────────────────────────────
+
+def test_old_allow_and_deny_become_a_filter_where_deny_still_wins():
+    old = {'allow': ['github.com'], 'deny': ['github.com']}
+    assert browsing.filter_rules(old) == [{'match': 'github.com', 'action': 'deny', 'priority': '!'}, {'match': 'github.com'}]
+    assert not browsing.recordable('https://github.com/x', old)
+    assert not browsing.recordable('https://elsewhere.org/', old)       # an allow rule makes it an allow list
+
+
+@pytest.mark.parametrize('url, kept', [('https://docs.example.com/a', True), ('https://example.com/', False),
+                                       ('https://bank.example.com/', False), ('https://anything.org/', True)])
+def test_filter_order_and_priority(url, kept):
+    c = {'filter': [{'match': '*.example.com'}, {'match': 'example.com', 'action': 'deny'},
+                    {'match': 'bank.*', 'action': 'deny', 'priority': '!'}, {'match': '*', 'priority': '?'}]}
+    assert browsing.recordable(url, c) is kept
+
+
+def test_publish_rules_with_negation_and_priority():
+    c = {'publish': [{'match': '*.github.com', 'level': 'page'}, {'match': 'gist.github.com', 'level': 'page', 'action': 'deny', 'priority': '!'},
+                     {'match': '*.github.com', 'level': 'domain', 'priority': '?'}, {'match': 'secret.github.com', 'action': 'deny', 'priority': '!'}],
+         'default': 'domain'}
+    assert [browsing.level(u, c) for u in ('https://api.github.com/', 'https://gist.github.com/', 'https://secret.github.com/',
+                                           'https://other.org/')] == ['page', 'domain', 'private', 'domain']
+
+
+def test_site_rules_and_their_older_form():
+    assert browsing.site_rules({'sites': {'video': 'youtube', 'rules': [{'match': 'docs\\.', 'to': 'docs'}]}}) == \
+        [{'match': 'docs\\.', 'to': 'docs'}, {'match': 'youtube', 'to': 'video'}]
+
+
+@pytest.mark.parametrize('c', [{'filter': [{'match': 'x', 'action': 'block'}]}, {'publish': [{'match': 'x'}]},
+                               {'publish': [{'match': 'x', 'level': 'page', 'priority': '!!'}]},
+                               {'sites': {'rules': [{'match': '(', 'to': 'x'}]}}])
+def test_bad_rules_are_refused(c):
+    with pytest.raises(ValueError):
+        browsing.check(c)

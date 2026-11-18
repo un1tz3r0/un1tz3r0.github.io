@@ -151,3 +151,84 @@ def test_saving_without_a_daemon_says_so_plainly(env):
     w.limits['max_idle'].set_text('90d')
     w.save()
     assert w.toasts_seen == ['Saved 1 change; they apply when the daemon starts']
+
+
+# ── list editors ───────────────────────────────────────────────────────────────────────────────────────────────
+
+OLD = '''[browser]
+allow = ["github.com"]
+deny = ["*.bank.*"]
+[browser.sites]
+docs = "docs\\\\."
+[apps]
+code = "code|zed"
+[discover]
+enabled = false
+exclude = ["~/scratch"]
+'''
+
+
+def test_an_older_config_is_shown_as_rules_and_saved_in_the_new_form(env):
+    w = window(env, f'site = "{env / "site"}"\ndb = "{env / "p.sqlite3"}"\n' + OLD)
+    assert w.filter.get() == [{'action': 'deny', 'priority': '!', 'match': '*.bank.*'}, {'match': 'github.com'}]
+    assert w.apps.get() == [{'match': 'code|zed', 'to': 'code'}]
+    assert w.rules.get() == [{'action': 'deny', 'priority': '!', 'when': 'path', 'value': '~/scratch'}]
+    before = pulse.Settings.load(env / 'pulse.toml')
+    w.save()
+    doc = tomllib.loads((env / 'pulse.toml').read_text())
+    assert 'allow' not in doc['browser'] and 'deny' not in doc['browser'] and 'exclude' not in doc['discover']
+    assert doc['apps'] == {'rules': [{'match': 'code|zed', 'to': 'code'}]} and doc['browser']['sites'] == {'rules': [{'match': 'docs\\.', 'to': 'docs'}]}
+    after = pulse.Settings.load(env / 'pulse.toml')
+    assert (after.categories(), after.exclude, after.browser_config()['filter']) == \
+        (before.categories(), before.exclude, before.browser_config()['filter'])
+
+
+def act(editor, i, name):
+    line = editor.lines[i][0]
+    action = line.actions.lookup_action(name)
+    if action.get_enabled():
+        action.activate(None)
+    return action.get_enabled()
+
+
+def test_lines_move_and_are_removed_from_their_menu(env):
+    w = window(env, config(env))
+    for m in ('a', 'b', 'c'):
+        w.filter.put({'match': m})
+    assert not act(w.filter, 0, 'up') and not w.filter.lines[2][0].actions.lookup_action('down').get_enabled()
+    act(w.filter, 2, 'up')
+    assert [r['match'] for r in w.filter.get()] == ['a', 'c', 'b']
+    act(w.filter, 0, 'down')
+    act(w.filter, 2, 'remove')
+    assert [r['match'] for r in w.filter.get()] == ['c', 'a']
+    assert not w.hidden.lines or not w.hidden.lines[0][0].actions.lookup_action('up').get_enabled()   # unordered lists don't move
+
+
+def test_sign_and_priority_round_trip_and_cycle(env):
+    w = window(env, config(env))
+    w.sites.put({'match': 'x', 'to': 'social', 'action': 'deny', 'priority': '?'})
+    assert w.sites.get()[-1] == {'action': 'deny', 'priority': '?', 'match': 'x', 'to': 'social'}
+    sign, priority = w.sites.lines[-1][1]['action'], w.sites.lines[-1][1]['priority']
+    sign.set_active(False)
+    priority.emit('clicked')           # ? → normal
+    assert w.sites.get()[-1] == {'match': 'x', 'to': 'social'} and sign.get_label() == '+' and priority.get_label() == '·'
+    priority.emit('clicked')
+    assert w.sites.get()[-1]['priority'] == '!'
+
+
+def test_half_typed_lines_are_not_saved(env):
+    w = window(env, config(env))
+    w.filter.put({})
+    w.ignore.put({'value': '  '})
+    w.save()
+    assert w.toasts_seen == ['Nothing to save']
+
+
+def test_string_lists_and_pairs_save(env):
+    w = window(env, config(env))
+    w.hidden.put({'value': 'old-thing'})
+    w.pins.put({'key': 'steam', 'value': 'ignore'})
+    w.ignore.put({'value': '*.log'})
+    w.save()
+    site, cfg = tomllib.loads((env / 'site' / 'site.toml').read_text()), tomllib.loads((env / 'pulse.toml').read_text())
+    assert 'old-thing' in site['github']['ignore'] and cfg['app_ids'] == {'steam': 'ignore'} and cfg['ignore'] == ['*.log']

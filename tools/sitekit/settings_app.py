@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import sys
 import time
+from dataclasses import dataclass
 from pathlib import Path
 
 import gi
@@ -22,7 +23,7 @@ from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango  # noqa: E402
 
 from . import browsing, conversations, tomledit  # noqa: E402
 from .common import expand, load_toml  # noqa: E402
-from .pulse import CONDITIONS, CONFIG, KINDS, duration  # noqa: E402
+from .pulse import CONDITIONS, CONFIG, KINDS, discover_rules, duration, map_rules  # noqa: E402
 from .pulse_ctl import APP_ID, ICONS, Link, restart  # noqa: E402
 
 PAGES = {'pulse': ('Pulse', 'sitekit-pulse-active'), 'site': ('Site', 'user-home-symbolic'), 'projects': ('Projects', 'folder-symbolic'),
@@ -41,7 +42,9 @@ TINT = {'lifecycle': '#3584e4', 'sample': '#77767b', 'activity': '#2ec27e', 'sca
 CSS = '.kind { border-radius: 99px; padding: 0 8px; font-size: 0.8em; font-weight: 600; min-width: 64px; }\n' + \
       ''.join(f'.kind-{k} {{ background: alpha({c}, 0.22); }}\n' for k, c in TINT.items()) + \
       'button.kind:not(:checked) { opacity: 0.4; } button.kind { min-height: 24px; }\n' + \
-      '.logtime { font-family: monospace; opacity: 0.6; } .output { font-family: monospace; font-size: 0.9em; }'
+      '.logtime { font-family: monospace; opacity: 0.6; } .output { font-family: monospace; font-size: 0.9em; }\n' + \
+      '.sign, .priority { min-width: 22px; padding: 2px 6px; font-weight: 800; }\n' + \
+      '.sign { color: @success_color; } .sign:checked { color: @error_color; } .priority.normal { color: alpha(currentColor, 0.45); }'
 
 
 def hours(minutes: int) -> str:
@@ -58,10 +61,6 @@ def ago(t: float | None) -> str:
 def countdown(t: float) -> str:
     s = max(0, int(t - time.time()))
     return f'in {s // 3600}:{s // 60 % 60:02d}:{s % 60:02d}' if s >= 3600 else f'in {s // 60}:{s % 60:02d}'
-
-
-def words(text: str) -> list[str]:
-    return [w.strip() for w in text.split(',') if w.strip()]
 
 
 def row(title: str, subtitle: str = '') -> Adw.ActionRow:
@@ -84,73 +83,172 @@ def button(label: str, on_click, style: str | None = None) -> Gtk.Button:
     return b
 
 
-class MapGroup(Adw.PreferencesGroup):
-    """A TOML table of string keys to strings, one editable row each, with a row to add a key."""
+PRIORITY = {'': '·', '!': '!', '?': '?'}
+PRIORITY_HELP = {'': 'Normal priority: tried in list order', '!': 'High priority: tried before the others',
+                 '?': 'Low priority: tried after the others'}
 
-    def __init__(self, title: str, description: str, values: dict, add_hint: str, default=lambda k: ''):
+
+@dataclass
+class Col:
+    """One field of a list's lines. kind: text, choice (a drop-down), sign (the rule's action: + allow, − deny) or
+    priority (cycles normal, ! and ?)."""
+    name: str
+    kind: str = 'text'
+    hint: str = ''
+    choices: list[str] | None = None
+    wide: bool = True       # a text field that takes the spare width; a narrow one is for short keys
+
+
+class ListEditor(Adw.PreferencesGroup):
+    """An editable list: one line per item, + in the header to add one, and a … menu on each line with Edit, Move up and
+    Move down (only where `ordered`) and Remove. Items are dicts of the columns' names; get() leaves out lines whose
+    first text field is empty, an allow action and a normal priority (the defaults)."""
+
+    def __init__(self, title: str, description: str, items: list[dict], cols: list[Col], ordered: bool = True,
+                 extra: Gtk.Widget | None = None):
         super().__init__(title=title, description=description)
-        self.rows, self.default = {}, default
-        self.adder = Adw.EntryRow(title=add_hint, show_apply_button=True)
-        self.adder.connect('apply', lambda e: (self.put(e.get_text().strip(), default(e.get_text().strip())), e.set_text('')))
-        self.add(self.adder)
-        for k, v in values.items():
-            self.put(k, v)
-
-    def put(self, key: str, value: str) -> None:
-        if not key or key in self.rows:
-            return
-        r = Adw.EntryRow(title=key, text=str(value))
-        remove = Gtk.Button(icon_name='user-trash-symbolic', valign=Gtk.Align.CENTER, tooltip_text='Remove')
-        remove.add_css_class('flat')
-        remove.connect('clicked', lambda *_: (self.remove(r), self.rows.pop(key)))
-        r.add_suffix(remove)
-        self.rows[key] = r
-        self.add(r)
-
-    def get(self) -> dict:
-        return {k: r.get_text() for k, r in self.rows.items()}
-
-
-class RowsGroup(Adw.PreferencesGroup):
-    """An array of tables, one line of entries and drop-downs each, with a button to add a line. `cols` are (key, hint,
-    choices): choices make a drop-down. A line is kept once its first text column is filled in; empty values are left out."""
-
-    def __init__(self, title: str, description: str, values: list[dict], cols: list[tuple[str, str, list[str] | None]]):
-        super().__init__(title=title, description=description)
-        self.cols, self.lines = cols, []
-        add = Gtk.Button(icon_name='list-add-symbolic', tooltip_text='Add a line', valign=Gtk.Align.CENTER)
+        self.cols, self.ordered, self.lines = cols, ordered, []
+        self.first = next(c.name for c in cols if c.kind == 'text')
+        add = Gtk.Button(icon_name='list-add-symbolic', tooltip_text='Add', valign=Gtk.Align.CENTER)
         add.add_css_class('flat')
-        add.connect('clicked', lambda *_: self.put({}))
-        self.set_header_suffix(add)
-        for v in values:
-            self.put(v)
+        add.connect('clicked', lambda *_: self.put({}, focus=True))
+        header = Gtk.Box(spacing=4)
+        for w in filter(None, (extra, add)):
+            header.append(w)
+        self.set_header_suffix(header)
+        for item in items:
+            self.put(item)
 
-    def put(self, values: dict) -> None:
-        box = Gtk.Box(spacing=8, margin_top=6, margin_bottom=6, margin_start=12, margin_end=6)
+    def put(self, item: dict, focus: bool = False) -> None:
+        box = Gtk.Box(spacing=6, margin_top=6, margin_bottom=6, margin_start=12, margin_end=6)
         widgets = {}
-        for k, hint, choices in self.cols:
-            value = str(values.get(k, ''))
-            if choices:
-                w = Gtk.DropDown.new_from_strings(choices)
-                w.set_selected(choices.index(value) if value in choices else 0)
-            else:
-                w = Gtk.Entry(text=value, placeholder_text=hint, hexpand=True)
-            widgets[k] = w
+        for c in self.cols:
+            widgets[c.name] = w = self.widget(c, item.get(c.name))
             box.append(w)
-        line = Gtk.ListBoxRow(activatable=False, selectable=False, child=box)
-        remove = Gtk.Button(icon_name='user-trash-symbolic', valign=Gtk.Align.CENTER, tooltip_text='Remove')
-        remove.add_css_class('flat')
+        menu = Gio.Menu()
+        menu.append('Edit', 'line.edit')
+        if self.ordered:
+            menu.append('Move up', 'line.up')
+            menu.append('Move down', 'line.down')
+        menu.append('Remove', 'line.remove')
+        more = Gtk.MenuButton(icon_name='view-more-symbolic', menu_model=menu, valign=Gtk.Align.CENTER, tooltip_text='More')
+        more.add_css_class('flat')
+        box.append(more)
+        line = Adw.PreferencesRow(activatable=False, selectable=False, child=box)    # sits in the group's card
         entry = (line, widgets)
-        remove.connect('clicked', lambda *_: (self.remove(line), self.lines.remove(entry)))
-        box.append(remove)
-        self.add(line)
+        actions = Gio.SimpleActionGroup()
+        for name, do in [('edit', lambda: self.edit(entry)), ('up', lambda: self.move(entry, -1)),
+                         ('down', lambda: self.move(entry, 1)), ('remove', lambda: self.drop(entry))]:
+            a = Gio.SimpleAction.new(name, None)
+            a.connect('activate', lambda *_, do=do: do())
+            actions.add_action(a)
+        line.insert_action_group('line', actions)
+        line.actions = actions
         self.lines.append(entry)
+        self.add(line)
+        self.refresh()
+        if focus:
+            self.edit(entry)
+
+    def widget(self, c: Col, value) -> Gtk.Widget:
+        if c.kind == 'sign':
+            w = Gtk.ToggleButton(active=value == 'deny', valign=Gtk.Align.CENTER)
+            w.add_css_class('sign')
+            w.add_css_class('flat')
+            show = lambda b: (b.set_label('−' if b.get_active() else '+'),
+                              b.set_tooltip_text('Deny: what this matches is left out (−)' if b.get_active()
+                                                 else 'Allow: what this matches is let in (+)'))
+            w.connect('toggled', show)
+            show(w)
+            return w
+        if c.kind == 'priority':
+            w = Gtk.Button(valign=Gtk.Align.CENTER)
+            w.add_css_class('priority')
+            w.add_css_class('flat')
+            w.value = value if value in PRIORITY else ''
+
+            def show(b):
+                b.set_label(PRIORITY[b.value])
+                b.set_tooltip_text(PRIORITY_HELP[b.value] + ' (click to change)')
+                (b.add_css_class if b.value == '' else b.remove_css_class)('normal')
+            w.connect('clicked', lambda b: (setattr(b, 'value', {'': '!', '!': '?', '?': ''}[b.value]), show(b)))
+            show(w)
+            return w
+        if c.kind == 'choice':
+            w = Gtk.DropDown.new_from_strings(c.choices)
+            w.set_selected(c.choices.index(value) if value in c.choices else 0)
+            w.set_valign(Gtk.Align.CENTER)
+            return w
+        return Gtk.Entry(text=str(value or ''), placeholder_text=c.hint, hexpand=c.wide, valign=Gtk.Align.CENTER,
+                         width_chars=10 if c.wide else 12, max_width_chars=14 if not c.wide else -1)
+
+    def read(self, c: Col, w: Gtk.Widget):
+        if c.kind == 'sign':
+            return 'deny' if w.get_active() else None
+        if c.kind == 'priority':
+            return w.value or None
+        if c.kind == 'choice':
+            return w.get_selected_item().get_string() or None
+        return w.get_text().strip() or None
+
+    def edit(self, entry) -> None:
+        entry[1][self.first].grab_focus()
+
+    def drop(self, entry) -> None:
+        self.remove(entry[0])
+        self.lines.remove(entry)
+        self.refresh()
+
+    def move(self, entry, by: int) -> None:
+        i = self.lines.index(entry)
+        j = max(0, min(len(self.lines) - 1, i + by))
+        if i == j:
+            return
+        self.lines.insert(j, self.lines.pop(i))
+        for line, _ in self.lines:     # re-add in the new order
+            self.remove(line)
+        for line, _ in self.lines:
+            self.add(line)
+        self.refresh()
+
+    def refresh(self) -> None:
+        """Only lines that can move offer to."""
+        for i, (line, _) in enumerate(self.lines):
+            line.actions.lookup_action('up').set_enabled(self.ordered and i > 0)
+            line.actions.lookup_action('down').set_enabled(self.ordered and i < len(self.lines) - 1)
 
     def get(self) -> list[dict]:
-        read = lambda w: w.get_text().strip() if isinstance(w, Gtk.Entry) else w.get_selected_item().get_string()
-        first = next(k for k, _, choices in self.cols if not choices)
-        rows = [{k: read(w) for k, w in widgets.items()} for _, widgets in self.lines]
-        return [{k: v for k, v in r.items() if v} for r in rows if r[first]]
+        out = []
+        for _, widgets in self.lines:
+            item = {c.name: v for c in self.cols if (v := self.read(c, widgets[c.name])) is not None}
+            if item.get(self.first):
+                out.append(item)
+        return out
+
+
+def strings(title: str, description: str, values: list[str], hint: str) -> ListEditor:
+    """A list of strings whose order doesn't matter."""
+    return ListEditor(title, description, [{'value': v} for v in values], [Col('value', hint=hint)], ordered=False)
+
+
+def string_values(editor: ListEditor) -> list[str]:
+    return [i['value'] for i in editor.get()]
+
+
+def pairs(title: str, description: str, values: dict, hints: tuple[str, str], extra: Gtk.Widget | None = None) -> ListEditor:
+    """A table of names to values, as a list of pairs whose order doesn't matter."""
+    return ListEditor(title, description, [{'key': k, 'value': v} for k, v in values.items()],
+                      [Col('key', hint=hints[0]), Col('value', hint=hints[1], wide=False)], ordered=False, extra=extra)
+
+
+def pair_values(editor: ListEditor) -> dict:
+    return {i['key']: i.get('value', '') for i in editor.get()}
+
+
+def rule_list(title: str, description: str, items: list[dict], *middle: Col, pattern: Col, key: Col | None = None) -> ListEditor:
+    """An ordered rule list: + or −, priority, any fields of its own, the pattern, and the key it gives in a map."""
+    return ListEditor(title, description, items, [Col('action', 'sign'), Col('priority', 'priority'), *middle, pattern,
+                                                  *([key] if key else [])])
 
 
 class Window(Adw.ApplicationWindow):
@@ -286,15 +384,18 @@ class Window(Adw.ApplicationWindow):
         g = c.get('github', {})
         gh = group(page, 'GitHub', 'sitekit history builds the project timeline from these; the daily workflow reads the same file')
         self.github = {'user': Adw.EntryRow(title='User', text=g.get('user', '')),
-                       'author': Adw.EntryRow(title='Commit author (regex on “Name &lt;email&gt;”)', text=g.get('author', '')),
-                       'ignore': Adw.EntryRow(title='Hidden repos, comma separated', text=', '.join(g.get('ignore', []))),
-                       'repos': Adw.EntryRow(title='Extra repos (owner/name), comma separated', text=', '.join(g.get('repos', [])))}
+                       'author': Adw.EntryRow(title='Commit author (regex on “Name &lt;email&gt;”)', text=g.get('author', ''))}
         self.forks = Adw.SwitchRow(title='Include forks', active=g.get('forks', True))
         for w in [*self.github.values(), self.forks]:
             gh.add(w)
-        self.feeds = RowsGroup('Feeds', 'sitekit sync imports these every day', c.get('feeds', []),
-                               [('url', 'feed URL', None), ('source', 'name shown on entries', None), ('kind', '', FEED_KINDS)])
-        page.add(self.feeds)
+        self.hidden = strings('Hidden repos', 'Left off the timeline and the feed', g.get('ignore', []), 'name or owner/name')
+        self.extra_repos = strings('Extra repos', 'Repos the GitHub listing misses: other people’s you commit to, or local checkouts',
+                                   g.get('repos', []), 'owner/name or a path')
+        self.feeds = ListEditor('Feeds', 'sitekit sync imports these every day', c.get('feeds', []),
+                                [Col('url', hint='feed URL'), Col('source', hint='name shown on entries'), Col('kind', 'choice', choices=FEED_KINDS)],
+                                ordered=False)
+        for w in (self.hidden, self.extra_repos, self.feeds):
+            page.add(w)
         m = c.get('media', {})
         media = group(page, 'Media', 'Where full-size gallery files live; leave empty to serve previews from the repo')
         self.media = {k: Adw.EntryRow(title=t, text=m.get(k, '')) for k, t in [
@@ -311,12 +412,11 @@ class Window(Adw.ApplicationWindow):
 
     def page_projects(self) -> Adw.PreferencesPage:
         page = Adw.PreferencesPage()
-        self.projects = MapGroup('Watched folders', 'Each folder and the project id its time counts toward ([projects])',
-                                 self.cfg.get('projects', {}), 'Add a folder path', lambda k: Path(k).name)
         choose = Gtk.Button(icon_name='folder-open-symbolic', tooltip_text='Choose a folder…', valign=Gtk.Align.CENTER)
         choose.add_css_class('flat')
         choose.connect('clicked', lambda *_: self.choose_folder())
-        self.projects.set_header_suffix(choose)
+        self.projects = pairs('Watched folders', 'Each folder and the project id its time counts toward ([projects])',
+                              self.cfg.get('projects', {}), ('folder', 'project id'), extra=choose)
         page.add(self.projects)
         d = self.cfg.get('discover', {})
         disc = group(page, 'Discover', 'Find your repos automatically: git checkouts whose remote is on github.com/&lt;owner&gt;')
@@ -324,7 +424,6 @@ class Window(Adw.ApplicationWindow):
             'enabled': Adw.SwitchRow(title='Look for repos', active=d.get('enabled', True)),
             'root': Adw.EntryRow(title='Search under', text=d.get('root', '~')),
             'owner': Adw.EntryRow(title='GitHub owner (blank: the site’s user)', text=d.get('owner', '')),
-            'exclude': Adw.EntryRow(title='Ignored folders, comma separated', text=', '.join(d.get('exclude', []))),
         }
         self.depth = Adw.SpinRow.new_with_range(0, 12, 1)
         self.depth.set_title('Depth')
@@ -338,13 +437,13 @@ class Window(Adw.ApplicationWindow):
                        'max_age': Adw.EntryRow(title='Skip repos created over (like 1y; blank: no limit)', text=str(d.get('max_age', '')))}
         for w in [*self.discover.values(), self.depth, self.every, *self.limits.values()]:
             disc.add(w)
-        self.rules = RowsGroup('Rules', 'The first matching rule decides: deny leaves a repo out, allow exempts it from the two limits. '
-                               + '; '.join(f'{k}: {v[0]}' for k, v in CONDITIONS.items()), d.get('rules', []),
-                               [('action', '', ['deny', 'allow']), ('when', '', list(CONDITIONS)), ('value', 'pattern', None)])
+        self.rules = rule_list('Rules', 'The first matching rule decides: − leaves a repo out (on an exact path, never watched at all), '
+                               '+ exempts it from the two limits. ' + '; '.join(f'{k}: {v[0]}' for k, v in CONDITIONS.items()),
+                               discover_rules(d), Col('when', 'choice', choices=list(CONDITIONS)), pattern=Col('value', hint='pattern'))
         page.add(self.rules)
-        files = group(page, 'Ignored files')
-        self.ignore = Adw.EntryRow(title='Name patterns to skip, comma separated (fnmatch)', text=', '.join(self.cfg.get('ignore', [])))
-        files.add(self.ignore)
+        self.ignore = strings('Ignored files', 'Names never watched, on top of .git, node_modules, venvs and editor temp files',
+                              self.cfg.get('ignore', []), 'fnmatch pattern, like *.log')
+        page.add(self.ignore)
         return page
 
     def page_apps(self) -> Adw.PreferencesPage:
@@ -352,12 +451,12 @@ class Window(Adw.ApplicationWindow):
         focus = group(page, 'Focused now')
         self.focused = row('App', 'nothing yet')
         focus.add(self.focused)
-        self.apps = MapGroup('Categories', 'Regexes matched against the focused app id; the first match wins ([apps]). '
-                             'Only category names are published.', self.cfg.get('apps', {}), 'Add a category')
+        self.apps = rule_list('Categories', 'Regexes on the focused app id, each giving a category; anything no rule gives one is '
+                              '“other”. − rules that category out for what it matches. Only category names are published',
+                              map_rules(self.cfg.get('apps', {})), pattern=Col('match', hint='regex'), key=Col('to', hint='category', wide=False))
         page.add(self.apps)
-        self.pins = MapGroup('Pinned apps', 'Exact app ids and their category, or “ignore” to not count time in them '
-                             '([app_ids]; the panel menu adds these)', self.cfg.get('app_ids', {}), 'Add an app id',
-                             lambda k: 'ignore')
+        self.pins = pairs('Pinned apps', 'Exact app ids and their category, or “ignore” to not count time in them; checked first '
+                          '([app_ids]; the panel menu adds these)', self.cfg.get('app_ids', {}), ('app id', 'category or ignore'))
         page.add(self.pins)
         return page
 
@@ -370,23 +469,25 @@ class Window(Adw.ApplicationWindow):
         for w in self.site.values():
             site.add(w)
         b = self.cfg.get('browser', {})
-        browser = group(page, 'Browser extension', 'Hosts are globs; with any allowed hosts listed, only those are recorded')
+        browser = group(page, 'Browser extension')
         self.titles = Adw.SwitchRow(title='Keep page titles', subtitle='Stored locally only, never published', active=b.get('titles', True))
-        self.allow = Adw.EntryRow(title='Allowed hosts, comma separated', text=', '.join(b.get('allow', [])))
-        self.deny = Adw.EntryRow(title='Never recorded, comma separated', text=', '.join(b.get('deny', [])))
         self.history = Adw.SwitchRow(title='Import browser history', subtitle='Fills in pages visited on days the extension saw '
                                      'nothing (needs browserprofile and Python 3.13)', active=b.get('history', False))
         self.default = Adw.ComboRow(title='Pages no rule below matches', subtitle='private: nothing published. domain: its minutes '
                                     'and pages visited. page: its URL and title too', model=Gtk.StringList.new(browsing.LEVELS))
         self.default.set_selected(browsing.LEVELS.index(b.get('default', 'private')))
-        for w in (self.titles, self.allow, self.deny, self.history, self.default):
+        for w in (self.titles, self.history, self.default):
             browser.add(w)
-        self.publish_rules = RowsGroup('What gets published', 'Globs on the hostname, or host + path with a “/”; the first match wins',
-                                       b.get('publish', []), [('match', 'github.com', None), ('level', '', ['page', 'domain', 'private'])])
-        page.add(self.publish_rules)
-        self.sites = MapGroup('Site categories', 'Regexes on the hostname, published as minutes per category ([browser.sites])',
-                              b.get('sites', {}), 'Add a site category')
-        page.add(self.sites)
+        self.filter = rule_list('What gets recorded', 'Globs on the hostname, or host + path with a “/”. The first matching rule '
+                                'decides; with any + rules, only what they match is recorded', browsing.filter_rules(b),
+                                pattern=Col('match', hint='*.example.com'))
+        self.publish_rules = rule_list('What gets published', 'Globs like the ones above, each giving a level; − rules that level out',
+                                       b.get('publish', []), pattern=Col('match', hint='github.com'),
+                                       key=Col('level', 'choice', choices=['page', 'domain', 'private']))
+        self.sites = rule_list('Site categories', 'Regexes on the hostname, each giving a category, published as minutes per category',
+                               browsing.site_rules(b), pattern=Col('match', hint='regex'), key=Col('to', hint='category', wide=False))
+        for w in (self.filter, self.publish_rules, self.sites):
+            page.add(w)
         c = self.cfg.get('claude', {})
         cl = group(page, 'Claude conversations', 'Off, counts, titles too, or a one-sentence summary as well. Claude Code sessions are '
                    'named only under a published project; claude.ai titles follow the level alone')
@@ -545,7 +646,7 @@ class Window(Adw.ApplicationWindow):
                 return
             path = Path(folder.get_path())
             key = f'~/{path.relative_to(Path.home())}' if path.is_relative_to(Path.home()) else str(path)
-            self.projects.put(key, path.name)
+            self.projects.put({'key': key, 'value': path.name}, focus=True)
         Gtk.FileDialog(title='Watch a project folder').select_folder(self, None, done)
 
     def values(self) -> list[tuple[str, str, object]]:
@@ -555,20 +656,24 @@ class Window(Adw.ApplicationWindow):
         out += [('discover', 'enabled', self.discover['enabled'].get_active()),
                 ('discover', 'root', blank(self.discover['root'].get_text().strip())),
                 ('discover', 'owner', blank(self.discover['owner'].get_text().strip())),
-                ('discover', 'exclude', blank(words(self.discover['exclude'].get_text()))),
+                ('discover', 'exclude', None),     # now deny rules on the path, in rules
                 ('discover', 'depth', int(self.depth.get_value())), ('discover', 'every', int(self.every.get_value() * 3600)),
-                ('', 'ignore', blank(words(self.ignore.get_text())))]
+                ('', 'ignore', blank(string_values(self.ignore)))]
         out += [('', k, blank(e.get_text().strip())) for k, e in self.site.items()]
         out += [('discover', k, blank(e.get_text().strip())) for k, e in self.limits.items()]
         out += [('discover', 'rules', blank(self.rules.get()))]
-        out += [('browser', 'titles', self.titles.get_active()), ('browser', 'allow', blank(words(self.allow.get_text()))),
-                ('browser', 'deny', blank(words(self.deny.get_text()))), ('browser', 'history', self.history.get_active()),
+        out += [('browser', 'titles', self.titles.get_active()), ('browser', 'filter', blank(self.filter.get())),
+                ('browser', 'allow', None), ('browser', 'deny', None),      # the older form of filter
+                ('browser', 'history', self.history.get_active()),
                 ('browser', 'default', browsing.LEVELS[self.default.get_selected()]),
-                ('browser', 'publish', blank(self.publish_rules.get()))]
+                ('browser', 'publish', blank(self.publish_rules.get())),
+                ('apps', 'rules', blank(self.apps.get())), ('browser.sites', 'rules', blank(self.sites.get()))]
+        # older name = "regex" entries, now in those rules
+        out += [(t, k, None) for t in ('apps', 'browser.sites') for k, v in (self.lookup(t) or {}).items() if isinstance(v, str)]
         out += [('claude', k, conversations.LEVELS[w.get_selected()]) for k, w in self.claude.items()]
         out += [('claude', 'model', blank(self.model.get_text().strip()))]
-        for table, m in [('projects', self.projects), ('apps', self.apps), ('app_ids', self.pins), ('browser.sites', self.sites)]:
-            new, old = m.get(), self.lookup(table) or {}
+        for table, m in [('projects', self.projects), ('app_ids', self.pins)]:
+            new, old = pair_values(m), self.lookup(table) or {}
             out += [(table, k, None) for k in old if k not in new] + [(table, k, v) for k, v in new.items()]
         return out
 
@@ -578,8 +683,8 @@ class Window(Adw.ApplicationWindow):
         blank = lambda v: v if v not in ('', []) else None
         out = [('github', 'user', blank(self.github['user'].get_text().strip())),
                ('github', 'author', blank(self.github['author'].get_text().strip())),
-               ('github', 'forks', self.forks.get_active()), ('', 'feeds', self.feeds.get())]
-        out += [('github', k, words(self.github[k].get_text())) for k in ('ignore', 'repos')]
+               ('github', 'forks', self.forks.get_active()), ('', 'feeds', self.feeds.get()),
+               ('github', 'ignore', string_values(self.hidden)), ('github', 'repos', string_values(self.extra_repos))]
         out += [('media', k, e.get_text().strip()) for k, e in self.media.items()]
         return out
 

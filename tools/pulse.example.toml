@@ -33,21 +33,24 @@ root = "~"          # e.g. "~/Projects"
 depth = 0           # folders below root to search; 0 = no limit (e.g. 1 with root "~/Projects")
 # owner = "un1tz3r0"  # defaults to [github].user in the site checkout's site.toml
 every = 86400
-exclude = []        # folders never watched, e.g. "~/src/scratch" (the panel menu's "Ignore this folder" adds here)
 # max_idle = "6m"   # skip repos untouched this long (newest commit or uncommitted edit); also max_age, from the first commit
-# Rules decide first, in order: deny leaves a repo out, allow exempts it from the limits. `when` is dir, no-dir, file,
-# no-file, remote, no-remote, name or path; see tools/README.md.
-# rules = [{ action = "deny", when = "name", value = "scratch*" }]
+# Rules: the first that matches decides (priority "!" rules are tried first, "?" last). deny leaves a repo out (a deny on
+# an exact path is never watched at all; the panel menu's "Ignore this folder" adds one), allow exempts it from the limits.
+# `when` is dir, no-dir, file, no-file, remote, no-remote, name or path; see tools/README.md.
+rules = []          # e.g. [{ action = "deny", when = "name", value = "scratch*" }]
 
-# App categories: case-insensitive regexes matched against the focused window's app id or WM class. The first
-# match wins and anything else is "other". Only the category names are published, never app names or titles.
+# App categories: rules whose case-insensitive regex is matched against the focused window's app id or WM class, giving
+# the category `to`; anything no rule gives one is "other". A deny rule with `to` rules that category out for what it
+# matches, so a later rule can give another. Only category names are published, never app names or titles.
 [apps]
-code = "code|codium|cursor|zed|kate|n?vim|emacs|jetbrains|pycharm|clion|webstorm"
-terminal = "kitty|alacritty|foot|wezterm|ghostty|konsole|gnome-terminal|terminator|xterm"
-browser = "firefox|chrom|brave|vivaldi|epiphany|librewolf"
-graphics = "blender|gimp|inkscape|krita|darktable|godot"
-audio = "vcv|rack|ardour|bitwig|reaper|audacity|carla"
-chat = "discord|slack|signal|telegram|element"
+rules = [
+  { match = "code|codium|cursor|zed|kate|n?vim|emacs|jetbrains|pycharm|clion|webstorm", to = "code" },
+  { match = "kitty|alacritty|foot|wezterm|ghostty|konsole|gnome-terminal|terminator|xterm", to = "terminal" },
+  { match = "firefox|chrom|brave|vivaldi|epiphany|librewolf", to = "browser" },
+  { match = "blender|gimp|inkscape|krita|darktable|godot", to = "graphics" },
+  { match = "vcv|rack|ardour|bitwig|reaper|audacity|carla", to = "audio" },
+  { match = "discord|slack|signal|telegram|element", to = "chat" },
+]
 
 # Exact app ids pinned to a category, or "ignore" so time in them never counts as active. Checked before [apps]; the
 # panel menu's app submenu writes these.
@@ -55,22 +58,28 @@ chat = "discord|slack|signal|telegram|element"
 # steam = "ignore"
 
 
-# The browser extension (tools/sitekit/extension). Hosts in `deny` are never recorded; if `allow` is non-empty, only
-# its hosts are. Patterns are globs on the hostname, or on host + path when they contain a "/".
+# The browser extension (tools/sitekit/extension). `filter` decides what is recorded: globs on the hostname, or on
+# host + path when they contain a "/"; the first matching rule decides ("!" rules first, "?" last). A page no rule
+# matches is recorded, unless there are allow rules, which then list the only hosts recorded.
 [browser]
 titles = true
-allow = []
-deny = ["*.bank.*", "mail.google.com"]
-# Nothing about single sites is published unless a rule says so: domain publishes a site's minutes and pages visited,
-# page also each page's URL and title. Globs like allow and deny; the first match wins, else `default` (private).
+filter = [
+  { match = "*.bank.*", action = "deny", priority = "!" },
+  { match = "mail.google.com", action = "deny", priority = "!" },
+]
+# Nothing about single sites is published unless a rule gives it a level: domain publishes a site's minutes and pages
+# visited, page also each page's URL and title. Globs like the filter; else `default` (private).
 # publish = [{ match = "github.com", level = "page" }]
 # history = true   # fill days the extension missed from the browsers' history (needs the [pulse] extra, Python 3.13)
 
-# Site categories: regexes on the hostname, like [apps]. These win over the ones plugins set ("code" for GitHub and CodePen, "ai" for Claude).
+# Site categories: rules with regexes on the hostname, like [apps]. These win over the ones plugins set ("code" for
+# GitHub and CodePen, "ai" for Claude).
 [browser.sites]
-docs = "developer\\.mozilla\\.org|docs\\.|readthedocs|devdocs"
-video = "youtube\\.com|vimeo\\.com"
-social = "x\\.com|mastodon|bsky\\.app|reddit\\.com"
+rules = [
+  { match = "developer\\.mozilla\\.org|docs\\.|readthedocs|devdocs", to = "docs" },
+  { match = "youtube\\.com|vimeo\\.com", to = "video" },
+  { match = "x\\.com|mastodon|bsky\\.app|reddit\\.com", to = "social" },
+]
 
 # URL rules, checked before plugins: a regex on host + path, and the project ($1… are its groups) and activity.
 # [[browser.rules]]

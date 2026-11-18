@@ -124,6 +124,26 @@ then `systemctl --user enable --now sitekit-pulse` and follow it with `journalct
 service needs your session's `DISPLAY`/`WAYLAND_DISPLAY` and `SSH_AUTH_SOCK` (GNOME and KDE pass them on; elsewhere run
 `systemctl --user import-environment` from your session startup) so the probes work and `git push` can authenticate.
 
+### Rule lists
+
+The filters and pattern maps in `pulse.toml` (`[discover] rules`, `[apps] rules`, `[browser] filter`, `publish` and
+`[browser.sites] rules`) are ordered lists of rules, written the same way:
+
+```toml
+filter = [
+  { match = "*.bank.*", action = "deny", priority = "!" },   # action: allow (default) or deny
+  { match = "*.example.com" },
+  { match = "*", action = "deny", priority = "?" },          # priority: "!" tried first, "?" last, none in between
+]
+```
+
+Rules are tried by priority, then in list order. In a filter the first matching rule decides. In a map (rules with
+`to`, or `level` for publish rules), the first matching allow rule gives its key, except a key that an earlier matching
+deny rule ruled out, so a later rule can give another: `{ match = "insiders", to = "code", action = "deny" }` stops
+insider builds counting as *code* without ignoring them. A deny rule with no key stops at once. Older configs keep
+working: `allow` and `deny` lists, `[discover] exclude`, and `name = "regex"` entries in `[apps]` and
+`[browser.sites]` are read as the rules they mean, and the settings window writes them in the new form when you save.
+
 ### Panel icon and settings window (GNOME and others)
 
 ```sh
@@ -137,7 +157,7 @@ The panel icon shows whether pulse is **active**, **idle** (away from the keyboa
 daemon isn't running or the last publish failed). Its menu has pause (for a while or until resumed), the push toggle,
 publish and rescan, the sample interval, and two assignments: the focused app to a category or *ignore* (written to
 `[app_ids]`; ignored apps never count as active), and the folder you last changed files in to a project or *ignore*
-(written to `[projects]` or `[discover].exclude`). *Pulse Settings…* and *Activity Log…* open the settings window. It speaks StatusNotifierItem directly, so it
+(written to `[projects]`, or as a deny rule on its path in `[discover] rules`). *Pulse Settings…* and *Activity Log…* open the settings window. It speaks StatusNotifierItem directly, so it
 needs no extra packages on GNOME with the AppIndicator extension (on by default in Ubuntu; elsewhere install
 `gnome-shell-extension-appindicator` and enable it) or on KDE and other panels that show tray icons.
 
@@ -145,7 +165,9 @@ The settings window (libadwaita: `python3-gi` and `gir1.2-adw-1`, so a venv need
 live state with a countdown to the next publish and edits `pulse.toml` in place, keeping your comments and writing the
 previous file to `pulse.toml.bak`. Changes apply when you press *Save and Apply*, which restarts the daemon; pause and
 push take effect at once. The *Site* page edits `site.toml` in the site checkout the same way, and commits and pushes
-just that file. The *Tools* page runs the other sitekit commands in the site checkout, posts quick statuses
+just that file. Lists are edited a line at a time: + in a list's header adds one, and each line's … menu edits, moves
+(where order matters) or removes it; in rule lists the +/− button sets allow or deny and the next one the priority
+(·, `!` or `?`; see [Rule lists](#rule-lists)). The *Tools* page runs the other sitekit commands in the site checkout, posts quick statuses
 and commits and pushes `data/`. The first time it opens, and from the tour button in the header, *Back* and *Next* walk
 through Site, Projects, Apps, Publishing and Pulse, where *Install* runs `sitekit pulse install`. The *Log* page follows the daemon's log, with a toggle per kind of line (lifecycle,
 samples, activity, scans, publishing, warnings, errors) and a filter. GNOME Settings itself has no plug-in API for third-party panels, so this is
@@ -221,16 +243,16 @@ pins the id to `idmnjfajgdlaoneflcachggmmbpbohao`, which the host allows; to all
 the panel icon, and its popup shows what the current page counts toward, the daemon controls, and each plugin's sync.
 
 Locally the daemon keeps each span's URL without query or fragment, its title (`titles = false` drops them), site
-category, project and activity. Private windows, non-http pages and `deny`ed hosts are never recorded. Published:
+category, project and activity. Private windows, non-http pages and hosts the `filter` denies are never recorded. Published:
 minutes per site category, and per project the minutes by activity, only for projects that the site already names or
 that a plugin marks as yours and public.
 
 Nothing about individual sites is published unless you add `publish` rules. Each sets matching pages (a glob on the
 hostname, or on host + path when it contains a `/`; the first match wins, else `default`, which is `private`) to
 `domain`, publishing the domain's minutes and pages visited per day, or `page`, publishing each page's URL and title
-too. Rules, `allow` and `deny` are applied at publish time, so tightening one covers what is already stored. With
+too. Publish rules and the `filter` are applied at publish time, so tightening one covers what is already stored. With
 `history = true`, the browsers' own history (through `browserprofile`, Python 3.13+, from `pip install "./tools[pulse]"`)
-fills in pages visited on days the extension saw nothing; `allow` and `deny` apply to it too.
+fills in pages visited on days the extension saw nothing; the `filter` applies to it too.
 
 ```toml
 [browser]
