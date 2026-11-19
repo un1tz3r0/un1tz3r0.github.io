@@ -1,5 +1,5 @@
 {
- "generated": "2026-11-18T09:28:17Z",
+ "generated": "2026-11-19T09:28:17Z",
  "projects": {
   "chan_01UT1WhTnsH8mmRrT168j2FK": {
    "repos": [
@@ -70,8 +70,9 @@
      "number": 12,
      "title": "Add Material Icon Studio to the demos",
      "url": "https://github.com/un1tz3r0/un1tz3r0.github.io/pull/12",
-     "state": "open",
+     "state": "merged",
      "created": "2026-11-18",
+     "merged": "2026-11-18",
      "commits": 1,
      "files": 155,
      "additions": 51451,
@@ -815,8 +816,34 @@
   "sessions": 22,
   "commits": 56,
   "first": "2025-09-04",
-  "last": "2026-11-17",
+  "last": "2026-11-18",
   "prs": [
+   {
+    "repo": "un1tz3r0/un1tz3r0.github.io",
+    "number": 14,
+    "title": "timeline: default range, continuous zoom, activity lanes, two-tier ruler",
+    "url": "https://github.com/un1tz3r0/un1tz3r0.github.io/pull/14",
+    "state": "merged",
+    "created": "2026-11-18",
+    "merged": "2026-11-18",
+    "commits": 1,
+    "files": 1,
+    "additions": 186,
+    "deletions": 31
+   },
+   {
+    "repo": "un1tz3r0/un1tz3r0.github.io",
+    "number": 13,
+    "title": "settings: edit lists line by line; filters and pattern maps become rule lists",
+    "url": "https://github.com/un1tz3r0/un1tz3r0.github.io/pull/13",
+    "state": "merged",
+    "created": "2026-11-18",
+    "merged": "2026-11-18",
+    "commits": 3,
+    "files": 12,
+    "additions": 723,
+    "deletions": 162
+   },
    {
     "repo": "un1tz3r0/un1tz3r0.github.io",
     "number": 11,
