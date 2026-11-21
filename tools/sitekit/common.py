@@ -74,8 +74,8 @@ def write_rows(path: Path, head: dict, key: str, rows: list) -> None:
     path.write_text(json.dumps({**head, key: []}, ensure_ascii=False)[:-3] + f'[\n{lines}\n]}}\n')
 
 
-async def run(*cmd: str, cwd=None, check=True, shell=False) -> str:
-    env = {**os.environ, 'GIT_TERMINAL_PROMPT': '0', 'GIT_LFS_SKIP_SMUDGE': '1'}
+async def run(*cmd: str, cwd=None, check=True, shell=False, env: dict | None = None) -> str:
+    env = {**os.environ, 'GIT_TERMINAL_PROMPT': '0', 'GIT_LFS_SKIP_SMUDGE': '1', **(env or {})}
     spawn = asyncio.create_subprocess_shell if shell else asyncio.create_subprocess_exec
     proc = await spawn(*cmd, cwd=cwd, env=env, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     out, err = await proc.communicate()

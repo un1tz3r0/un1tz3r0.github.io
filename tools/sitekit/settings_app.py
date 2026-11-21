@@ -402,7 +402,7 @@ class Window(Adw.ApplicationWindow):
         commit = group(page, 'Publish these settings')
         r = row('Commit and push site.toml', 'Save first. Only site.toml is committed')
         r.add_suffix(button('Push', lambda: self.run(['sh', '-c', 'git commit -qm "Update site.toml from Pulse Settings" -- site.toml '
-                                                     '&& git push -q && echo pushed || echo nothing to push'])))
+                                                     '|| { echo nothing new to commit; true; }; "$0" -m sitekit push', sys.executable])))
         commit.add(r)
         return page
 
@@ -520,7 +520,7 @@ class Window(Adw.ApplicationWindow):
         post.add(post_row)
         push = row('Commit and push', 'data/ and media/ in the site checkout')
         push.add_suffix(button('Push', lambda: self.run(['sh', '-c', 'git add data media 2>/dev/null; git commit -qm "Update from Pulse Settings" '
-                                                         '&& git push -q && echo pushed || echo nothing to push'])))
+                                                         '|| { echo nothing new to commit; true; }; "$0" -m sitekit push', sys.executable])))
         post.add(push)
         out = group(page, 'Output')
         self.output = Gtk.TextView(editable=False, monospace=True, wrap_mode=Gtk.WrapMode.WORD_CHAR,
