@@ -143,12 +143,11 @@ def test_a_failed_pip_install_is_retried_not_marked_bad(installed, monkeypatch):
     assert run(update.update(w.l, w.config, log, current='pulse-v1.0.0')) == 'pulse-v1.1.0'
 
 
-def test_install_without_a_config_marks_nothing(world):
+def test_install_without_a_config_writes_one(world):
     tag(world, 'pulse-v1.0.0')
-    world.config.unlink()
-    with pytest.raises(RuntimeError, match='no config'):
-        run(update.bootstrap(world.l, world.url, world.config, log))
-    assert world.l.bad() == set() and not world.l.repo.exists()
+    config = world.config.parent / 'fresh' / 'sitekit' / 'pulse.toml'   # nor its folder: a new machine
+    assert run(update.bootstrap(world.l, world.url, config, log)) == 'pulse-v1.0.0'
+    assert config.exists() and world.l.bad() == set()
 
 
 def test_a_tag_off_master_is_refused(installed):

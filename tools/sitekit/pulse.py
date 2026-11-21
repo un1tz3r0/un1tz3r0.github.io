@@ -30,8 +30,18 @@ from . import browsing, claude, conversations, rules, update
 from .common import expand, load_toml, now, read_json, run, write_json
 
 CONFIG = expand('~/.config/sitekit/pulse.toml')
+EXAMPLE = Path(__file__).resolve().parent.parent / 'pulse.example.toml'   # tools/, in a checkout or a managed release
 IGNORE = ['.git', 'node_modules', '__pycache__', '.venv', 'venv', '.cache', 'build', 'dist', '.mypy_cache',
           '*.swp', '*.swx', '*~', '4913', '.#*', '*.pyc', '*.tmp', '*.part', '*.crdownload']
+
+
+def ensure_config(path: Path = CONFIG) -> bool:
+    """Create path (and its folder) from pulse.example.toml, or empty if that isn't shipped. True if it was created."""
+    if path.exists():
+        return False
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(EXAMPLE.read_text() if EXAMPLE.exists() else '# sitekit pulse: see tools/pulse.example.toml\n')
+    return True
 
 
 LOG: deque[dict] = deque(maxlen=1000)
@@ -81,8 +91,8 @@ class Settings:
 
     @classmethod
     def load(cls, path: Path = CONFIG) -> Settings:
-        if not path.exists():
-            sys.exit(f'pulse: no config at {path}; copy tools/pulse.example.toml there and edit it')
+        if ensure_config(path):
+            print(f'pulse: no config at {path}; wrote one from the example, edit it with `sitekit settings`', file=sys.stderr)
         c = load_toml(path)
         d = c.get('discover', {})
         found = check_rules(discover_rules(d))

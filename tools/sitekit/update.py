@@ -268,8 +268,9 @@ async def bootstrap(l: Layout, url: str, config: Path, log=print) -> str:
     """Set up a managed install: clone, venv, the newest good release as `current`, and pulse-launch."""
     if not l.signers.exists():
         raise RuntimeError(f'trust a release key first: sitekit pulse trust ~/.ssh/id_ed25519.pub (writes {l.signers})')
-    if not config.exists():
-        raise RuntimeError(f'no config at {config}: open `sitekit settings` once to create it, or copy tools/pulse.example.toml there')
+    from .pulse import ensure_config
+    if ensure_config(config):
+        log(f'wrote {config} from the example; edit it with `sitekit settings`')
     l.versions.mkdir(parents=True, exist_ok=True)
     if not l.repo.exists():
         log(f'cloning {url} → {l.repo}')
