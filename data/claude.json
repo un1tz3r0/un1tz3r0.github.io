@@ -1,5 +1,5 @@
 {
- "generated": "2026-11-20T09:27:52Z",
+ "generated": "2026-11-21T09:26:44Z",
  "projects": {
   "chan_01UT1WhTnsH8mmRrT168j2FK": {
    "repos": [
@@ -14,8 +14,9 @@
      "number": 5,
      "title": "Phase 4: scopes, twins, spread, path editor and rack overlay",
      "url": "https://github.com/un1tz3r0/vcvmapper/pull/5",
-     "state": "open",
+     "state": "merged",
      "created": "2026-11-18",
+     "merged": "2026-11-20",
      "commits": 1,
      "files": 24,
      "additions": 898,
@@ -816,8 +817,34 @@
   "sessions": 22,
   "commits": 56,
   "first": "2025-09-04",
-  "last": "2026-11-18",
+  "last": "2026-11-21",
   "prs": [
+   {
+    "repo": "un1tz3r0/un1tz3r0.github.io",
+    "number": 16,
+    "title": "sitekit: reach GitHub over SSH, HTTPS or the gh CLI's login, whichever works",
+    "url": "https://github.com/un1tz3r0/un1tz3r0.github.io/pull/16",
+    "state": "merged",
+    "created": "2026-11-21",
+    "merged": "2026-11-21",
+    "commits": 1,
+    "files": 7,
+    "additions": 235,
+    "deletions": 9
+   },
+   {
+    "repo": "un1tz3r0/un1tz3r0.github.io",
+    "number": 15,
+    "title": "sitekit: create pulse.toml and its folder on a fresh machine; document GTK setup",
+    "url": "https://github.com/un1tz3r0/un1tz3r0.github.io/pull/15",
+    "state": "merged",
+    "created": "2026-11-21",
+    "merged": "2026-11-21",
+    "commits": 1,
+    "files": 7,
+    "additions": 65,
+    "deletions": 20
+   },
    {
     "repo": "un1tz3r0/un1tz3r0.github.io",
     "number": 14,
