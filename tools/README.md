@@ -124,6 +124,12 @@ then `systemctl --user enable --now sitekit-pulse` and follow it with `journalct
 service needs your session's `DISPLAY`/`WAYLAND_DISPLAY` and `SSH_AUTH_SOCK` (GNOME and KDE pass them on; elsewhere run
 `systemctl --user import-environment` from your session startup) so the probes work and `git push` can authenticate.
 
+The daemon doesn't depend on any one way of reaching GitHub. Its clone, pull and push (and the settings window's *Push*
+buttons, through `sitekit push`) try the remote as configured, then the same repo over the other transport (SSH or
+HTTPS), then HTTPS with the GitHub CLI's login if `gh` is installed and signed in (`gh auth login`). The first route
+that works is tried first after that, and the log notes when one had to be skipped. SSH runs in batch mode, so a
+missing key or an unknown host key fails at once instead of waiting for a prompt. Remotes not on GitHub are used as they are.
+
 ### Rule lists
 
 The filters and pattern maps in `pulse.toml` (`[discover] rules`, `[apps] rules`, `[browser] filter`, `publish` and

@@ -9,7 +9,7 @@ import os
 import sys
 from pathlib import Path
 
-from . import claude, compose, demos, gallery, history, importers, mirror, pulse, update
+from . import claude, compose, demos, gallery, gitremote, history, importers, mirror, pulse, update
 from .common import expand, find_site, load_toml
 from .feed import Feed
 
@@ -51,6 +51,8 @@ def parser() -> argparse.ArgumentParser:
     entry_args(m)
     rm = sub.add_parser('rm', help='remove a feed entry by id')
     rm.add_argument('id')
+
+    sub.add_parser('push', help="push the site checkout's branch, over SSH, HTTPS or the gh CLI's login, whichever works")
 
     imp = sub.add_parser('import', help='import history from another service')
     isub = imp.add_subparsers(dest='service', required=True)
@@ -202,6 +204,9 @@ async def dispatch(a: argparse.Namespace) -> None:
             added = [compose.media(site, a.src, a.caption, **extra)]
         case 'rm':
             print('removed' if feed.remove(a.id) else f'no entry {a.id}')
+        case 'push':
+            await gitremote.push(site, lambda text, kind=None: print(text, file=sys.stderr))
+            print('pushed')
         case 'import':
             added = (importers.twitter(site, a.archive, a.replies, a.retweets, a.media) if a.service == 'twitter'
                      else importers.livejournal(a.paths, a.user, a.utc_offset) if a.service == 'lj'

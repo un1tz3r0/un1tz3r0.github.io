@@ -26,7 +26,7 @@ from datetime import date, datetime, timedelta
 from fnmatch import fnmatch
 from pathlib import Path
 
-from . import browsing, claude, conversations, rules, update
+from . import browsing, claude, conversations, gitremote, rules, update
 from .common import expand, load_toml, now, read_json, run, write_json
 
 CONFIG = expand('~/.config/sitekit/pulse.toml')
@@ -504,7 +504,7 @@ async def ensure_checkout(s: Settings) -> None:
         sys.exit(f'pulse: {s.site} is not a git checkout and no remote is configured to clone it from')
     log(f'cloning {s.remote} → {s.site} (sparse: data/ only)', kind='publish')
     s.site.parent.mkdir(parents=True, exist_ok=True)
-    await run('git', 'clone', '--quiet', '--filter=blob:none', '--sparse', s.remote, str(s.site))
+    await gitremote.clone(s.remote, s.site, '--filter=blob:none', '--sparse', log=log)
     await run('git', '-C', str(s.site), 'sparse-checkout', 'set', 'data')
 
 
@@ -542,7 +542,10 @@ async def publish(s: Settings, db: sqlite3.Connection) -> None:
     enrich_claude(s, db)
     git = lambda *a, **k: run('git', '-C', str(s.site), *a, **k)
     if s.push:
-        await git('pull', '--quiet', '--rebase', '--autostash', check=False)
+        try:
+            await gitremote.pull(s.site, log)
+        except RuntimeError as e:
+            log(f'pull failed, publishing on top of the local copy: {e}', kind='warning')
     folder = s.site / 'data' / 'pulse'
     tz = datetime.now().astimezone().strftime('%z')
     for month in sorted({d[:7] for d in days}):
@@ -570,7 +573,7 @@ async def publish(s: Settings, db: sqlite3.Connection) -> None:
     if (await git('status', '--porcelain', '--', *paths)).strip():
         await git('commit', '--quiet', '-m', f'pulse: {datetime.now():%Y-%m-%d %H:%M}', '--', *paths)
         if s.push:
-            await git('push', '--quiet')
+            await gitremote.push(s.site, log)
         log(f'published {len(days)} day(s)' + (' and pushed' if s.push else ''), kind='publish')
 
 
