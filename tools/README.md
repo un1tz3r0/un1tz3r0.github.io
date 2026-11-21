@@ -3,10 +3,30 @@
 The data side of the site. The page itself (`index.html`) is static and reads JSON from `data/`; sitekit writes that
 JSON. It needs Python 3.11+, git, and two dependencies (`aiohttp`, `yarl`).
 
+The panel icon and settings window use GTK 4 and libadwaita through PyGObject, which come from the system rather than
+pip. On Debian or Ubuntu, install them first:
+
 ```sh
-pipx install --editable ./tools      # or: pip install --user -e ./tools
+sudo apt install git pipx python3-venv python3-gi python3-cairo \
+    gir1.2-glib-2.0 gir1.2-girepository-3.0 gir1.2-gtk-4.0 gir1.2-adw-1 gir1.2-pango-1.0 \
+    libgtk-4-1 libadwaita-1-0
+```
+
+(Releases older than Ubuntu 25.04 or Debian 13 call it `gir1.2-girepository-2.0`.) Then install sitekit into a venv
+that can see those system packages. Without `--system-site-packages` the venv can't import `gi`, and `sitekit
+settings` and `sitekit pulse indicator` fail:
+
+```sh
+pipx install --system-site-packages --editable ./tools
+# or a plain venv:
+python3 -m venv --system-site-packages ~/.local/share/sitekit/venv
+~/.local/share/sitekit/venv/bin/pip install -e ./tools
+ln -s ~/.local/share/sitekit/venv/bin/sitekit ~/.local/bin/sitekit
 sitekit -h
 ```
+
+If sitekit is already installed in a venv without them, `pipx reinstall --system-site-packages sitekit` fixes it
+(or recreate the plain venv with the flag). The daily workflow and the commands that only write `data/` need none of this.
 
 Run it anywhere inside the site checkout (it finds `site.toml`), or pass `--site PATH`.
 
@@ -74,8 +94,12 @@ window titles, file names and anything outside the listed folders never do, unle
 sites and pages (`[browser] publish`, below) or Claude conversation titles (`[claude]`, below). The local database is
 readable only by you.
 
+Its config is `~/.config/sitekit/pulse.toml`. The first time the daemon, `sitekit pulse install` or `sitekit settings`
+runs without one, it creates the folder and copies `tools/pulse.example.toml` there. Edit it in the settings window or
+by hand.
+
 ```sh
-mkdir -p ~/.config/sitekit && cp tools/pulse.example.toml ~/.config/sitekit/pulse.toml   # then edit it
+sitekit settings         # or edit ~/.config/sitekit/pulse.toml
 sitekit pulse status     # which idle and focus probes work on this desktop, and today's totals so far
 sitekit pulse publish    # publish now instead of waiting for the hour
 ```
@@ -161,7 +185,7 @@ publish and rescan, the sample interval, and two assignments: the focused app to
 needs no extra packages on GNOME with the AppIndicator extension (on by default in Ubuntu; elsewhere install
 `gnome-shell-extension-appindicator` and enable it) or on KDE and other panels that show tray icons.
 
-The settings window (libadwaita: `python3-gi` and `gir1.2-adw-1`, so a venv needs `--system-site-packages`) shows
+The settings window (libadwaita, from the system packages in [the install steps](#sitekit), so a venv needs `--system-site-packages`) shows
 live state with a countdown to the next publish and edits `pulse.toml` in place, keeping your comments and writing the
 previous file to `pulse.toml.bak`. Changes apply when you press *Save and Apply*, which restarts the daemon; pause and
 push take effect at once. The *Site* page edits `site.toml` in the site checkout the same way, and commits and pushes
@@ -189,7 +213,7 @@ the panel icon, settings window, browser host and extension following it.
 git config --global gpg.format ssh
 git config --global user.signingkey ~/.ssh/id_ed25519.pub
 
-# once per machine: trust that key, then install (needs ~/.config/sitekit/pulse.toml and at least one release)
+# once per machine: trust that key, then install (needs at least one release; writes pulse.toml if there isn't one)
 sitekit pulse trust ~/.ssh/id_ed25519.pub
 sitekit pulse install --managed
 

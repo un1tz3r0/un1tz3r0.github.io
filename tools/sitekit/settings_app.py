@@ -23,14 +23,13 @@ from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango  # noqa: E402
 
 from . import browsing, conversations, tomledit  # noqa: E402
 from .common import expand, load_toml  # noqa: E402
-from .pulse import CONDITIONS, CONFIG, KINDS, discover_rules, duration, map_rules  # noqa: E402
+from .pulse import CONDITIONS, CONFIG, KINDS, discover_rules, duration, ensure_config, map_rules  # noqa: E402
 from .pulse_ctl import APP_ID, ICONS, Link, restart  # noqa: E402
 
 PAGES = {'pulse': ('Pulse', 'sitekit-pulse-active'), 'site': ('Site', 'user-home-symbolic'), 'projects': ('Projects', 'folder-symbolic'),
          'apps': ('Apps', 'view-app-grid-symbolic'), 'publishing': ('Publishing', 'send-to-symbolic'),
          'tools': ('Tools', 'utilities-terminal-symbolic'), 'log': ('Log', 'view-list-symbolic')}
 TOUR = ['site', 'projects', 'apps', 'publishing', 'pulse']    # the walkthrough's steps, in order
-EXAMPLE = Path(__file__).resolve().parent.parent / 'pulse.example.toml'
 DEFAULTS = {('', 'interval'): 60, ('', 'idle'): 180, ('', 'window'): 600, ('', 'publish'): 3600,
             ('discover', 'enabled'): True, ('discover', 'root'): '~',
             ('', 'site'): '~/.local/share/sitekit/site', ('', 'db'): '~/.local/share/sitekit/pulse.sqlite3', ('discover', 'depth'): 0, ('discover', 'every'): 86400, ('browser', 'titles'): True,
@@ -255,10 +254,7 @@ class Window(Adw.ApplicationWindow):
     def __init__(self, app: Adw.Application):
         super().__init__(application=app, title='Pulse Settings', default_width=760, default_height=760)
         self.path = expand(CONFIG)
-        first_run = not self.path.exists()
-        if not self.path.exists() and EXAMPLE.exists():
-            self.path.parent.mkdir(parents=True, exist_ok=True)
-            self.path.write_text(EXAMPLE.read_text())
+        first_run = ensure_config(self.path)
         self.state, self.quiet = {}, False
         self.toasts, self.stack = Adw.ToastOverlay(), Adw.ViewStack()
         header = Adw.HeaderBar(title_widget=Adw.ViewSwitcher(stack=self.stack, policy=Adw.ViewSwitcherPolicy.NARROW))

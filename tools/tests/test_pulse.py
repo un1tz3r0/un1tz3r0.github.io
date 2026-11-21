@@ -217,3 +217,16 @@ def test_ignoring_a_folder_from_the_panel_writes_a_rule(tmp_path):
     assert 'exclude' not in c['discover']
     assert c['discover']['rules'] == [{'action': 'deny', 'priority': '!', 'when': 'path', 'value': str(tmp_path / 'old')},
                                       {'action': 'deny', 'priority': '!', 'when': 'path', 'value': str(folder)}]
+
+
+def test_a_missing_config_and_its_folder_are_created(tmp_path):
+    path = tmp_path / 'new' / 'sitekit' / 'pulse.toml'
+    assert pulse.ensure_config(path) and path.read_text() == pulse.EXAMPLE.read_text()
+    assert not pulse.ensure_config(path)            # an existing config is left alone
+    assert pulse.Settings.load(tmp_path / 'other' / 'pulse.toml').interval == 60
+
+
+def test_without_the_example_the_config_starts_empty(tmp_path, monkeypatch):
+    monkeypatch.setattr(pulse, 'EXAMPLE', tmp_path / 'missing.toml')
+    s = pulse.Settings.load(path := tmp_path / 'a' / 'pulse.toml')
+    assert path.exists() and s.interval == 60 and s.projects == {}

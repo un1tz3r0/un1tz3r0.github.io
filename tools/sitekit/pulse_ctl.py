@@ -19,7 +19,7 @@ from pathlib import Path
 
 from . import update
 from .common import expand
-from .pulse import SOCKET
+from .pulse import CONFIG, SOCKET, ensure_config
 
 ICONS = Path(__file__).resolve().parent / 'data' / 'icons'
 UNIT = expand('~/.config/systemd/user/sitekit-pulse.service')
@@ -175,6 +175,8 @@ def install(uninstall: bool = False, layout: update.Layout | None = None) -> lis
                 done.append(f'removed {path}')
         systemctl('daemon-reload')
         return done or ['nothing to remove']
+    if ensure_config():
+        done.append(f'wrote {CONFIG} from the example (edit it with `sitekit settings`)')
     for path, text in files(layout).items():
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text)
