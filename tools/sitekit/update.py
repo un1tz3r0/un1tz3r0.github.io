@@ -9,7 +9,7 @@ Layout under ~/.local/share/sitekit:
   pending, previous, bad, deps.json   update bookkeeping
 
 A release is an annotated tag pulse-vX.Y.Z on a master commit, signed with an SSH key listed in
-~/.config/sitekit/allowed_signers (`sitekitctl install --trust`). `sitekit release X.Y.Z` makes and pushes one. The
+~/.config/sitekit/allowed_signers (`sitekitctl install` fills it from GitHub). `sitekit release X.Y.Z` makes and pushes one. The
 sitekit-update timer runs `sitekitctl update` every [update] every seconds (default an hour). A tag that verifies is
 checked out, its dependencies installed when they changed, and `sitekit pulse check` run with it against your config and
 database. Only then does `current` switch, and the release's own installer restarts the daemon into it; the panel icon,
@@ -142,7 +142,7 @@ async def fetch(l: Layout) -> None:
 async def verify(l: Layout, tag: str) -> str | None:
     """Why a fetched tag can't be installed, or None when it is a signed, trusted release on master."""
     if not l.signers.exists():
-        return f'no trusted keys: {l.signers} is missing (sitekitctl install --trust KEY.pub)'
+        return f'no trusted keys: {l.signers} is missing (sitekitctl install --trust-github USER)'
     code, out = await sh('git', '-C', l.repo, '-c', f'gpg.ssh.allowedSignersFile={l.signers}', 'verify-tag', tag)
     if code:
         return f'signature not trusted: {out.splitlines()[-1] if out else "unsigned"}'
@@ -269,7 +269,7 @@ async def bootstrap(l: Layout, url: str, config: Path, log=print, minimum: str |
     """Set up a managed install: clone, venv, the newest good release (at least `minimum`) as `current`, and
     pulse-launch. Releases are checked against `config`, which must exist."""
     if not l.signers.exists():
-        raise RuntimeError(f'trust a release key first: sitekitctl install --trust ~/.ssh/id_ed25519.pub (writes {l.signers})')
+        raise RuntimeError(f'trust a release key first: sitekitctl install --trust-github USER (writes {l.signers})')
     l.versions.mkdir(parents=True, exist_ok=True)
     if not l.repo.exists():
         log(f'cloning {url} → {l.repo}')

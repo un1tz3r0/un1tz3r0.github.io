@@ -1,7 +1,7 @@
 """sitekitctl: the one place sitekit pulse is installed, checked, updated and removed on this machine. `sitekit settings`
 edits the config of what this installs, and runs this for the rest.
 
-  install    trust the release key; set up the managed install (or --dev: run from this checkout); write the config;
+  install    trust the release keys (your GitHub SSH signing keys); set up the managed install (or --dev: run from this checkout); write the config;
              clone the site's data/ skeleton; write the systemd units, launchers, icons and browser host; import browser
              history; start the daemon and report its first project scan. Safe to run again: it repairs what's missing.
   verify     check every part; exits 1 if any is broken
@@ -33,6 +33,7 @@ from .pulse_ctl import APP_ID, request
 FIRST = 'pulse-v1.1.0'      # the first release that carries this file; a managed install never runs one older
 PULSE, UPDATE, TIMER = 'sitekit-pulse.service', 'sitekit-update.service', 'sitekit-update.timer'
 NOT_RUNNING = 'the daemon is not running'
+OWNER = 'un1tz3r0'          # whose GitHub SSH signing keys a new machine trusts to sign releases
 
 
 def say(text: str, kind: str = '') -> None:
@@ -140,7 +141,8 @@ def extension_profiles() -> list[str]:
 
 
 async def signing_keys(user: str) -> list[str]:
-    async with aiohttp.ClientSession(headers=api_headers()) as http:
+    headers = {k: v for k, v in api_headers().items() if k != 'Authorization'}    # public, and a stale token would 401
+    async with aiohttp.ClientSession(headers=headers) as http:
         async with http.get(API / 'users' / user / 'ssh_signing_keys') as r:
             r.raise_for_status()
             keys = [k['key'] for k in await r.json()]
@@ -160,10 +162,9 @@ async def first_scan(timeout: float = 300) -> str | None:
 
 
 async def install(config: Path, layout: update.Layout, dev: bool = False, url: str = update.REPO_URL,
-                  trust: list[Path] = (), github: list[str] = (), history: bool = False) -> None:
-    for key in trust:
-        say(f'trusting {update.trust(layout, key.read_text(), "release")}')
-    for user in github:
+                  github: str | None = None, history: bool = False) -> None:
+    if not dev and (github or not layout.signers.exists()):
+        user = github or OWNER
         for key in await signing_keys(user):
             say(f'trusting {update.trust(layout, key, user)}')
     if pulse.ensure_config(config):     # first: checking a release loads it
@@ -394,8 +395,8 @@ def parser() -> argparse.ArgumentParser:
     ap.add_argument('--config', type=Path, default=pulse.CONFIG)
     sub = ap.add_subparsers(dest='cmd', required=True)
     i = sub.add_parser('install', help='install or repair everything')
-    i.add_argument('--trust', type=Path, action='append', default=[], metavar='KEY.pub', help='trust release tags signed with this SSH key')
-    i.add_argument('--trust-github', action='append', default=[], metavar='USER', help="trust USER's SSH signing keys on GitHub")
+    i.add_argument('--trust-github', metavar='USER', help=f"trust USER's SSH signing keys on GitHub (default {OWNER}, "
+                                                          'fetched when no keys are trusted yet)')
     i.add_argument('--dev', action='store_true', help='run from this checkout, which never updates itself')
     i.add_argument('--history', action='store_true', help='turn on importing browser history ([browser] history = true)')
     i.add_argument('--from', dest='url', default=update.REPO_URL, help='the repo a managed install follows')
@@ -417,7 +418,7 @@ def main(argv: list[str] | None = None) -> None:
     try:
         match a.cmd:
             case 'install':
-                asyncio.run(install(config, layout, a.dev, a.url, a.trust, a.trust_github, a.history))
+                asyncio.run(install(config, layout, a.dev, a.url, a.trust_github, a.history))
             case 'verify':
                 sys.exit(verify(config))
             case 'schedule':

@@ -190,7 +190,7 @@ daemon restarts itself when `pulse.toml` changes.
 config of what it installs. Every command can be run again safely.
 
 ```sh
-sitekitctl install --trust ~/.ssh/id_ed25519.pub   # or --trust-github un1tz3r0; add --history to import browser history
+sitekitctl install      # add --history to import browser history
 sitekitctl verify       # every part, ✓ ✗ or !; exits 1 when something is broken
 sitekitctl schedule     # last and next publish, project scan, update check and any other sitekit-* timer
 sitekitctl errors       # warnings and errors from the journal, the last failed publish, refused releases
@@ -198,7 +198,8 @@ sitekitctl update       # look for a signed release now (--rollback: go back to 
 sitekitctl uninstall    # stop and remove everything; --purge also the config, keys, database and site checkout
 ```
 
-`install`, step by step: it trusts the release key, then sets up the managed install (below) from the newest signed
+`install`, step by step: on a machine with no trusted keys yet it trusts the SSH signing keys of the `un1tz3r0`
+GitHub account (`--trust-github USER` for another), then sets up the managed install (below) from the newest signed
 release, and continues with that release's own installer. It writes `~/.config/sitekit/pulse.toml` if there isn't
 one, and clones the site's `data/` (sparse and blobless) from `remote`, or pulls it if it's there. It writes the
 `sitekit-pulse` service, the `sitekit-update` service and timer, the launchers, the panel-icon autostart, the icons, and
@@ -216,7 +217,7 @@ A managed install follows releases of this repo: every machine picks up a new fe
 the panel icon, settings window, browser host and extension following it.
 
 ```sh
-# once, where you make releases: sign tags with your SSH key
+# once, where you make releases: sign tags with your SSH key, and add it to GitHub as a Signing key
 git config --global gpg.format ssh
 git config --global user.signingkey ~/.ssh/id_ed25519.pub
 
@@ -233,8 +234,9 @@ Every `[update] every` seconds (an hour by default) the `sitekit-update` timer r
 the remote's `pulse-v*` tags. A newer one is only
 installed when it is an annotated tag signed by a key in `~/.config/sitekit/allowed_signers` and points at a commit on
 master; anything else is refused, whoever pushed it. That matters because Claude sessions and the Copilot agent can push
-to this repo too. Signing is the only thing trusted, and the key file is only ever written on each machine by
-`sitekitctl install --trust` or `--trust-github` (the second trusts whoever controls that GitHub account).
+to this repo too. Signing is the only thing trusted. The key file is written on each machine by `sitekitctl install`, from the SSH
+signing keys on your GitHub account (*Settings › SSH and GPG keys*, key type *Signing*), so add the key you sign
+releases with there. That trusts whoever controls the account; Claude sessions and Copilot can push but can't add keys.
 A tag that passes is checked out, its dependencies installed into the venv if `pyproject.toml` changed, and its own
 `sitekit pulse check` run against your config and database. Only then does `current` switch, and the new release's own
 `sitekitctl install` rewrites what it installs and restarts the daemon. The panel icon and settings window restart
