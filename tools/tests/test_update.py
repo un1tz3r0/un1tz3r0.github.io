@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from sitekit import update
+from sitekit import manage, native, pulse, pulse_ctl, update
 
 TOOLS = Path(update.__file__).resolve().parent.parent
 ID = ['-c', 'user.name=t', '-c', 'user.email=t@t']
@@ -33,7 +33,7 @@ def world(tmp_path, monkeypatch):
     git(remote, 'add', '-A')
     git(remote, 'commit', '-qm', 'tools')
     l = update.Layout(tmp_path / 'home', tmp_path / 'allowed_signers')
-    update.trust(l, keys['good'].with_suffix('.pub'), 'release')
+    update.trust(l, keys['good'].with_suffix('.pub').read_text(), 'release')
     (l.venv / 'bin').mkdir(parents=True)
     (l.venv / 'bin' / 'python').symlink_to(sys.executable)    # no venv or pip in tests
     pips = []
@@ -143,11 +143,28 @@ def test_a_failed_pip_install_is_retried_not_marked_bad(installed, monkeypatch):
     assert run(update.update(w.l, w.config, log, current='pulse-v1.0.0')) == 'pulse-v1.1.0'
 
 
-def test_install_without_a_config_writes_one(world):
-    tag(world, 'pulse-v1.0.0')
-    config = world.config.parent / 'fresh' / 'sitekit' / 'pulse.toml'   # nor its folder: a new machine
-    assert run(update.bootstrap(world.l, world.url, config, log)) == 'pulse-v1.0.0'
-    assert config.exists() and world.l.bad() == set()
+def test_install_on_a_fresh_machine(world, monkeypatch):
+    """No config or its folder, no site checkout: install writes the config, clones data/, and writes the units."""
+    home, w = world.tmp / 'user', world
+    monkeypatch.setenv('HOME', str(home))
+    monkeypatch.setattr(native, 'HOST', home / '.local/share/sitekit/pulse-native-host')
+    example = w.tmp / 'example.toml'
+    example.write_text(f'site = "{w.tmp / "site"}"\nremote = "{w.url}"\ndb = "{w.tmp / "p.sqlite3"}"\npush = false\n'
+                       '[discover]\nenabled = false\n')
+    monkeypatch.setattr(pulse, 'EXAMPLE', example)
+    monkeypatch.setattr(manage, 'FIRST', 'pulse-v1.1.0')
+    monkeypatch.setattr(update, 'RUNNING', 'pulse-v1.1.0')     # as if the release's own installer runs, so no exec
+    tag(w, 'pulse-v1.0.0')
+    commit(w)
+    tag(w, 'pulse-v1.1.0')
+    config = home / '.config/sitekit/pulse.toml'
+    run(manage.install(config, w.l, url=w.url))
+    assert w.l.current_tag() == 'pulse-v1.1.0' and config.read_text() == example.read_text()
+    assert (w.tmp / 'site' / 'data' / 'big.json').exists() and not (w.tmp / 'site' / 'tools').exists()
+    service = (home / '.config/systemd/user/sitekit-pulse.service').read_text()
+    assert f'ExecStart={w.l.launch}' in service
+    assert 'OnUnitActiveSec=3600' in (home / '.config/systemd/user/sitekit-update.timer').read_text()
+    assert os.access(native.HOST, os.X_OK) and str(w.l.package) in native.HOST.read_text()
 
 
 def test_a_tag_off_master_is_refused(installed):
@@ -242,12 +259,12 @@ def test_running_release_comes_from_the_resolved_path(world):
 
 
 def test_trust(world):
-    l, pub = world.l, world.keys['evil'].with_suffix('.pub')
+    l, pub = world.l, world.keys['evil'].with_suffix('.pub').read_text()
     line = update.trust(l, pub, 'other')
     update.trust(l, pub, 'other')
     assert l.signers.read_text().count(line) == 1 and line.startswith('other namespaces="git" ssh-ed25519 ')
     with pytest.raises(ValueError):
-        update.trust(l, world.config, 'x')
+        update.trust(l, world.config.read_text(), 'x')
 
 
 @pytest.fixture
@@ -319,38 +336,41 @@ def wait_for(what, timeout=60):
     raise AssertionError('timed out')
 
 
-def test_a_running_daemon_updates_itself_and_keeps_its_pause(world, monkeypatch):
+def test_an_update_restarts_the_daemon_into_the_new_release_and_keeps_its_pause(world, monkeypatch):
     w, home = world, world.tmp / 'user'
     l = update.Layout(home / '.local/share/sitekit', home / '.config/sitekit/allowed_signers')
-    update.trust(l, w.keys['good'].with_suffix('.pub'), 'release')
+    update.trust(l, w.keys['good'].with_suffix('.pub').read_text(), 'release')
     (l.venv / 'bin').mkdir(parents=True)
     (l.venv / 'bin' / 'python').symlink_to(sys.executable)
     config = home / '.config/sitekit/pulse.toml'
-    config.write_text(w.config.read_text() + '[update]\nevery = 86400\n')
+    config.write_text(w.config.read_text().replace('push = false', f'push = false\nremote = "{w.url}"'))
     tag(w, 'pulse-v1.0.0')
     run(update.bootstrap(l, w.url, config, log))
     run_dir = w.tmp / 'run'
     run_dir.mkdir()
     sock = run_dir / 'sitekit-pulse.sock'
     # PYTHONUSERBASE: with HOME moved, keep finding packages installed with pip --user (a real install has its venv)
-    env = {**os.environ, 'HOME': str(home), 'XDG_RUNTIME_DIR': str(run_dir), 'PYTHONUSERBASE': site.getuserbase()}
+    for k, v in {'HOME': str(home), 'XDG_RUNTIME_DIR': str(run_dir), 'PYTHONUSERBASE': site.getuserbase()}.items():
+        monkeypatch.setenv(k, v)
+    monkeypatch.setattr(pulse_ctl, 'SOCKET', sock)
     out = (w.tmp / 'daemon.log').open('w')
-    daemon = subprocess.Popen([str(l.launch)], env=env, stdout=out, stderr=subprocess.STDOUT)
+    daemon = subprocess.Popen([str(l.launch)], stdout=out, stderr=subprocess.STDOUT)
     try:
         first = wait_for(lambda: ask(sock, 'status'))
         assert first['version'] == 'pulse-v1.0.0'
         ask(sock, 'pause')
         commit(w)
         tag(w, 'pulse-v1.1.0')
-        ask(sock, 'update')
+        run(manage.upgrade(config, l))
         after = wait_for(lambda: (r := ask(sock, 'status'))['version'] == 'pulse-v1.1.0' and r)
-        assert after['pid'] == first['pid']          # restarted in place by exec, as systemd would see it
+        assert after['pid'] == first['pid']          # restarted in place by exec
         assert after['paused'] is True               # the pause survived the restart
         assert l.current_tag() == 'pulse-v1.1.0'
         wait_for(lambda: not l.pending.exists())     # the new release confirmed it started
+        assert (home / '.config/systemd/user/sitekit-update.timer').exists()    # the new release's installer ran
     finally:
         daemon.terminate()
         daemon.wait(10)
         out.close()
     text = (w.tmp / 'daemon.log').read_text()
-    assert 'updated pulse-v1.0.0 → pulse-v1.1.0' in text and 'release pulse-v1.1.0 started' in text and 'still paused' in text
+    assert 'release pulse-v1.1.0 started' in text and 'still paused' in text

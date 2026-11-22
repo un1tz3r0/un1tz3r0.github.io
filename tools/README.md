@@ -18,15 +18,12 @@ settings` and `sitekit pulse indicator` fail:
 
 ```sh
 pipx install --system-site-packages --editable ./tools
-# or a plain venv:
-python3 -m venv --system-site-packages ~/.local/share/sitekit/venv
-~/.local/share/sitekit/venv/bin/pip install -e ./tools
-ln -s ~/.local/share/sitekit/venv/bin/sitekit ~/.local/bin/sitekit
 sitekit -h
 ```
 
-If sitekit is already installed in a venv without them, `pipx reinstall --system-site-packages sitekit` fixes it
-(or recreate the plain venv with the flag). The daily workflow and the commands that only write `data/` need none of this.
+If sitekit is already installed in a venv without them, `pipx reinstall --system-site-packages sitekit` fixes it. The
+daily workflow and the commands that only write `data/` need none of this. To run the pulse daemon on a machine, see
+[Installing pulse](#installing-pulse-sitekitctl).
 
 Run it anywhere inside the site checkout (it finds `site.toml`), or pass `--site PATH`.
 
@@ -94,9 +91,9 @@ window titles, file names and anything outside the listed folders never do, unle
 sites and pages (`[browser] publish`, below) or Claude conversation titles (`[claude]`, below). The local database is
 readable only by you.
 
-Its config is `~/.config/sitekit/pulse.toml`. The first time the daemon, `sitekit pulse install` or `sitekit settings`
-runs without one, it creates the folder and copies `tools/pulse.example.toml` there. Edit it in the settings window or
-by hand.
+Its config is `~/.config/sitekit/pulse.toml`. `sitekitctl install` creates the folder and copies
+`tools/pulse.example.toml` there (the daemon and the settings window do the same if it goes missing). Edit it in the
+settings window or by hand.
 
 ```sh
 sitekit settings         # or edit ~/.config/sitekit/pulse.toml
@@ -127,32 +124,10 @@ Idle time comes from GNOME (Mutter), `xprintidle` on X11, or logind. The focused
 minute counts as active when files changed or the focused app switched. File watching uses inotify directly; if you
 watch big trees, raise `fs.inotify.max_user_watches`.
 
-To run it with your desktop session, save this as `~/.config/systemd/user/sitekit-pulse.service`:
-
-```ini
-[Unit]
-Description=sitekit pulse
-After=graphical-session.target
-PartOf=graphical-session.target
-
-[Service]
-ExecStart=%h/.local/bin/sitekit pulse run
-Restart=on-failure
-RestartSec=30
-
-[Install]
-WantedBy=graphical-session.target
-```
-
-then `systemctl --user enable --now sitekit-pulse` and follow it with `journalctl --user -fu sitekit-pulse`. The
-service needs your session's `DISPLAY`/`WAYLAND_DISPLAY` and `SSH_AUTH_SOCK` (GNOME and KDE pass them on; elsewhere run
-`systemctl --user import-environment` from your session startup) so the probes work and `git push` can authenticate.
-
-The daemon doesn't depend on any one way of reaching GitHub. Its clone, pull and push (and the settings window's *Push*
-buttons, through `sitekit push`) try the remote as configured, then the same repo over the other transport (SSH or
-HTTPS), then HTTPS with the GitHub CLI's login if `gh` is installed and signed in (`gh auth login`). The first route
-that works is tried first after that, and the log notes when one had to be skipped. SSH runs in batch mode, so a
-missing key or an unknown host key fails at once instead of waiting for a prompt. Remotes not on GitHub are used as they are.
+`sitekitctl install` runs it with your desktop session as the `sitekit-pulse` user service; follow it with
+`journalctl --user -fu sitekit-pulse`. The service needs your session's `DISPLAY`/`WAYLAND_DISPLAY` and
+`SSH_AUTH_SOCK` (GNOME and KDE pass them on; elsewhere run `systemctl --user import-environment` from your session
+startup) so the probes work and `git push` can authenticate.
 
 ### Rule lists
 
@@ -177,8 +152,7 @@ working: `allow` and `deny` lists, `[discover] exclude`, and `name = "regex"` en
 ### Panel icon and settings window (GNOME and others)
 
 ```sh
-sitekit pulse install      # systemd unit, launcher, panel-icon autostart and icons, all under ~ (`uninstall` reverses it)
-sitekit pulse indicator    # the panel icon, run by hand
+sitekit pulse indicator    # the panel icon, run by hand (sitekitctl install starts it with your session)
 sitekit settings [page]    # the settings window; page is pulse, site, projects, apps, publishing, tools or log
 sitekit pulse pause        # or resume: ask the running daemon from a script or keybinding
 ```
@@ -199,7 +173,8 @@ just that file. Lists are edited a line at a time: + in a list's header adds one
 (where order matters) or removes it; in rule lists the +/− button sets allow or deny and the next one the priority
 (·, `!` or `?`; see [Rule lists](#rule-lists)). The *Tools* page runs the other sitekit commands in the site checkout, posts quick statuses
 and commits and pushes `data/`. The first time it opens, and from the tour button in the header, *Back* and *Next* walk
-through Site, Projects, Apps, Publishing and Pulse, where *Install* runs `sitekit pulse install`. The *Log* page follows the daemon's log, with a toggle per kind of line (lifecycle,
+through Site, Projects, Apps, Publishing and Pulse. Its *Installation* group on the Tools page runs `sitekitctl`
+(verify, schedule, errors, update, and install to repair), since installing is not the settings window's job. The *Log* page follows the daemon's log, with a toggle per kind of line (lifecycle,
 samples, activity, scans, publishing, warnings, errors) and a filter. GNOME Settings itself has no plug-in API for third-party panels, so this is
 a separate app with a Settings-category launcher rather than a page inside it.
 
@@ -209,49 +184,72 @@ config without a restart), `assign`, `log`, `reload`, `quit`, and for the browse
 `config`, `focus`, `pages`, `catalog`), which only your user can reach. A request's `id` is echoed in its reply. The
 daemon restarts itself when `pulse.toml` changes.
 
+### Installing pulse (sitekitctl)
+
+`sitekitctl` is the one place pulse is installed, checked, updated and removed; the settings window only edits the
+config of what it installs. Every command can be run again safely.
+
+```sh
+sitekitctl install      # add --history to import browser history
+sitekitctl verify       # every part, ✓ ✗ or !; exits 1 when something is broken
+sitekitctl schedule     # last and next publish, project scan, update check and any other sitekit-* timer
+sitekitctl errors       # warnings and errors from the journal, the last failed publish, refused releases
+sitekitctl update       # look for a signed release now (--rollback: go back to the previous one)
+sitekitctl uninstall    # stop and remove everything; --purge also the config, keys, database and site checkout
+```
+
+`install`, step by step: on a machine with no trusted keys yet it trusts the SSH signing keys of the `un1tz3r0`
+GitHub account (`--trust-github USER` for another), then sets up the managed install (below) from the newest signed
+release, and continues with that release's own installer. It writes `~/.config/sitekit/pulse.toml` if there isn't
+one, and clones the site's `data/` (sparse and blobless) from `remote`, or pulls it if it's there. It writes the
+`sitekit-pulse` service, the `sitekit-update` service and timer, the launchers, the panel-icon autostart, the icons, and
+the browser host for every Chrome-family browser and Firefox with a profile folder. It imports browser history when
+`[browser] history` is on, then starts the daemon and reports its first project scan. Last, it says whether the browser
+extension is loaded, and if it isn't, which folder to load (browsers don't let anything else install an unpacked
+extension). Run it again after changing `[update]` or to repair what `verify` flags.
+
+`install --dev` runs everything from this checkout instead, with the Python that ran it. It never updates itself, which
+suits working on sitekit.
+
 ### Updates: signed releases that install themselves
 
-A managed install follows releases of this repo: every running daemon picks up a new feature or fix on its own, with
+A managed install follows releases of this repo: every machine picks up a new feature or fix on its own, with
 the panel icon, settings window, browser host and extension following it.
 
 ```sh
-# once, where you make releases: sign tags with your SSH key
+# once, where you make releases: sign tags with your SSH key, and add it to GitHub as a Signing key
 git config --global gpg.format ssh
 git config --global user.signingkey ~/.ssh/id_ed25519.pub
-
-# once per machine: trust that key, then install (needs at least one release; writes pulse.toml if there isn't one)
-sitekit pulse trust ~/.ssh/id_ed25519.pub
-sitekit pulse install --managed
 
 # each release: merge to master, then from your checkout
 sitekit release 1.4.0 -m "what changed"    # signed tag pulse-v1.4.0 on HEAD, which must be on origin/master
 ```
 
-`install --managed` keeps everything under `~/.local/share/sitekit`: a bare clone, a venv (with system site packages,
+A managed install keeps everything under `~/.local/share/sitekit`: a bare clone, a venv (with system site packages,
 for GTK), and each release checked out side by side in `versions/` (just `tools/`), with `current` pointing at the one
-that runs. The systemd unit, launchers, panel icon and browser host all run through `current`.
+that runs. The systemd units, launchers, panel icon and browser host all run through `current`. Releases before
+`pulse-v1.1.0` don't have `sitekitctl`, so an install never picks one.
 
-Every `[update] every` seconds (an hour by default) the daemon lists the remote's `pulse-v*` tags. A newer one is only
+Every `[update] every` seconds (an hour by default) the `sitekit-update` timer runs `sitekitctl update`, which lists
+the remote's `pulse-v*` tags. A newer one is only
 installed when it is an annotated tag signed by a key in `~/.config/sitekit/allowed_signers` and points at a commit on
 master; anything else is refused, whoever pushed it. That matters because Claude sessions and the Copilot agent can push
-to this repo too. Signing is the only thing trusted, and the key file is only ever written by hand on each machine.
+to this repo too. Signing is the only thing trusted. The key file is written on each machine by `sitekitctl install`, from the SSH
+signing keys on your GitHub account (*Settings › SSH and GPG keys*, key type *Signing*), so add the key you sign
+releases with there. That trusts whoever controls the account; Claude sessions and Copilot can push but can't add keys.
 A tag that passes is checked out, its dependencies installed into the venv if `pyproject.toml` changed, and its own
-`sitekit pulse check` run against your config and database. Only then does `current` switch and the daemon restart in
-place. The panel icon and settings window restart themselves when they see the new version (the settings window waits
-while it has unsaved edits), and the extension reloads, which also restarts the browser host. For the extension to load
-the new files, load it unpacked from `~/.local/share/sitekit/current/tools/sitekit/extension`.
+`sitekit pulse check` run against your config and database. Only then does `current` switch, and the new release's own
+`sitekitctl install` rewrites what it installs and restarts the daemon. The panel icon and settings window restart
+themselves when they see the new version (the settings window waits while it has unsaved edits), and the extension
+reloads, which also restarts the browser host. For the extension to load the new files, load it unpacked from
+`~/.local/share/sitekit/current/tools/sitekit/extension`.
 
 If the new release crashes three times before it confirms that it started, `pulse-launch` (the unit's command, which
 updates never change) switches back to the previous release. A tag that isn't trusted, fails its check or doesn't
 start is recorded in `~/.local/share/sitekit/bad` and never tried again; a checkout or `pip install` that fails (usually
 the network) is retried at the next check.
 
-```sh
-sitekit pulse update      # look for a release now instead of waiting
-sitekit pulse rollback    # go back to the previous release, and never use this one again
-```
-
-Set `[update] enabled = false` to stay on the current release. A pause now survives restarts, including updates.
+Set `[update] enabled = false` (then `sitekitctl install`) to stay on the current release. A pause now survives restarts, including updates.
 Releases should only ever add to the database (new tables and columns, which `open_db` creates), so rolling back stays
 safe.
 
@@ -263,13 +261,11 @@ daemon through a native messaging host, buffering while the daemon is down. Whil
 page's project beats file changes for that minute, and its site category (from `[browser.sites]`) is published
 alongside the app categories.
 
-```sh
-sitekit pulse browser      # register the native messaging host for Chrome, Chromium, Brave, Vivaldi, Edge and Firefox
-```
-
-Then load it: *chrome://extensions › Developer mode › Load unpacked*, and pick `tools/sitekit/extension`. Its `key`
-pins the id to `idmnjfajgdlaoneflcachggmmbpbohao`, which the host allows; to allow other ids (a store build), set
-`SITEKIT_EXTENSION_IDS=id1,id2` when you run `sitekit pulse browser`. The toolbar icon shows the same four states as
+`sitekitctl install` registers the native messaging host for Chrome, Chromium, Brave, Vivaldi, Edge and Firefox.
+Then load the extension: *chrome://extensions › Developer mode › Load unpacked*, and pick the folder `install`
+names (`sitekitctl verify` checks the browsers' profiles for it). Its `key` pins the id to
+`idmnjfajgdlaoneflcachggmmbpbohao`, which the host allows; to allow other ids (a store build), set
+`SITEKIT_EXTENSION_IDS=id1,id2` when you run `sitekitctl install`. The toolbar icon shows the same four states as
 the panel icon, and its popup shows what the current page counts toward, the daemon controls, and each plugin's sync.
 
 Locally the daemon keeps each span's URL without query or fragment, its title (`titles = false` drops them), site

@@ -118,6 +118,15 @@ def day_report(db: sqlite3.Connection, start: float, c: dict) -> dict[str, dict]
     return out
 
 
+def available() -> bool:
+    """Whether browserprofile, which reads the browsers' own history, is installed (it needs Python 3.13)."""
+    try:
+        import browserprofile  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
 def import_history(db: sqlite3.Connection, c: dict) -> int:
     """Copy history rows newer than the last import, that the extension would have recorded. Returns rows added; 0
     when browserprofile isn't installed (it needs Python 3.13)."""

@@ -23,6 +23,7 @@ from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango  # noqa: E402
 
 from . import browsing, conversations, tomledit  # noqa: E402
 from .common import expand, load_toml  # noqa: E402
+from .manage import Runtime  # noqa: E402
 from .pulse import CONDITIONS, CONFIG, KINDS, discover_rules, duration, ensure_config, map_rules  # noqa: E402
 from .pulse_ctl import APP_ID, ICONS, Link, restart  # noqa: E402
 
@@ -254,7 +255,7 @@ class Window(Adw.ApplicationWindow):
     def __init__(self, app: Adw.Application):
         super().__init__(application=app, title='Pulse Settings', default_width=760, default_height=760)
         self.path = expand(CONFIG)
-        first_run = ensure_config(self.path)
+        first_run = ensure_config(self.path)    # the window edits it in place, so it must exist
         self.state, self.quiet = {}, False
         self.toasts, self.stack = Adw.ToastOverlay(), Adw.ViewStack()
         header = Adw.HeaderBar(title_widget=Adw.ViewSwitcher(stack=self.stack, policy=Adw.ViewSwitcherPolicy.NARROW))
@@ -349,12 +350,6 @@ class Window(Adw.ApplicationWindow):
         self.push.connect('notify::active', lambda r, _: self.quiet or self.send('set', push=r.get_active()))
         status.add(self.paused)
         status.add(self.push)
-        self.install = row('Run in the background', 'Installs the daemon as a user service that starts with your session, '
-                                                    'the panel icon, and this window in the app launcher')
-        self.install.add_suffix(button('Install', lambda: self.run([sys.executable, '-m', 'sitekit', 'pulse', 'install'],
-                                                                  lambda ok: self.toast('Installed; the daemon is starting' if ok
-                                                                                        else 'Install failed; see the Tools tab'))))
-        status.add(self.install)
         timing = group(page, 'Timing', 'Saved to pulse.toml with Save and Apply')
         self.spins = {}
         for key, title, sub, lo, hi, default in [
@@ -510,6 +505,15 @@ class Window(Adw.ApplicationWindow):
             r = row(title, sub)
             r.add_suffix(button('Run', lambda a=args: self.run([sys.executable, '-m', 'sitekit', *a])))
             run.add(r)
+        deploy = group(page, 'Installation', 'sitekitctl installs, checks and updates the daemon, its services and the browser host')
+        for args, title, sub in [(['verify'], 'Verify', 'every part installed, current and running'),
+                                 (['schedule'], 'Schedule', 'recent and upcoming publishes, scans and update checks'),
+                                 (['errors'], 'Errors', 'warnings and errors from the last week'),
+                                 (['update'], 'Update', 'install the newest signed release now'),
+                                 (['install'], 'Install or Repair', 'rewrite the services, launchers and browser host, then restart')]:
+            r = row(title, sub)
+            r.add_suffix(button('Run', lambda a=args: self.run([sys.executable, '-m', 'sitekit.manage', *a])))
+            deploy.add(r)
         post = group(page, 'Post a status')
         self.post_text = Adw.EntryRow(title='What are you up to? (Markdown)')
         self.post_project = Adw.EntryRow(title='Project id (optional)')
@@ -749,11 +753,11 @@ class Window(Adw.ApplicationWindow):
     def run(self, argv: list[str], then=None) -> None:
         site = expand(self.state.get('site') or self.cfg.get('site', '~/.local/share/sitekit/site'))
         buf = self.output.get_buffer()
-        buf.set_text(f'$ {" ".join(argv[2:] if argv[0] == sys.executable else argv)}\n')
+        buf.set_text(f'$ {" ".join(argv[2:] if argv[0] == sys.executable else argv).replace("sitekit.manage", "sitekitctl")}\n')
         launcher = Gio.SubprocessLauncher.new(Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_MERGE)
         launcher.set_cwd(str(site))
         launcher.setenv('SITEKIT_SITE', str(site), True)
-        launcher.setenv('PYTHONPATH', str(Path(__file__).resolve().parent.parent), True)
+        launcher.setenv('PYTHONPATH', str(Runtime.detect().package), True)
         try:
             proc = launcher.spawnv(argv)
         except GLib.Error as e:

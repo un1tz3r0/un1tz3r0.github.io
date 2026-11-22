@@ -3,19 +3,20 @@
 Layout under ~/.local/share/sitekit:
   repo/             a bare, blobless clone of the site repo
   versions/<tag>/   one sparse worktree per release, holding only tools/
-  current           symlink to the running release; the systemd unit, launchers, panel icon and browser host run from it
+  current           symlink to the running release; the systemd units, launchers, panel icon and browser host run from it
   venv/             the Python that runs it, with system site packages (for GTK) and the dependencies
   pulse-launch      the unit's ExecStart, which never changes: it rolls back a release that keeps crashing, then starts
   pending, previous, bad, deps.json   update bookkeeping
 
 A release is an annotated tag pulse-vX.Y.Z on a master commit, signed with an SSH key listed in
-~/.config/sitekit/allowed_signers (`sitekit pulse trust`). `sitekit release X.Y.Z` makes and pushes one. The daemon
-looks for a newer one every [update] every seconds (default an hour). A tag that verifies is checked out, its
-dependencies installed when they changed, and `sitekit pulse check` run with it against your config and database. Only
-then does `current` switch and the daemon restart into it, and the panel icon, settings window and browser extension
-follow when they see the new version. A release that doesn't start (three crashes before it confirms) is rolled back by
-pulse-launch. A tag that isn't trusted, fails its check or doesn't start is recorded in `bad` and never tried again; a
-failure that may pass later (the network during a fetch or pip install) is retried at the next check.
+~/.config/sitekit/allowed_signers (`sitekitctl install` fills it from GitHub). `sitekit release X.Y.Z` makes and pushes one. The
+sitekit-update timer runs `sitekitctl update` every [update] every seconds (default an hour). A tag that verifies is
+checked out, its dependencies installed when they changed, and `sitekit pulse check` run with it against your config and
+database. Only then does `current` switch, and the release's own installer restarts the daemon into it; the panel icon,
+settings window and browser extension follow when they see the new version. A release that doesn't start (three
+crashes before it confirms) is rolled back by pulse-launch. A tag that isn't trusted, fails its check or doesn't start
+is recorded in `bad` and never tried again; a failure that may pass later (the network during a fetch or pip install)
+is retried at the next check.
 """
 from __future__ import annotations
 
@@ -37,7 +38,7 @@ REPO_URL = 'https://github.com/un1tz3r0/un1tz3r0.github.io.git'
 TRIES = 3   # starts of a new release that may fail before pulse-launch rolls it back
 
 LAUNCH = '''#!/bin/sh
-# Starts the pulse daemon from the current release (written by `sitekit pulse install --managed`; updates never change
+# Starts the pulse daemon from the current release (written by `sitekitctl install`; updates never change
 # it). After an update, `pending` names the new release until it confirms it started. If it has crashed on {tries} starts
 # before that, go back to the previous release and never try this one again.
 cd "$(dirname "$0")" || exit 1
@@ -124,14 +125,14 @@ async def git(l: Layout, *args, check: bool = True) -> str:
     return out
 
 
-async def candidates(l: Layout, current: str | None) -> list[str]:
-    """Release tags on the remote newer than `current` and not marked bad, newest first. Only lists refs, so it's cheap
-    enough to run every hour."""
+async def candidates(l: Layout, current: str | None, minimum: str | None = None) -> list[str]:
+    """Release tags on the remote newer than `current`, at least `minimum` and not marked bad, newest first. Only lists
+    refs, so it's cheap enough to run every hour."""
     out = await git(l, 'ls-remote', '--tags', '--refs', 'origin', f'{PREFIX}*')
     tags = {line.split('refs/tags/', 1)[1] for line in out.splitlines() if 'refs/tags/' in line}
     bad = l.bad()
-    return sorted((t for t in tags if version(t) and t not in bad and (current is None or version(t) > version(current))),
-                  key=version, reverse=True)
+    return sorted((t for t in tags if version(t) and t not in bad and (current is None or version(t) > version(current))
+                   and (minimum is None or version(t) >= version(minimum))), key=version, reverse=True)
 
 
 async def fetch(l: Layout) -> None:
@@ -141,7 +142,7 @@ async def fetch(l: Layout) -> None:
 async def verify(l: Layout, tag: str) -> str | None:
     """Why a fetched tag can't be installed, or None when it is a signed, trusted release on master."""
     if not l.signers.exists():
-        return f'no trusted keys: {l.signers} is missing (sitekit pulse trust KEY.pub)'
+        return f'no trusted keys: {l.signers} is missing (sitekitctl install --trust-github USER)'
     code, out = await sh('git', '-C', l.repo, '-c', f'gpg.ssh.allowedSignersFile={l.signers}', 'verify-tag', tag)
     if code:
         return f'signature not trusted: {out.splitlines()[-1] if out else "unsigned"}'
@@ -264,13 +265,11 @@ async def update(l: Layout, config: Path, log, current: str | None = RUNNING) ->
     return None
 
 
-async def bootstrap(l: Layout, url: str, config: Path, log=print) -> str:
-    """Set up a managed install: clone, venv, the newest good release as `current`, and pulse-launch."""
+async def bootstrap(l: Layout, url: str, config: Path, log=print, minimum: str | None = None) -> str:
+    """Set up a managed install: clone, venv, the newest good release (at least `minimum`) as `current`, and
+    pulse-launch. Releases are checked against `config`, which must exist."""
     if not l.signers.exists():
-        raise RuntimeError(f'trust a release key first: sitekit pulse trust ~/.ssh/id_ed25519.pub (writes {l.signers})')
-    from .pulse import ensure_config
-    if ensure_config(config):
-        log(f'wrote {config} from the example; edit it with `sitekit settings`')
+        raise RuntimeError(f'trust a release key first: sitekitctl install --trust-github USER (writes {l.signers})')
     l.versions.mkdir(parents=True, exist_ok=True)
     if not l.repo.exists():
         log(f'cloning {url} → {l.repo}')
@@ -284,9 +283,10 @@ async def bootstrap(l: Layout, url: str, config: Path, log=print) -> str:
         if code:
             raise RuntimeError(f'venv: {out[-400:]}')
         l.deps.unlink(missing_ok=True)
-    tags = await candidates(l, None)
+    tags = await candidates(l, None, minimum)
     if not tags:
-        raise RuntimeError(f'no {PREFIX}X.Y.Z tags on {url} yet; make one with `sitekit release X.Y.Z`')
+        raise RuntimeError(f'no {PREFIX}X.Y.Z tags{" from " + minimum + " on" if minimum else ""} on {url} yet; '
+                           'sign one with `sitekit release X.Y.Z`')
     await fetch(l)
     for tag in tags:
         if await install_release(l, tag, config, lambda text, kind=None: log(text)):
@@ -298,11 +298,11 @@ async def bootstrap(l: Layout, url: str, config: Path, log=print) -> str:
     raise RuntimeError('no release passed its checks; see the messages above')
 
 
-def trust(l: Layout, key: Path, principal: str) -> str:
-    """Add an SSH public key to the allowed signers that release tags are checked against."""
-    fields = key.read_text().split()
+def trust(l: Layout, key: str, principal: str) -> str:
+    """Add an SSH public key (a .pub file's text) to the allowed signers that release tags are checked against."""
+    fields = key.split()
     if len(fields) < 2 or not fields[0].startswith(('ssh-', 'ecdsa-', 'sk-')):
-        raise ValueError(f'{key} is not an SSH public key')
+        raise ValueError(f'not an SSH public key: {key[:60]!r}')
     line = f'{principal} namespaces="git" {fields[0]} {fields[1]}'
     l.signers.parent.mkdir(parents=True, exist_ok=True)
     existing = l.signers.read_text().splitlines() if l.signers.exists() else []
