@@ -1,5 +1,5 @@
 {
- "generated": "2026-11-21T09:26:44Z",
+ "generated": "2026-11-22T09:26:15Z",
  "projects": {
   "chan_01UT1WhTnsH8mmRrT168j2FK": {
    "repos": [
@@ -7,8 +7,35 @@
    ],
    "sessions": 2,
    "first": "2026-10-08",
-   "last": "2026-11-18",
+   "last": "2026-11-22",
    "prs": [
+    {
+     "repo": "un1tz3r0/vcvmapper",
+     "number": 7,
+     "title": "Phase 6: Tether, targeting by cord",
+     "url": "https://github.com/un1tz3r0/vcvmapper/pull/7",
+     "state": "open",
+     "created": "2026-11-22",
+     "commits": 1,
+     "files": 18,
+     "additions": 442,
+     "deletions": 35,
+     "by": "un1tz3r0"
+    },
+    {
+     "repo": "un1tz3r0/vcvmapper",
+     "number": 6,
+     "title": "Phase 5: groups and tags (Troupe, Wing, Tag)",
+     "url": "https://github.com/un1tz3r0/vcvmapper/pull/6",
+     "state": "merged",
+     "created": "2026-11-22",
+     "merged": "2026-11-22",
+     "commits": 1,
+     "files": 26,
+     "additions": 843,
+     "deletions": 112,
+     "by": "un1tz3r0"
+    },
     {
      "repo": "un1tz3r0/vcvmapper",
      "number": 5,
@@ -61,11 +88,25 @@
    "repos": [
     "un1tz3r0/un1tz3r0.github.io"
    ],
-   "sessions": 5,
-   "commits": 11,
+   "sessions": 6,
+   "commits": 13,
    "first": "2026-10-21",
-   "last": "2026-11-18",
+   "last": "2026-11-22",
    "prs": [
+    {
+     "repo": "un1tz3r0/un1tz3r0.github.io",
+     "number": 17,
+     "title": "sitekitctl: one CLI that installs, checks, updates and removes sitekit pulse",
+     "url": "https://github.com/un1tz3r0/un1tz3r0.github.io/pull/17",
+     "state": "merged",
+     "created": "2026-11-22",
+     "merged": "2026-11-22",
+     "commits": 2,
+     "files": 15,
+     "additions": 644,
+     "deletions": 346,
+     "by": "un1tz3r0"
+    },
     {
      "repo": "un1tz3r0/un1tz3r0.github.io",
      "number": 12,
@@ -173,9 +214,9 @@
      "created": "2026-10-21",
      "merged": "2026-10-28",
      "commits": 3,
-     "files": 0,
-     "additions": 0,
-     "deletions": 0,
+     "files": 582,
+     "additions": 12135,
+     "deletions": 274,
      "by": "un1tz3r0"
     }
    ]
@@ -814,10 +855,10 @@
    "un1tz3r0/vfbd3",
    "un1tz3r0/video-overlay-animation-studio"
   ],
-  "sessions": 22,
-  "commits": 56,
+  "sessions": 24,
+  "commits": 59,
   "first": "2025-09-04",
-  "last": "2026-11-21",
+  "last": "2026-11-22",
   "prs": [
    {
     "repo": "un1tz3r0/un1tz3r0.github.io",
