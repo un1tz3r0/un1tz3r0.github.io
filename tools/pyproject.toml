@@ -15,6 +15,7 @@ pulse = [
 
 [project.scripts]
 sitekit = "sitekit.__main__:main"
+sitekitctl = "sitekit.manage:main"
 
 [build-system]
 requires = ["setuptools>=68"]

@@ -27,7 +27,7 @@ from fnmatch import fnmatch
 from pathlib import Path
 
 from . import browsing, claude, conversations, gitremote, rules, update
-from .common import expand, load_toml, now, read_json, run, write_json
+from .common import expand, journal, load_toml, now, read_json, run, write_json
 
 CONFIG = expand('~/.config/sitekit/pulse.toml')
 EXAMPLE = Path(__file__).resolve().parent.parent / 'pulse.example.toml'   # tools/, in a checkout or a managed release
@@ -53,7 +53,7 @@ def log(*a, kind: str = 'lifecycle') -> None:
     """Print to stderr (the journal) and keep the line for the settings app's log viewer, tagged with one of KINDS."""
     entry = {'t': time.time(), 'kind': kind, 'text': ' '.join(map(str, a))}
     if kind != 'sample':
-        print(time.strftime('%H:%M:%S'), entry['text'], file=sys.stderr, flush=True)
+        print(journal(kind) + time.strftime('%H:%M:%S'), entry['text'], file=sys.stderr, flush=True)
     LOG.append(entry)
     for hook in LOG_HOOKS:
         hook(entry)
@@ -86,8 +86,6 @@ class Settings:
     max_age: int = 0
     skipped: dict[Path, str] = field(default_factory=dict)     # why the last scan left a repo out
     claude: dict = field(default_factory=dict)                  # [claude]: see conversations.py
-    updates: bool = True                                        # [update] enabled: follow signed releases (managed installs)
-    update_every: int = 3600                                    # [update] every: seconds between checks
 
     @classmethod
     def load(cls, path: Path = CONFIG) -> Settings:
@@ -108,8 +106,7 @@ class Settings:
                    browser=browsing.check(c.get('browser', {})), path=path, pinned={k.lower(): v for k, v in c.get('app_ids', {}).items()},
                    exclude=excluded(found), rules=found,
                    max_idle=duration(d.get('max_idle')), max_age=duration(d.get('max_age')),
-                   claude=conversations.check(c.get('claude', {})),
-                   updates=bool(c.get('update', {}).get('enabled', True)), update_every=int(c.get('update', {}).get('every', 3600)))
+                   claude=conversations.check(c.get('claude', {})))
 
     def category(self, app: str | None) -> str | None:
         """[app_ids] pins exact app ids (to a category, or "ignore"); otherwise what the [apps] rules give, or "other"."""
@@ -507,14 +504,15 @@ def enrich_claude(s: Settings, db: sqlite3.Connection) -> None:
         write_json(path, doc)
 
 
-async def ensure_checkout(s: Settings) -> None:
+async def ensure_checkout(s: Settings, say=log) -> None:
+    """Clone the site's data/ (sparse and blobless) when the checkout isn't there yet."""
     if (s.site / '.git').exists():
         return
     if not s.remote:
-        sys.exit(f'pulse: {s.site} is not a git checkout and no remote is configured to clone it from')
-    log(f'cloning {s.remote} → {s.site} (sparse: data/ only)', kind='publish')
+        raise RuntimeError(f'{s.site} is not a git checkout and no remote is configured to clone it from')
+    say(f'cloning {s.remote} → {s.site} (sparse: data/ only)', kind='publish')
     s.site.parent.mkdir(parents=True, exist_ok=True)
-    await gitremote.clone(s.remote, s.site, '--filter=blob:none', '--sparse', log=log)
+    await gitremote.clone(s.remote, s.site, '--filter=blob:none', '--sparse', log=say)
     await run('git', '-C', str(s.site), 'sparse-checkout', 'set', 'data')
 
 
@@ -604,6 +602,8 @@ class State:
     published: float | None = None
     error: str | None = None
     next_publish: float = 0
+    scanned: float | None = None
+    next_scan: float | None = None
     projects: int = 0
     idle_probe: str | None = None
     focus_probe: str | None = None
@@ -627,6 +627,7 @@ class State:
         return {'mode': self.mode, 'pid': os.getpid(), 'paused': self.paused, 'paused_until': self.paused_until,
                 'sampled': self.sampled, 'active': self.active, 'project': self.project, 'category': self.category,
                 'minutes': self.minutes, 'published': self.published, 'error': self.error, 'next_publish': self.next_publish,
+                'scanned': self.scanned, 'next_scan': self.next_scan,
                 'projects': self.projects, 'push': s.push, 'interval': s.interval, 'idle_probe': self.idle_probe,
                 'focus_probe': self.focus_probe, 'site': str(s.site), 'config': str(s.path),
                 'browser': bool(self.browser and time.time() - self.browser['t'] < 120),
@@ -672,8 +673,10 @@ async def daemon(s: Settings) -> None:
         log(f'file watching unavailable: {e}', kind='warning')
 
     async def scan() -> None:
+        s.owner = s.owner or site_owner(s.site)     # a fresh machine has no site checkout until the first publish
         if not (s.rescan and s.owner):
             return
+        state.scanned = time.time()
         try:
             s.found = await discover(s)
         except (RuntimeError, OSError) as e:
@@ -691,10 +694,10 @@ async def daemon(s: Settings) -> None:
     state.projects = len(roots)
     if watcher:
         log(f'watching {len(watcher.dirs)} folders under {len(roots)} project roots')
-    next_scan = time.time() + s.rescan
+    state.next_scan = time.time() + s.rescan if s.rescan else None
 
     stop, wake = asyncio.Event(), asyncio.Event()
-    want = {'publish': False, 'scan': False, 'restart': False, 'update': False}
+    want = {'publish': False, 'scan': False, 'restart': False}
     for sig in (signal.SIGINT, signal.SIGTERM):
         asyncio.get_running_loop().add_signal_handler(sig, stop.set)
     watchers: set[asyncio.StreamWriter] = set()
@@ -705,8 +708,7 @@ async def daemon(s: Settings) -> None:
     LOG_HOOKS[:] = [lambda e: broadcast({'event': 'log', **e})]
     mtime = lambda: s.path.stat().st_mtime if s.path.exists() else None
     loaded = mtime()
-    timing = {'next_publish': time.time() + 60, 'next_update': time.time() + 300}
-    layout = update.Layout.default()
+    timing = {'next_publish': time.time() + 60}
 
     def remember_pause() -> None:
         """Keep a pause across restarts, which updates and config changes cause."""
@@ -793,8 +795,6 @@ async def daemon(s: Settings) -> None:
                 state.paused, state.paused_until = False, None
                 remember_pause()
                 log('resumed')
-            case 'update':
-                want['update'] = True
             case 'publish':
                 want['publish'] = True
             case 'rescan':
@@ -844,7 +844,7 @@ async def daemon(s: Settings) -> None:
             writer.close()
 
     server = await listen(client)
-    if confirmed := update.confirm(layout):
+    if confirmed := update.confirm(update.Layout.default()):
         log(f'release {confirmed} started; update complete')
     if (row := db.execute("select value from meta where key = 'paused'").fetchone()) and row[0]:
         until = json.loads(row[0]).get('until')
@@ -912,29 +912,21 @@ async def daemon(s: Settings) -> None:
                 state.pending += active
                 log('sample: ' + (' · '.join(filter(None, [category, project])) or 'active' if active else 'idle'), kind='sample')
                 refresh_minutes()
-        if s.rescan and t >= next_scan or want['scan']:
-            next_scan, want['scan'] = t + s.rescan, False
+        if state.next_scan and t >= state.next_scan or want['scan']:
+            state.next_scan, want['scan'] = t + s.rescan if s.rescan else None, False
             await scan()
         if t >= timing['next_publish'] or want['publish']:
             timing['next_publish'], want['publish'] = t + s.publish, False
+            owner = s.owner
             try:
                 await publish(s, db)
                 state.published, state.error, state.pending = time.time(), None, 0
+                if not owner and site_owner(s.site):    # the first publish cloned the checkout that names you
+                    want['scan'] = True
             except (RuntimeError, OSError) as e:
                 state.error = str(e) or type(e).__name__
                 log(f'publish failed, will retry: {e}', kind='error')
             state.next_publish = timing['next_publish']
-        if want['update'] and not update.RUNNING:
-            want['update'] = False
-            log('not a managed install, so it does not update itself (sitekit pulse install --managed)', kind='warning')
-        if update.RUNNING and s.updates and (t >= timing['next_update'] or want['update']):
-            timing['next_update'], want['update'] = t + s.update_every, False
-            try:
-                if await update.update(layout, s.path, log):
-                    want['restart'] = True
-                    break
-            except (RuntimeError, OSError) as e:
-                log(f'update check failed, will retry: {e}', kind='warning')
         notify()
         due = min(next_sample, state.paused_until or next_sample, time.time() + 5)
         wake.clear()
@@ -968,7 +960,7 @@ async def listen(handler) -> asyncio.AbstractServer:
 def check(s: Settings) -> None:
     """What an update runs with a new release before switching to it: everything loads with your config and database."""
     import importlib
-    for name in ('browsing', 'claude', 'common', 'conversations', 'feed', 'history', 'native', 'pulse_ctl', 'tomledit', 'update'):
+    for name in ('browsing', 'claude', 'common', 'conversations', 'feed', 'history', 'manage', 'native', 'pulse_ctl', 'tomledit', 'update'):
         importlib.import_module(f'.{name}', __package__)
     db = open_db(s.db)
     aggregate(db, date.today(), s.interval / 60)

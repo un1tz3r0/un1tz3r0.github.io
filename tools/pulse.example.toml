@@ -1,4 +1,5 @@
-# Copy to ~/.config/sitekit/pulse.toml and edit, then run `sitekit pulse status` to see what the daemon can detect.
+# `sitekitctl install` copies this to ~/.config/sitekit/pulse.toml. Edit it there; `sitekit pulse status` shows what
+# the daemon can detect.
 
 # A checkout of the site that the daemon commits data/pulse/ to. If it doesn't exist yet it is cloned from `remote`
 # as a sparse checkout of data/ only, so it stays small. Use your normal working copy instead if you prefer.
@@ -99,7 +100,7 @@ enabled = true
 code = "off"
 web = "off"
 
-# Managed installs (sitekit pulse install --managed) follow signed releases of the repo; see tools/README.md.
+# The sitekit-update timer follows signed releases of the repo; run `sitekitctl install` after changing this. See tools/README.md.
 [update]
 enabled = true
 every = 3600     # seconds between checks

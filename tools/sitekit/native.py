@@ -14,7 +14,6 @@ import struct
 import sys
 from pathlib import Path
 
-from . import update
 from .common import expand
 from .pulse import SOCKET
 
@@ -87,33 +86,6 @@ def manifests() -> list[tuple[Path, dict]]:
                 + [(support / 'Mozilla' / 'NativeMessagingHosts', firefox)])
     return ([(expand('~/.config') / d / 'NativeMessagingHosts', chrome) for d in CHROMIUM_DIRS]
             + [(expand(d) / 'native-messaging-hosts', firefox) for d in ('~/.mozilla', '~/.librewolf')])
-
-
-def install(uninstall: bool = False, layout: update.Layout | None = None) -> list[str]:
-    """Register the host with every browser profile root that exists. Extra unpacked or store extension ids can be
-    allowed with SITEKIT_EXTENSION_IDS=id1,id2. In a managed install the host runs from `current`, so the browser starts
-    the newest release each time the extension connects."""
-    layout = layout or (update.Layout.default() if update.RUNNING else None)
-    done = []
-    for folder, manifest in manifests():
-        path = folder / f'{NAME}.json'
-        if uninstall:
-            if path.exists():
-                path.unlink()
-                done.append(f'removed {path}')
-        elif folder.parent.exists():
-            folder.mkdir(exist_ok=True)
-            path.write_text(json.dumps(manifest, indent=2) + '\n')
-            done.append(f'wrote {path}')
-    if uninstall:
-        HOST.unlink(missing_ok=True)
-    else:
-        python, package = (layout.python, layout.package) if layout else (sys.executable, Path(__file__).resolve().parent.parent)
-        HOST.parent.mkdir(parents=True, exist_ok=True)
-        HOST.write_text(f'#!/bin/sh\nPYTHONPATH="{package}${{PYTHONPATH:+:$PYTHONPATH}}" exec "{python}" -m sitekit.native\n')
-        HOST.chmod(0o755)
-        done.append(f'wrote {HOST}')
-    return done or ['no browser profile folders found']
 
 
 if __name__ == '__main__':

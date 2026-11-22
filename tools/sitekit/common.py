@@ -20,6 +20,11 @@ def expand(p) -> Path:
     return Path(os.path.expandvars(os.path.expanduser(str(p))))
 
 
+def journal(kind: str) -> str:
+    """The syslog priority prefix journald reads from a unit's output, so `journalctl -p warning` finds these lines."""
+    return {'warning': '<4>', 'error': '<3>'}.get(kind, '') if os.environ.get('JOURNAL_STREAM') else ''
+
+
 def find_site(start: Path | None = None) -> Path:
     if env := os.environ.get('SITEKIT_SITE'):
         return expand(env)

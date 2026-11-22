@@ -35,7 +35,7 @@ function render(st) {
   $('#summary').textContent = st.mode === 'offline' ? 'not connected to the daemon'
     : `${st.mode}${d.minutes != null ? ` · ${Math.floor(d.minutes / 60)} h ${d.minutes % 60} min today` : ''}${st.queued ? ` · ${st.queued} queued` : ''}`;
   $('#error').textContent = st.ok === false ? st.error : st.mode === 'offline' && st.error
-    ? `${st.error}. Is the daemon running, and was the host registered with "sitekit pulse browser"?` : '';
+    ? `${st.error}. Is the daemon running, and was it installed with "sitekitctl install"? ("sitekitctl verify" checks)` : '';
   const s = st.span;
   $('#page').replaceChildren(...(s ? [['site', s.site ?? '—'], ['project', s.project ?? '—'], ['activity', s.activity ?? '—'], ['since', ago(s.start)]]
     : [['', st.mode === 'offline' ? 'nothing is sent while offline; pages are queued' : 'not tracked (idle, unfocused, private or filtered)']])

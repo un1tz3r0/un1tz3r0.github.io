@@ -17,7 +17,8 @@ import gi
 gi.require_version('Gio', '2.0')
 from gi.repository import Gio, GLib  # noqa: E402
 
-from .pulse_ctl import ICONS, Link, command  # noqa: E402
+from .manage import Runtime  # noqa: E402
+from .pulse_ctl import ICONS, Link  # noqa: E402
 
 BUS_NAME = 'io.github.un1tz3r0.SitekitPulse.Indicator'
 ITEM, MENU = '/StatusNotifierItem', '/MenuBar'
@@ -168,7 +169,7 @@ class Indicator:
         return menu
 
     def open(self, page: str) -> None:
-        subprocess.Popen([*command('settings', page).split()], start_new_session=True)
+        subprocess.Popen(Runtime.detect().command('settings', page).split(), start_new_session=True)
 
     @staticmethod
     def props(entry: dict | None) -> dict[str, GLib.Variant]:
