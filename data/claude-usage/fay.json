@@ -1,0 +1,68 @@
+{
+ "generated": "2026-11-23T02:21:02Z",
+ "machine": "fay",
+ "publish": [
+  "sessions",
+  "tokens"
+ ],
+ "days": {
+  "2026-11-19": {
+   "sessions": 1,
+   "tokens": {
+    "in": 20,
+    "out": 22883,
+    "cache_read": 368097,
+    "cache_write": 42908
+   },
+   "models": {
+    "claude-opus-5-5": 22903
+   }
+  },
+  "2026-11-20": {
+   "sessions": 1,
+   "tokens": {
+    "in": 128,
+    "out": 35971,
+    "cache_read": 5264236,
+    "cache_write": 182176
+   },
+   "models": {
+    "claude-opus-5-5": 36099
+   },
+   "repos": {
+    "un1tz3r0/un1tz3r0.github.io": {
+     "sessions": 1,
+     "tokens": {
+      "in": 128,
+      "out": 35971,
+      "cache_read": 5264236,
+      "cache_write": 182176
+     }
+    }
+   }
+  },
+  "2026-11-22": {
+   "sessions": 1,
+   "tokens": {
+    "in": 172,
+    "out": 72974,
+    "cache_read": 10574650,
+    "cache_write": 154924
+   },
+   "models": {
+    "claude-opus-5-5": 73146
+   },
+   "repos": {
+    "un1tz3r0/un1tz3r0.github.io": {
+     "sessions": 1,
+     "tokens": {
+      "in": 172,
+      "out": 72974,
+      "cache_read": 10574650,
+      "cache_write": 154924
+     }
+    }
+   }
+  }
+ }
+}
