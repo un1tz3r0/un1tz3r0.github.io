@@ -405,7 +405,7 @@
    }
   },
   "2026-11-22": {
-   "active": 55,
+   "active": 88,
    "hours": [
     0,
     0,
@@ -426,18 +426,25 @@
     0,
     0,
     33,
-    22,
-    0,
+    47,
+    8,
     0,
     0,
     0
    ],
    "apps": {
-    "other": 55
+    "other": 88
    },
    "projects": {
+    "raspi-tools": {
+     "minutes": 4,
+     "files": 1,
+     "ext": {
+      ".qcow2": 1
+     }
+    },
     "vfbd3": {
-     "minutes": 16,
+     "minutes": 24,
      "files": 20,
      "ext": {
       ".py": 7,
