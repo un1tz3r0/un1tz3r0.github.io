@@ -1,5 +1,5 @@
 {
- "generated": "2026-11-22T09:26:15Z",
+ "generated": "2026-11-23T09:31:08Z",
  "projects": {
   "chan_01UT1WhTnsH8mmRrT168j2FK": {
    "repos": [
@@ -214,9 +214,9 @@
      "created": "2026-10-21",
      "merged": "2026-10-28",
      "commits": 3,
-     "files": 582,
-     "additions": 12135,
-     "deletions": 274,
+     "files": 0,
+     "additions": 0,
+     "deletions": 0,
      "by": "un1tz3r0"
     }
    ]
@@ -858,8 +858,46 @@
   "sessions": 24,
   "commits": 59,
   "first": "2025-09-04",
-  "last": "2026-11-22",
+  "last": "2026-11-23",
   "prs": [
+   {
+    "repo": "un1tz3r0/vfbd3",
+    "number": 2,
+    "title": "Preview: arrow-field motion, attention correspondence and attention split panels",
+    "url": "https://github.com/un1tz3r0/vfbd3/pull/2",
+    "state": "open",
+    "created": "2026-11-23",
+    "commits": 1,
+    "files": 9,
+    "additions": 276,
+    "deletions": 49
+   },
+   {
+    "repo": "un1tz3r0/un1tz3r0.github.io",
+    "number": 19,
+    "title": "setup.sh: hand the install over to sitekitctl install",
+    "url": "https://github.com/un1tz3r0/un1tz3r0.github.io/pull/19",
+    "state": "merged",
+    "created": "2026-11-23",
+    "merged": "2026-11-23",
+    "commits": 1,
+    "files": 2,
+    "additions": 65,
+    "deletions": 49
+   },
+   {
+    "repo": "un1tz3r0/un1tz3r0.github.io",
+    "number": 18,
+    "title": "tools/setup.sh: set up sitekit on a machine in one go",
+    "url": "https://github.com/un1tz3r0/un1tz3r0.github.io/pull/18",
+    "state": "merged",
+    "created": "2026-11-23",
+    "merged": "2026-11-23",
+    "commits": 1,
+    "files": 2,
+    "additions": 508,
+    "deletions": 0
+   },
    {
     "repo": "un1tz3r0/un1tz3r0.github.io",
     "number": 16,
