@@ -284,57 +284,71 @@ config() {
 # --------------------------------------------------------------------------------------------- sitekit install
 
 SITEKIT=$BIN/sitekit
+SITEKITCTL=$BIN/sitekitctl
+# The installer itself is `sitekitctl install` (tools/sitekit/manage.py): it bootstraps the managed install, writes the
+# pulse and update units, launchers, icons and browser host, and starts the daemon. This script prepares the machine
+# around it, picks which release's installer to run, and puts the two commands on PATH.
+# `sitekit` and `sitekitctl` on PATH, running whichever release is current.
+shims() {
+  for cmd in sitekit sitekitctl; do
+    put "$BIN/$cmd" 755 <<EOF
+#!/bin/sh
+# $cmd from the managed install (written by tools/setup.sh); follows ~/.local/share/sitekit/current.
+PYTHONPATH="$HOME_DIR/current/tools\${PYTHONPATH:+:\$PYTHONPATH}" exec "$HOME_DIR/venv/bin/python" -m $([ $cmd = sitekit ] && echo sitekit || echo sitekit.manage) "\$@"
+EOF
+  done
+}
+version_ge() { [ "$(printf '%s\n%s\n' "$2" "$1" | sort -V | head -1)" = "$2" ]; }
+
 install_managed() {
   step "sitekit (managed: follows signed releases)"
   if has pipx && pipx list --short 2>/dev/null | grep -q '^sitekit '; then
     run pipx uninstall sitekit && ok "removed the pipx install (the managed one replaces it)"
   fi
-  if [ -L "$HOME_DIR/current" ]; then
-    ok "installed: $(basename "$(readlink "$HOME_DIR/current")")"
-  else
-    [ "$DRY" = 1 ] && [ ! -d "$REPO" ] && { echo "  would bootstrap the newest signed release"; return; }
-    # Verify the newest release ourselves before running any of its code, then let it install itself.
-    local tag= t out signers=()
-    for t in $(git -C "$REPO" tag -l 'pulse-v*' | sort -rV); do
-      if out=$(git -C "$REPO" -c gpg.ssh.allowedSignersFile="$SIGNERS" verify-tag "$t" 2>&1); then tag=$t; break; fi
-      signers+=("$t: $(grep -o 'key SHA256:[^ ]*' <<<"$out" || echo unsigned)")
-    done
-    if [ -z "$tag" ]; then
-      [ ${#signers[@]} = 0 ] && die "no pulse-v* releases on $REPO_HTTPS yet (make one with: sitekit release 1.0.0)"
-      printf '  %s\n' "${signers[@]}" >&2
-      die "no release is signed by a key in $SIGNERS. Make a new one with the trusted key (sitekit release X.Y.Z from a checkout), or pass --trust with the key that signed these. --dev installs from a checkout without releases."
-    fi
-    ok "$tag is signed by a trusted key"
-    git -C "$REPO" archive "$tag" tools | tar -x -C "$TMP"
-    local venv=$HOME_DIR/venv
-    if [ ! -x "$venv/bin/python" ]; then
-      run "$PY" -m venv --system-site-packages "$venv"
-    fi
-    local deps; deps=$("$PY" -c 'import sys,tomllib; print(" ".join(tomllib.load(open(sys.argv[1],"rb"))["project"]["dependencies"]))' "$TMP/tools/pyproject.toml")
-    # shellcheck disable=SC2086
-    run "$venv/bin/python" -m pip install --quiet --disable-pip-version-check $deps
-    run env PYTHONPATH="$TMP/tools" "$venv/bin/python" -m sitekit pulse install --managed --from "$REPO_HTTPS"
-    FRESH=1
+  [ "$DRY" = 1 ] && [ ! -d "$REPO" ] && { echo "  would run sitekitctl install from the newest signed release"; return; }
+  # The oldest release that carries sitekitctl, as master's installer says.
+  local first cur
+  first=$(git -C "$REPO" show master:tools/sitekit/manage.py 2>/dev/null | sed -n "s/^FIRST = '\(pulse-v[0-9.]*\)'.*/\1/p")
+  first=${first:-pulse-v1.1.0}
+  cur=$([ -L "$HOME_DIR/current" ] && basename "$(readlink "$HOME_DIR/current")" || true)
+  if [ -n "$cur" ] && version_ge "${cur#pulse-v}" "${first#pulse-v}"; then
+    ok "installed: $cur; running its installer to repair anything missing"
+    shims
+    run "$SITEKITCTL" install 2>&1 | sed 's/^/  /'
+    return
   fi
-  # The `sitekit` command, running whichever release is current.
-  put "$SITEKIT" 755 <<EOF
-#!/bin/sh
-# sitekit from the managed install (written by tools/setup.sh); follows ~/.local/share/sitekit/current.
-PYTHONPATH="$HOME_DIR/current/tools\${PYTHONPATH:+:\$PYTHONPATH}" exec "$HOME_DIR/venv/bin/python" -m sitekit "\$@"
-EOF
-  # Rewrites the unit, launchers and browser host for this release (the bootstrap just did); harmless when they're right.
-  if [ "${FRESH:-0}" = 0 ]; then
-    run "$SITEKIT" pulse install | sed 's/^/  /'
-    run "$SITEKIT" pulse browser | sed 's/^/  /'
+  # Verify the newest release ourselves before running any of its code; its installer then takes over.
+  local tag= t out refused=()
+  for t in $(git -C "$REPO" tag -l 'pulse-v*' | sort -rV); do
+    version_ge "${t#pulse-v}" "${first#pulse-v}" || { refused+=("$t: older than $first, which has the installer"); continue; }
+    if out=$(git -C "$REPO" -c gpg.ssh.allowedSignersFile="$SIGNERS" verify-tag "$t" 2>&1); then tag=$t; break; fi
+    refused+=("$t: signed by $(grep -o 'key SHA256:[^ ]*' <<<"$out" || echo nobody), not a key in $SIGNERS")
+  done
+  if [ -z "$tag" ]; then
+    printf '  %s\n' "${refused[@]}" >&2
+    die "no release from $first on is signed by a trusted key. Make one from an up-to-date master checkout with the key on your GitHub account (sitekit release ${first#pulse-v}), or use --dev."
   fi
+  ok "$tag is signed by a trusted key"
+  git -C "$REPO" archive "$tag" tools | tar -x -C "$TMP"
+  local venv=$HOME_DIR/venv deps
+  [ -x "$venv/bin/python" ] || run "$PY" -m venv --system-site-packages "$venv"
+  deps=$("$PY" -c 'import sys,tomllib; print(" ".join(tomllib.load(open(sys.argv[1],"rb"))["project"]["dependencies"]))' "$TMP/tools/pyproject.toml")
+  # shellcheck disable=SC2086
+  run "$venv/bin/python" -m pip install --quiet --disable-pip-version-check $deps
+  run env PYTHONPATH="$TMP/tools" "$venv/bin/python" -m sitekit.manage install --from "$REPO_HTTPS" 2>&1 | sed 's/^/  /'
+  [ "${PIPESTATUS[0]}" = 0 ] || die "sitekitctl install failed; see above, then run this again"
+  shims
 }
 
 install_dev() {
   step "sitekit (editable, from $CHECKOUT)"
+  [ -L "$HOME_DIR/current" ] && die "a managed install is in $HOME_DIR; remove it first with: sitekitctl uninstall"
   has pipx || root apt-get install -y -qq pipx || die "install pipx first"
+  for cmd in sitekit sitekitctl; do      # this script's shims for a managed install would shadow pipx's
+    grep -qs 'written by tools/setup.sh' "$BIN/$cmd" && run rm -f "$BIN/$cmd"
+  done
   run pipx install --force --editable --system-site-packages "$CHECKOUT/tools" >/dev/null && ok "pipx install -e $CHECKOUT/tools"
-  run "$SITEKIT" pulse install | sed 's/^/  /'
-  run "$SITEKIT" pulse browser | sed 's/^/  /'
+  run "$SITEKITCTL" install --dev 2>&1 | sed 's/^/  /'
 }
 
 # ------------------------------------------------------------------------------------------------------ timers
@@ -461,7 +475,7 @@ check() {
     if systemctl --user is-active -q sitekit-pulse; then ok "sitekit-pulse is running"
     else note "sitekit-pulse is not running: journalctl --user -u sitekit-pulse"; fi
   fi
-  timeout 90 "$SITEKIT" pulse status 2>&1 | sed 's/^/  /' || note "sitekit pulse status failed"
+  timeout 90 "$SITEKITCTL" verify 2>&1 | sed 's/^/  /' || note "sitekitctl verify found a problem (above)"
 }
 
 # -------------------------------------------------------------------------------------------------------- main
@@ -486,6 +500,6 @@ check
 
 step "Left for you"
 ext=$HOME_DIR/current/tools/sitekit/extension; [ "$DEV" = 1 ] && ext=$CHECKOUT/tools/sitekit/extension
-echo "  - Browser extension: chrome://extensions › Developer mode › Load unpacked › $ext"
+echo "  - Browser extension, unless sitekitctl said it's loaded: chrome://extensions › Developer mode › Load unpacked › $ext"
 echo "  - Review what pulse publishes: sitekit settings (or edit $CONFIG)"
 for n in "${NOTES[@]}"; do echo "  - $n"; done
