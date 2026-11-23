@@ -34,15 +34,17 @@ curl -fsSL https://raw.githubusercontent.com/un1tz3r0/un1tz3r0.github.io/master/
 tools/setup.sh --dry-run    # from a checkout: show what it would change
 ```
 
-`setup.sh` does everything below in one go and can be run again at any time; it only does what's missing. It installs
-the system packages (git, ffmpeg, GTK 4 and libadwaita for the panel icon and settings window, `xprintidle` on X11),
-raises the inotify limit, and on GNOME enables the AppIndicator and *Focused Window D-Bus* extensions. It trusts the
-SSH *signing* keys on your GitHub account for releases (add one with `gh ssh-key add KEY.pub --type signing`;
-`--trust KEY.pub` instead adds one by hand) and makes a [managed install](#updates-signed-releases-that-install-themselves), replacing a pipx one. It
-writes `pulse.toml` with `[discover]` pointed at the folder your GitHub checkouts are in, and installs the daemon, panel
-icon and browser host. Then it enables `sitekit-refresh.timer`: daily `history`, `sync` and `claude scan` in a checkout
-of their own, committed and pushed. If `[media]` sets `remote` and `backup`, it also enables `sitekit-backup.timer`.
-`--dev` installs your checkout editable instead, `--no-system` stays inside `~`, and `--no-timers` skips the timers.
+`setup.sh` gets a machine ready around [`sitekitctl install`](#installing-pulse-sitekitctl) and then runs it, and it
+can be run again at any time: it only does what's missing. Before the install it puts in the system packages (git,
+ffmpeg, GTK 4 and libadwaita for the panel icon and settings window, `xprintidle` on X11), raises the inotify limit, and
+on GNOME enables the AppIndicator and *Focused Window D-Bus* extensions. It trusts the SSH *signing* keys on your GitHub
+account (add one with `gh ssh-key add KEY.pub --type signing`; `--trust KEY.pub` adds one by hand). It writes
+`pulse.toml` with `[discover]` pointed at the folder your GitHub checkouts are in, and checks the newest release's
+signature before running that release's installer. It replaces a pipx install, and puts `sitekit` and `sitekitctl` in
+`~/.local/bin`. Afterwards it enables `sitekit-refresh.timer`, which runs `history`, `sync` and `claude scan` daily in a
+checkout of its own, then commits and pushes. If `[media]` sets `remote` and `backup`, it also enables
+`sitekit-backup.timer`. `--dev` installs your checkout editable instead, `--no-system` stays inside `~`, and
+`--no-timers` skips the timers.
 
 ## What lives where
 
