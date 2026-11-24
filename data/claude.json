@@ -1,5 +1,5 @@
 {
- "generated": "2026-11-23T09:31:08Z",
+ "generated": "2026-11-24T09:28:54Z",
  "projects": {
   "chan_01UT1WhTnsH8mmRrT168j2FK": {
    "repos": [
@@ -7,15 +7,29 @@
    ],
    "sessions": 2,
    "first": "2026-10-08",
-   "last": "2026-11-22",
+   "last": "2026-11-24",
    "prs": [
+    {
+     "repo": "un1tz3r0/vcvmapper",
+     "number": 9,
+     "title": "Design snapshots (Poses) and the recorder (Reel)",
+     "url": "https://github.com/un1tz3r0/vcvmapper/pull/9",
+     "state": "open",
+     "created": "2026-11-24",
+     "commits": 1,
+     "files": 2,
+     "additions": 56,
+     "deletions": 7,
+     "by": "un1tz3r0"
+    },
     {
      "repo": "un1tz3r0/vcvmapper",
      "number": 7,
      "title": "Phase 6: Tether, targeting by cord",
      "url": "https://github.com/un1tz3r0/vcvmapper/pull/7",
-     "state": "open",
+     "state": "merged",
      "created": "2026-11-22",
+     "merged": "2026-11-24",
      "commits": 1,
      "files": 18,
      "additions": 442,
@@ -79,6 +93,29 @@
     }
    ],
    "commits": 2
+  },
+  "chan_01UT1WhTnsH8mmRrT168j2FKPPZTKhvkHMVc6cyAHzkozc": {
+   "repos": [
+    "un1tz3r0/vcvmapper"
+   ],
+   "first": "2026-11-24",
+   "last": "2026-11-24",
+   "prs": [
+    {
+     "repo": "un1tz3r0/vcvmapper",
+     "number": 8,
+     "title": "Phase 7: Stage, the hub, and its Crew expander",
+     "url": "https://github.com/un1tz3r0/vcvmapper/pull/8",
+     "state": "merged",
+     "created": "2026-11-24",
+     "merged": "2026-11-24",
+     "commits": 2,
+     "files": 12,
+     "additions": 1126,
+     "deletions": 9,
+     "by": "un1tz3r0"
+    }
+   ]
   },
   "chan_01FKDa5Rn5Hi2cYoGv1SCGAR": {
    "name": "un1tz3r0.github.io",
@@ -214,9 +251,9 @@
      "created": "2026-10-21",
      "merged": "2026-10-28",
      "commits": 3,
-     "files": 0,
-     "additions": 0,
-     "deletions": 0,
+     "files": 582,
+     "additions": 12135,
+     "deletions": 274,
      "by": "un1tz3r0"
     }
    ]
@@ -856,21 +893,22 @@
    "un1tz3r0/video-overlay-animation-studio"
   ],
   "sessions": 24,
-  "commits": 59,
+  "commits": 62,
   "first": "2025-09-04",
-  "last": "2026-11-23",
+  "last": "2026-11-24",
   "prs": [
    {
     "repo": "un1tz3r0/vfbd3",
     "number": 2,
     "title": "Preview: arrow-field motion, attention correspondence and attention split panels",
     "url": "https://github.com/un1tz3r0/vfbd3/pull/2",
-    "state": "open",
+    "state": "merged",
     "created": "2026-11-23",
-    "commits": 1,
+    "merged": "2026-11-24",
+    "commits": 2,
     "files": 9,
-    "additions": 276,
-    "deletions": 49
+    "additions": 285,
+    "deletions": 65
    },
    {
     "repo": "un1tz3r0/un1tz3r0.github.io",
@@ -1046,8 +1084,9 @@
     "number": 2,
     "title": "Add the Overlay Studio source, desktop packager and docs",
     "url": "https://github.com/un1tz3r0/video-overlay-animation-studio/pull/2",
-    "state": "open",
+    "state": "merged",
     "created": "2026-10-28",
+    "merged": "2026-11-24",
     "commits": 3,
     "files": 21,
     "additions": 5251,
