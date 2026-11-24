@@ -1,5 +1,5 @@
 {
- "generated": "2026-11-24T12:22:40Z",
+ "generated": "2026-11-24T13:22:40Z",
  "machine": "fay",
  "publish": [
   "sessions",
@@ -71,6 +71,18 @@
       "cache_write": 89588
      }
     }
+   }
+  },
+  "2026-11-24": {
+   "sessions": 1,
+   "tokens": {
+    "in": 4,
+    "out": 3272,
+    "cache_read": 70447,
+    "cache_write": 23852
+   },
+   "models": {
+    "claude-opus-5-5": 3276
    }
   }
  }
