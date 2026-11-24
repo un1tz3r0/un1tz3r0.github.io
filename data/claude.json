@@ -1,5 +1,5 @@
 {
- "generated": "2026-11-24T09:28:54Z",
+ "generated": "2026-11-24T12:19:34Z",
  "projects": {
   "chan_01UT1WhTnsH8mmRrT168j2FK": {
    "repos": [
@@ -11,14 +11,29 @@
    "prs": [
     {
      "repo": "un1tz3r0/vcvmapper",
+     "number": 11,
+     "title": "Release automatically when a merge bumps the version",
+     "url": "https://github.com/un1tz3r0/vcvmapper/pull/11",
+     "state": "merged",
+     "created": "2026-11-24",
+     "merged": "2026-11-24",
+     "commits": 1,
+     "files": 3,
+     "additions": 121,
+     "deletions": 19,
+     "by": "un1tz3r0"
+    },
+    {
+     "repo": "un1tz3r0/vcvmapper",
      "number": 9,
      "title": "Design snapshots (Poses) and the recorder (Reel)",
      "url": "https://github.com/un1tz3r0/vcvmapper/pull/9",
-     "state": "open",
+     "state": "merged",
      "created": "2026-11-24",
-     "commits": 1,
+     "merged": "2026-11-24",
+     "commits": 2,
      "files": 2,
-     "additions": 56,
+     "additions": 59,
      "deletions": 7,
      "by": "un1tz3r0"
     },
@@ -251,9 +266,9 @@
      "created": "2026-10-21",
      "merged": "2026-10-28",
      "commits": 3,
-     "files": 582,
-     "additions": 12135,
-     "deletions": 274,
+     "files": 0,
+     "additions": 0,
+     "deletions": 0,
      "by": "un1tz3r0"
     }
    ]
@@ -892,11 +907,37 @@
    "un1tz3r0/vfbd3",
    "un1tz3r0/video-overlay-animation-studio"
   ],
-  "sessions": 24,
-  "commits": 62,
+  "sessions": 25,
+  "commits": 66,
   "first": "2025-09-04",
   "last": "2026-11-24",
   "prs": [
+   {
+    "repo": "un1tz3r0/vcvmapper",
+    "number": 12,
+    "title": "Add Reel: record controls into clips and play them back",
+    "url": "https://github.com/un1tz3r0/vcvmapper/pull/12",
+    "state": "merged",
+    "created": "2026-11-24",
+    "merged": "2026-11-24",
+    "commits": 1,
+    "files": 14,
+    "additions": 917,
+    "deletions": 31
+   },
+   {
+    "repo": "un1tz3r0/vcvmapper",
+    "number": 10,
+    "title": "Add Poses: snapshots with glide and an A/B crossfader",
+    "url": "https://github.com/un1tz3r0/vcvmapper/pull/10",
+    "state": "merged",
+    "created": "2026-11-24",
+    "merged": "2026-11-24",
+    "commits": 1,
+    "files": 13,
+    "additions": 707,
+    "deletions": 15
+   },
    {
     "repo": "un1tz3r0/vfbd3",
     "number": 2,
