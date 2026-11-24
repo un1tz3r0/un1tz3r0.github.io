@@ -8,7 +8,7 @@ forks = true
 # Repos left off the timeline and the feed, by name or owner/name.
 ignore = []
 # Repos the API listing misses: other people's repos you commit to, or local checkouts (counted, never named in the feed).
-repos = ["jfischoff/next-pose-control-net", "appostasy-io/appostasy.io"]
+repos = []
 
 # Feeds `sitekit sync` imports from (the daily workflow runs it). kind: post, status, link, media or lj.
 [[feeds]]
