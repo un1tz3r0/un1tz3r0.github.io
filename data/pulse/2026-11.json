@@ -514,13 +514,13 @@
    "projects": {}
   },
   "2026-11-24": {
-   "active": 187,
+   "active": 247,
    "hours": [
     53,
     61,
     50,
+    60,
     23,
-    0,
     0,
     0,
     0,
@@ -542,11 +542,18 @@
     0
    ],
    "apps": {
-    "other": 140,
-    "browser": 46,
+    "other": 169,
+    "browser": 77,
     "audio": 1
    },
    "projects": {
+    "speak-rack2-plugin": {
+     "minutes": 17,
+     "activity": {
+      "code": 13,
+      "repo": 4
+     }
+    },
     "vcvmapper": {
      "minutes": 10,
      "activity": {
@@ -558,14 +565,14 @@
     }
    },
    "sites": {
-    "code": 10
+    "code": 27
    },
    "web": [
     0,
     36,
     10,
-    0,
-    0,
+    11,
+    20,
     0,
     0,
     0,

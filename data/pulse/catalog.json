@@ -1,4 +1,9 @@
 {
+ "speak-rack2-plugin": {
+  "type": "github",
+  "name": "speak-rack2-plugin",
+  "url": "https://github.com/un1tz3r0/speak-rack2-plugin"
+ },
  "vcvmapper": {
   "type": "github",
   "name": "vcvmapper",
