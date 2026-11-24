@@ -514,12 +514,12 @@
    "projects": {}
   },
   "2026-11-24": {
-   "active": 131,
+   "active": 187,
    "hours": [
     53,
     61,
-    17,
-    0,
+    50,
+    23,
     0,
     0,
     0,
@@ -542,24 +542,28 @@
     0
    ],
    "apps": {
-    "other": 94,
-    "browser": 37
+    "other": 140,
+    "browser": 46,
+    "audio": 1
    },
    "projects": {
     "vcvmapper": {
-     "minutes": 5,
+     "minutes": 10,
      "activity": {
-      "repo": 5
+      "repo": 5,
+      "review": 2,
+      "ci": 2,
+      "releases": 1
      }
     }
    },
    "sites": {
-    "code": 5
+    "code": 10
    },
    "web": [
     0,
     36,
-    1,
+    10,
     0,
     0,
     0,
