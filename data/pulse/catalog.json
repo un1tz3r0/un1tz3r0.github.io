@@ -1,1 +1,7 @@
-{}
+{
+ "vcvmapper": {
+  "type": "github",
+  "name": "vcvmapper",
+  "url": "https://github.com/un1tz3r0/vcvmapper"
+ }
+}
