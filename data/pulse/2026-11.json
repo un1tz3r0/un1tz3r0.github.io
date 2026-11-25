@@ -514,7 +514,7 @@
    "projects": {}
   },
   "2026-11-24": {
-   "active": 779,
+   "active": 819,
    "hours": [
     53,
     61,
@@ -538,12 +538,12 @@
     26,
     6,
     37,
-    5,
+    45,
     0
    ],
    "apps": {
-    "other": 665,
-    "browser": 113,
+    "other": 667,
+    "browser": 151,
     "audio": 1
    },
    "projects": {
@@ -555,9 +555,9 @@
      }
     },
     "un1tz3r0.github.io": {
-     "minutes": 1,
+     "minutes": 38,
      "activity": {
-      "repo": 1
+      "repo": 38
      }
     },
     "vcvmapper": {
@@ -571,7 +571,7 @@
     }
    },
    "sites": {
-    "code": 28
+    "code": 65
    },
    "web": [
     0,
@@ -596,7 +596,7 @@
     0,
     0,
     0,
-    1,
+    39,
     0
    ],
    "claude": {
