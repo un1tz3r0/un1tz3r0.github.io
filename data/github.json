@@ -1,5 +1,5 @@
 {
- "generated": "2026-11-24T12:19:26Z",
+ "generated": "2026-11-25T09:29:11Z",
  "user": "un1tz3r0",
  "repos": {
   "un1tz3r0/BluetoothPanel": {
@@ -398,10 +398,11 @@
    "archived": false,
    "created": "2023-07-07",
    "fork": true,
-   "commits": 117,
-   "first": "2026-02-24",
+   "commits": 119,
+   "first": "2023-07-07",
    "last": "2026-11-16",
    "days": {
+    "2023-07-07": 2,
     "2026-02-24": 1,
     "2026-04-02": 1,
     "2026-04-16": 1,
@@ -1110,6 +1111,23 @@
     "2012-06-06": 2
    }
   },
+  "un1tz3r0/pyvene": {
+   "url": "https://github.com/un1tz3r0/pyvene",
+   "description": "Stanford NLP Python Library for Understanding and Improving PyTorch Models via Interventions",
+   "language": "Python",
+   "homepage": "https://pyvene.ai",
+   "stars": 0,
+   "private": false,
+   "archived": false,
+   "created": "2024-03-17",
+   "fork": true,
+   "commits": 1,
+   "first": "2024-08-27",
+   "last": "2024-08-27",
+   "days": {
+    "2024-08-27": 1
+   }
+  },
   "un1tz3r0/raspi-tools": {
    "url": "https://github.com/un1tz3r0/raspi-tools",
    "description": "piimg: customize and repair Raspberry Pi OS images and SD cards offline (libguestfs, no root, TUI)",
@@ -1334,10 +1352,13 @@
    "archived": false,
    "created": "2021-11-09",
    "fork": true,
-   "commits": 43,
-   "first": "2021-12-09",
+   "commits": 49,
+   "first": "2021-11-09",
    "last": "2022-02-15",
    "days": {
+    "2021-11-09": 4,
+    "2021-11-10": 1,
+    "2021-11-11": 1,
     "2021-12-09": 1,
     "2021-12-10": 3,
     "2021-12-13": 2,
@@ -1399,9 +1420,9 @@
    "private": false,
    "archived": false,
    "created": "2017-11-01",
-   "commits": 313,
+   "commits": 342,
    "first": "2023-02-07",
-   "last": "2026-11-24",
+   "last": "2026-11-25",
    "days": {
     "2023-02-07": 2,
     "2023-03-07": 1,
@@ -1453,7 +1474,8 @@
     "2026-11-21": 1,
     "2026-11-22": 12,
     "2026-11-23": 13,
-    "2026-11-24": 5
+    "2026-11-24": 25,
+    "2026-11-25": 9
    },
    "claude": {
     "2026-10-21": 1,
@@ -1465,7 +1487,8 @@
     "2026-11-16": 13,
     "2026-11-18": 5,
     "2026-11-20": 2,
-    "2026-11-22": 4
+    "2026-11-22": 4,
+    "2026-11-25": 3
    }
   },
   "un1tz3r0/unicodesnipper": {

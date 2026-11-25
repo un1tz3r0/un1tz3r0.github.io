@@ -1,5 +1,5 @@
 {
- "generated": "2026-11-24T12:19:34Z",
+ "generated": "2026-11-25T09:29:12Z",
  "projects": {
   "chan_01UT1WhTnsH8mmRrT168j2FK": {
    "repos": [
@@ -266,9 +266,9 @@
      "created": "2026-10-21",
      "merged": "2026-10-28",
      "commits": 3,
-     "files": 0,
-     "additions": 0,
-     "deletions": 0,
+     "files": 582,
+     "additions": 12135,
+     "deletions": 274,
      "by": "un1tz3r0"
     }
    ]
@@ -910,8 +910,46 @@
   "sessions": 25,
   "commits": 66,
   "first": "2025-09-04",
-  "last": "2026-11-24",
+  "last": "2026-11-25",
   "prs": [
+   {
+    "repo": "un1tz3r0/un1tz3r0.github.io",
+    "number": 22,
+    "title": "sitekit: feed commands commit what they change",
+    "url": "https://github.com/un1tz3r0/un1tz3r0.github.io/pull/22",
+    "state": "open",
+    "created": "2026-11-25",
+    "commits": 1,
+    "files": 7,
+    "additions": 217,
+    "deletions": 10
+   },
+   {
+    "repo": "un1tz3r0/un1tz3r0.github.io",
+    "number": 21,
+    "title": "gitremote: undo a pull whose autostash can't re-apply",
+    "url": "https://github.com/un1tz3r0/un1tz3r0.github.io/pull/21",
+    "state": "merged",
+    "created": "2026-11-25",
+    "merged": "2026-11-25",
+    "commits": 1,
+    "files": 2,
+    "additions": 61,
+    "deletions": 3
+   },
+   {
+    "repo": "un1tz3r0/un1tz3r0.github.io",
+    "number": 20,
+    "title": "tray: fix the pulse panel icon's menu flooding the GNOME journal",
+    "url": "https://github.com/un1tz3r0/un1tz3r0.github.io/pull/20",
+    "state": "merged",
+    "created": "2026-11-25",
+    "merged": "2026-11-25",
+    "commits": 1,
+    "files": 2,
+    "additions": 47,
+    "deletions": 2
+   },
    {
     "repo": "un1tz3r0/vcvmapper",
     "number": 12,
