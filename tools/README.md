@@ -80,8 +80,14 @@ sitekit rm status:1a2b3c4d5e6f
 ```
 
 Text is Markdown. `--time 2026-10-21T20:00:00-07:00` backdates an entry. Every command prints the entry id, and
-running the same command again updates the entry rather than duplicating it. Commit and push `data/` and `media/`
-when you're done.
+running the same command again updates the entry rather than duplicating it.
+
+Each of these commands, and `import` and `sync`, commits what it changed in the site checkout: the `data/feed/` files
+it wrote and any media it copied into `media/`, and nothing else, even if other files are staged. A command that
+changes nothing commits nothing. Pushing is left to pulse, whose next publish pushes any commits origin doesn't have
+yet; `sitekit push` pushes now. `--no-commit` (before the command, as in `sitekit --no-commit sync`) leaves the
+changes uncommitted, for scripts that commit `data/` themselves. If the commit fails (no git identity, a hook), the
+command says so and the files stay written.
 
 ## Importing old posts
 

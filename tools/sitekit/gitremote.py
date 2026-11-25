@@ -1,4 +1,4 @@
-"""Clone, pull and push a GitHub checkout by whatever route works on this machine.
+"""Clone, pull and push a GitHub checkout by whatever route works on this machine, and commit chosen paths in it.
 
 A fresh machine often has no SSH key on GitHub, or no git credentials for HTTPS, so one fixed remote URL fails. For a
 GitHub remote each operation tries, in order, until one works:
@@ -108,3 +108,34 @@ async def push(repo: Path, log=None) -> None:
     await attempt(await origin(repo), lambda u, o, env: run(
         'git', '-C', str(repo), *o, 'push', '--quiet', u, f'HEAD:refs/heads/{b}', env=env), log)
     await run('git', '-C', str(repo), 'update-ref', f'refs/remotes/origin/{b}', 'HEAD')
+
+
+async def ahead(repo: Path) -> int:
+    """How many commits HEAD has that origin/<branch> doesn't (all of them if there is no origin/<branch>)."""
+    b = await branch(repo)
+    out = await run('git', '-C', str(repo), 'rev-list', '--count', f'origin/{b}..HEAD', check=False)
+    return int(out) if out.strip() else int(await run('git', '-C', str(repo), 'rev-list', '--count', 'HEAD'))
+
+
+async def commit(repo: Path, paths, message: str) -> bool:
+    """Commit exactly `paths` (relative to repo; new, changed or deleted), leaving anything else staged as it is.
+
+    Returns False without committing when repo isn't in a git checkout or none of the paths differ from HEAD. Paths
+    outside a sparse checkout's folders are added too, so media copied next to a data/-only checkout is committed.
+    """
+    g = lambda *a, **k: run('git', '-C', str(repo), *a, **k)
+    if not (paths := sorted({Path(p).as_posix() for p in paths})):
+        return False
+    if (await g('rev-parse', '--is-inside-work-tree', check=False)).strip() != 'true':
+        return False
+    here = [p for p in paths if (repo / p).exists()]
+    known = set((await g('ls-files', '--sparse', '--', *paths)).splitlines())
+    gone = [p for p in paths if p not in here and p in known]
+    if here:
+        await g('add', '--sparse', '--', *here)
+    if gone:
+        await g('rm', '--cached', '--quiet', '--sparse', '--', *gone)
+    if not (take := here + gone) or not (await g('diff', '--cached', '--name-only', '--', *take)).strip():
+        return False
+    await g('commit', '--quiet', '-m', message, '--only', '--', *take)
+    return True

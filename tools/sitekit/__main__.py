@@ -7,6 +7,7 @@ import importlib
 import json
 import os
 import sys
+from datetime import datetime
 from pathlib import Path
 
 from . import claude, compose, demos, gallery, gitremote, history, importers, mirror, pulse, update
@@ -23,6 +24,8 @@ def entry_args(p: argparse.ArgumentParser) -> None:
 def parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(prog='sitekit', description=__doc__)
     ap.add_argument('--site', type=Path, help='site checkout (default: nearest folder with a site.toml)')
+    ap.add_argument('--no-commit', action='store_true',
+                    help="leave feed changes uncommitted (post, status, link, media, rm, import and sync commit what they change)")
     sub = ap.add_subparsers(dest='cmd', required=True)
 
     h = sub.add_parser('history', help='rebuild data/github.json and the commit entries of the feed from git')
@@ -193,6 +196,37 @@ async def dispatch(a: argparse.Namespace) -> None:
         print(f'{feed.upsert(added)} of {len(added)} entries new or changed')
         if len(added) == 1:
             print(added[0]['id'])
+    if feed.touched and not a.no_commit:
+        await commit(site, feed, added or [], message(a))
+
+
+def message(a: argparse.Namespace) -> str:
+    match a.cmd:
+        case 'post':
+            return f'post: {a.title}'
+        case 'link':
+            return f'link: {a.url}'
+        case 'media':
+            return f'media: {Path(a.src).name}'
+        case 'rm':
+            return f'feed: rm {a.id}'
+        case 'import':
+            return f'feed: import {a.service}'
+        case 'status':
+            return f'status: {datetime.now():%Y-%m-%d %H:%M}'
+    return f'feed: {a.cmd}'
+
+
+async def commit(site: Path, feed: Feed, entries: list[dict], msg: str) -> None:
+    """Commit the feed files the command wrote and the media it copied into the site, so a later pull's rebase never
+    has to stash them. Pushing is left to pulse's next publish, or `sitekit push`."""
+    media = {m['src'] for e in entries for m in e.get('media', []) if '://' not in m.get('src', '://')}
+    try:
+        if await gitremote.commit(site, feed.touched | {p for p in media if (site / p).is_file()}, msg):
+            print(f'committed: {msg}')
+    except RuntimeError as e:
+        # not fatal: the entry is written, and the GitHub workflow runs `sync` with no git identity and commits data/ itself
+        print(f'sitekit: the feed is saved but not committed: {e}', file=sys.stderr)
 
 
 def main(argv=None) -> None:
