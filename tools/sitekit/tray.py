@@ -185,9 +185,13 @@ class Indicator:
         return props
 
     def node(self, ident: int, entry: dict, depth: int) -> GLib.Variant:
-        """Menu ids are positional (a child of n is n * 100 + its index + 1), so they stay stable across rebuilds."""
+        """Menu ids are positional (a child of n is n * 100 + its index + 1), so they stay stable across rebuilds.
+
+        Each child goes into the `av` as the (ia{sv}av) variant itself: the array's element type already boxes it, and
+        wrapping it in GLib.Variant('v', …) as well nests it twice, which the AppIndicator extension cannot unpack.
+        """
         self.items[ident] = entry
-        children = [GLib.Variant('v', self.node(ident * 100 + i + 1, child, depth - 1))
+        children = [self.node(ident * 100 + i + 1, child, depth - 1)
                     for i, child in enumerate(entry.get('children') or [])] if depth != 0 else []
         return GLib.Variant('(ia{sv}av)', (ident, self.props(entry), children))
 
