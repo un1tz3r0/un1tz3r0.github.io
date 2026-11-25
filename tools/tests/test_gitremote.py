@@ -118,6 +118,42 @@ def test_a_conflicting_pull_leaves_the_checkout_as_it_was(two):
     assert git('status', '--porcelain', cwd=b) == ''
 
 
+def stale_edit(two):
+    """b has an uncommitted edit to feed, and the remote has since changed feed too: the rebase onto it works, but
+    the edit can't re-apply on top."""
+    remote, a, b = two
+    commit(a, 'feed', 'base')
+    run(gitremote.push(a))
+    git('pull', '-q', cwd=b)
+    commit(a, 'feed', 'theirs')
+    run(gitremote.push(a))
+    commit(b, 'mine')
+    (b / 'feed').write_text('my uncommitted post')
+    return b
+
+
+def test_uncommitted_changes_that_conflict_with_the_pull_are_kept_as_they_were(two):
+    """Left to git, this leaves conflict markers and a stash behind, and every later autostash fails. pull must put
+    the checkout back instead, and say which files are in the way."""
+    b = stale_edit(two)
+    head = git('rev-parse', 'HEAD', cwd=b)
+    with pytest.raises(RuntimeError, match='uncommitted changes to feed'):
+        run(gitremote.pull(b))
+    assert git('rev-parse', 'HEAD', cwd=b) == head
+    assert (b / 'feed').read_text() == 'my uncommitted post'
+    assert git('ls-files', '-u', cwd=b) == '' and git('stash', 'list', cwd=b) == ''
+    assert git('status', '--porcelain', cwd=b) == 'M feed'
+
+
+def test_a_checkout_left_with_conflicts_is_refused_with_the_file_names(two):
+    b = stale_edit(two)
+    git('fetch', '-q', cwd=b)
+    git('rebase', '-q', '--autostash', 'origin/master', cwd=b)     # what an older pull left behind
+    assert git('ls-files', '-u', cwd=b)
+    with pytest.raises(RuntimeError, match='unresolved conflicts in feed'):
+        run(gitremote.pull(b))
+
+
 def test_clone_tries_routes_too(tmp_path, two):
     remote, *_ = two
     run(gitremote.clone(str(remote), tmp_path / 'c', '--sparse'))

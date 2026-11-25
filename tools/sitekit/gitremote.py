@@ -68,16 +68,38 @@ async def clone(url: str, dest: Path, *args: str, log=None) -> None:
     await attempt(url, lambda u, o, env: run('git', *o, 'clone', '--quiet', *args, u, str(dest), env=env), log)
 
 
+async def unmerged(repo: Path) -> list[str]:
+    return sorted({line.split('\t', 1)[1] for line in (await run('git', '-C', str(repo), 'ls-files', '-u')).splitlines()})
+
+
 async def pull(repo: Path, log=None) -> None:
-    """git pull --rebase --autostash of the current branch from origin, by any route; origin/<branch> follows."""
+    """git pull --rebase --autostash of the current branch from origin, by any route; origin/<branch> follows.
+
+    If it fails, the checkout is left as it was: commits, uncommitted changes and all. That includes the case git
+    itself does not undo: the rebase works but the uncommitted changes don't re-apply on top of it. Git then leaves
+    conflict markers in the files and the changes in a stash, and every later autostash is refused. So it is undone
+    here, and the error names the files to commit or discard.
+    """
+    g = lambda *a, **k: run('git', '-C', str(repo), *a, **k)
+    if stuck := await unmerged(repo):
+        raise RuntimeError(f'{repo} has unresolved conflicts in {", ".join(stuck)}; resolve them (git status) first')
     b = await branch(repo)
     await attempt(await origin(repo), lambda u, o, env: run(
         'git', '-C', str(repo), *o, 'fetch', '--quiet', u, f'+refs/heads/{b}:refs/remotes/origin/{b}', env=env), log)
+    before = (await g('rev-parse', 'HEAD')).strip()
+    stashes = len((await g('stash', 'list')).splitlines())
     try:
-        await run('git', '-C', str(repo), 'rebase', '--quiet', '--autostash', f'origin/{b}')
+        await g('rebase', '--quiet', '--autostash', f'origin/{b}')
     except RuntimeError:
-        await run('git', '-C', str(repo), 'rebase', '--abort', check=False)     # leave the checkout as it was
+        await g('rebase', '--abort', check=False)     # leave the checkout as it was
         raise
+    if conflicted := await unmerged(repo):
+        # the autostash was kept as stash@{0}; it applies cleanly to the commit it was made on
+        await g('reset', '--quiet', '--hard', before)
+        if len((await g('stash', 'list')).splitlines()) > stashes:
+            await g('stash', 'pop', '--quiet')
+        raise RuntimeError(f'pulling origin/{b} conflicts with uncommitted changes to {", ".join(conflicted)}; '
+                           f'commit or discard them in {repo}')
 
 
 async def push(repo: Path, log=None) -> None:
