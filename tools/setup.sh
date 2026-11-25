@@ -376,7 +376,7 @@ for attempt in 1 2 3; do
   git -C "\$site" fetch --quiet origin master && git -C "\$site" checkout --quiet -B master origin/master \\
     && git -C "\$site" reset --quiet --hard origin/master || exit 1
   "\$sitekit" --site "\$site" history || failed=1
-  "\$sitekit" --site "\$site" sync || failed=1
+  "\$sitekit" --site "\$site" --no-commit sync || failed=1   # committed below, with the rest
   "\$sitekit" --site "\$site" claude scan || failed=1
   git -C "\$site" add data
   if git -C "\$site" diff --cached --quiet; then echo 'nothing changed'; exit \$failed; fi

@@ -20,7 +20,8 @@ def clean(entry: dict) -> dict:
 
 class Feed:
     def __init__(self, site: Path):
-        self.dir = site / 'data' / 'feed'
+        self.site, self.dir = site, site / 'data' / 'feed'
+        self.touched: set[Path] = set()     # files written or deleted, relative to site: what a commit should take
 
     def months(self) -> list[str]:
         return sorted((p.stem for p in self.dir.glob('[0-9][0-9][0-9][0-9]-[0-9][0-9].json')), reverse=True)
@@ -30,6 +31,7 @@ class Feed:
 
     def save(self, month: str, entries: dict[str, dict]) -> None:
         path = self.dir / f'{month}.json'
+        self.touched.add(path.relative_to(self.site))
         if entries:
             write_rows(path, {'month': month}, 'entries', sorted(entries.values(), key=lambda e: e['time'], reverse=True))
         else:
@@ -49,7 +51,8 @@ class Feed:
             if new != cur:
                 changed += sum(cur.get(i) != e for i, e in new.items()) + len(cur.keys() - new.keys())
                 self.save(month, new)
-        self.reindex()
+        if changed or not (self.dir / 'index.json').exists():
+            self.reindex()
         return changed
 
     def urls(self) -> dict[str, str]:
@@ -70,3 +73,4 @@ class Feed:
             entries = self.load(month).values()
             months.append({'month': month, 'count': len(entries), 'kinds': dict(Counter(e['kind'] for e in entries))})
         write_json(self.dir / 'index.json', {'updated': now(), 'months': months})
+        self.touched.add((self.dir / 'index.json').relative_to(self.site))

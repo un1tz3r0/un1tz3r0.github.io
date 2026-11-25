@@ -578,11 +578,15 @@ async def publish(s: Settings, db: sqlite3.Connection) -> None:
         except (OSError, ValueError) as e:
             log(f'claude scan failed: {e}', kind='warning')
     await git('add', *paths)
-    if (await git('status', '--porcelain', '--', *paths)).strip():
+    committed = bool((await git('status', '--porcelain', '--', *paths)).strip())
+    if committed:
         await git('commit', '--quiet', '-m', f'pulse: {datetime.now():%Y-%m-%d %H:%M}', '--', *paths)
-        if s.push:
-            await gitremote.push(s.site, log)
-        log(f'published {len(days)} day(s)' + (' and pushed' if s.push else ''), kind='publish')
+    # also push commits made since the last push by others in this checkout: `sitekit status`, `post` and the rest
+    pushed = s.push and await gitremote.ahead(s.site) > 0
+    if pushed:
+        await gitremote.push(s.site, log)
+    if committed or pushed:
+        log(f'published {len(days)} day(s)' + (' and pushed' if pushed else ''), kind='publish')
 
 
 SOCKET = expand(os.environ.get('XDG_RUNTIME_DIR') or f'/tmp/sitekit-{os.getuid()}') / 'sitekit-pulse.sock'
