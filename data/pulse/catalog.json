@@ -4,6 +4,11 @@
   "name": "speak-rack2-plugin",
   "url": "https://github.com/un1tz3r0/speak-rack2-plugin"
  },
+ "un1tz3r0.github.io": {
+  "type": "github",
+  "name": "un1tz3r0.github.io",
+  "url": "https://github.com/un1tz3r0/un1tz3r0.github.io"
+ },
  "vcvmapper": {
   "type": "github",
   "name": "vcvmapper",
