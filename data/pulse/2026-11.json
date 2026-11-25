@@ -609,9 +609,9 @@
    }
   },
   "2026-11-25": {
-   "active": 1,
+   "active": 20,
    "hours": [
-    1,
+    20,
     0,
     0,
     0,
@@ -637,9 +637,69 @@
     0
    ],
    "apps": {
-    "other": 1
+    "other": 18,
+    "browser": 2
    },
-   "projects": {}
+   "projects": {
+    "un1tz3r0.github.io": {
+     "minutes": 8,
+     "activity": {
+      "review": 2
+     },
+     "files": 21,
+     "ext": {
+      ".json": 13,
+      ".py": 2,
+      "other": 2,
+      ".f02a1a7f06df": 1,
+      ".1ce9de018de2": 1,
+      ".html": 1
+     },
+     "claude": {
+      "conversations": 1,
+      "prompts": 4,
+      "minutes": 15,
+      "tokens": 86609
+     }
+    }
+   },
+   "sites": {
+    "code": 2
+   },
+   "web": [
+    2,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "claude": {
+    "code": {
+     "conversations": 1,
+     "prompts": 4,
+     "minutes": 15,
+     "tokens": 86609
+    }
+   }
   }
  },
  "tz": "-08:00"
