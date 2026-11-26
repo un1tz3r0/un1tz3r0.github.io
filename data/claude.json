@@ -1,26 +1,41 @@
 {
- "generated": "2026-11-26T09:28:30Z",
+ "generated": "2026-11-26T12:04:25Z",
  "projects": {
   "chan_01XRgXcSr2GQypjGJdvvDKr4": {
    "repos": [
     "un1tz3r0/vcvspools"
    ],
    "sessions": 1,
-   "commits": 19,
+   "commits": 42,
    "first": "2026-11-26",
    "last": "2026-11-26",
    "prs": [
     {
      "repo": "un1tz3r0/vcvspools",
-     "number": 3,
-     "title": "2.1 Foundation and import + 2.2 Playback proof of concept",
-     "url": "https://github.com/un1tz3r0/vcvspools/pull/3",
-     "state": "open",
+     "number": 4,
+     "title": "Milestones 2.7–2.8: Loop, Auto-loop and Stretch tails, SLICE page, performance, docs",
+     "url": "https://github.com/un1tz3r0/vcvspools/pull/4",
+     "state": "merged",
      "created": "2026-11-26",
-     "commits": 16,
-     "files": 78,
-     "additions": 36858,
-     "deletions": 50,
+     "merged": "2026-11-26",
+     "commits": 9,
+     "files": 43,
+     "additions": 2246,
+     "deletions": 85,
+     "by": "un1tz3r0"
+    },
+    {
+     "repo": "un1tz3r0/vcvspools",
+     "number": 3,
+     "title": "Milestones 2.1–2.6: import, playback, slicing, tone, loop mode, panel and display",
+     "url": "https://github.com/un1tz3r0/vcvspools/pull/3",
+     "state": "merged",
+     "created": "2026-11-26",
+     "merged": "2026-11-26",
+     "commits": 31,
+     "files": 104,
+     "additions": 39590,
+     "deletions": 68,
      "by": "un1tz3r0"
     },
     {
@@ -304,9 +319,9 @@
      "created": "2026-10-21",
      "merged": "2026-10-28",
      "commits": 3,
-     "files": 0,
-     "additions": 0,
-     "deletions": 0,
+     "files": 582,
+     "additions": 12135,
+     "deletions": 274,
      "by": "un1tz3r0"
     }
    ]
