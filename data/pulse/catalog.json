@@ -14,6 +14,11 @@
   "name": "vcvmapper",
   "url": "https://github.com/un1tz3r0/vcvmapper"
  },
+ "vcvspools": {
+  "type": "github",
+  "name": "vcvspools",
+  "url": "https://github.com/un1tz3r0/vcvspools"
+ },
  "vfbd3": {
   "type": "github",
   "name": "vfbd3",
