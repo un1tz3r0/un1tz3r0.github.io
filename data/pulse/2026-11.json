@@ -662,6 +662,12 @@
       "tokens": 527529
      }
     },
+    "vcvspools": {
+     "minutes": 8,
+     "activity": {
+      "repo": 8
+     }
+    },
     "vfbd3": {
      "minutes": 10,
      "files": 8,
@@ -716,12 +722,12 @@
    }
   },
   "2026-11-26": {
-   "active": 83,
+   "active": 91,
    "hours": [
     60,
-    23,
-    0,
-    0,
+    24,
+    6,
+    1,
     0,
     0,
     0,
@@ -744,15 +750,15 @@
     0
    ],
    "apps": {
-    "other": 57,
-    "graphics": 23,
-    "browser": 3
+    "other": 59,
+    "graphics": 26,
+    "browser": 6
    },
    "projects": {},
    "web": [
     3,
     0,
-    0,
+    3,
     0,
     0,
     0,
