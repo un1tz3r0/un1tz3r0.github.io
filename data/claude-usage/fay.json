@@ -1,5 +1,5 @@
 {
- "generated": "2026-11-27T05:57:35Z",
+ "generated": "2026-11-27T06:57:36Z",
  "machine": "fay",
  "publish": [
   "sessions",
@@ -111,13 +111,13 @@
   "2026-11-26": {
    "sessions": 4,
    "tokens": {
-    "in": 134,
-    "out": 95538,
-    "cache_read": 5926357,
-    "cache_write": 387162
+    "in": 236,
+    "out": 176647,
+    "cache_read": 13771897,
+    "cache_write": 493498
    },
    "models": {
-    "claude-opus-5-5": 95672
+    "claude-opus-5-5": 176883
    },
    "repos": {
     "un1tz3r0/geo": {
