@@ -810,10 +810,10 @@
    }
   },
   "2026-11-27": {
-   "active": 48,
+   "active": 108,
    "hours": [
-    48,
-    0,
+    50,
+    58,
     0,
     0,
     0,
@@ -838,13 +838,25 @@
     0
    ],
    "apps": {
-    "browser": 48
+    "browser": 98,
+    "other": 10
    },
-   "projects": {},
+   "projects": {
+    "geo": {
+     "minutes": 0,
+     "claude": {
+      "conversations": 1,
+      "prompts": 1,
+      "minutes": 7,
+      "tokens": 86900
+     }
+    }
+   },
    "sites": {
-    "code": 48
+    "code": 83
    },
    "web": [
+    50,
     48,
     0,
     0,
@@ -867,9 +879,16 @@
     0,
     0,
     0,
-    0,
     0
-   ]
+   ],
+   "claude": {
+    "code": {
+     "conversations": 1,
+     "prompts": 1,
+     "minutes": 7,
+     "tokens": 86900
+    }
+   }
   }
  },
  "tz": "-08:00"
