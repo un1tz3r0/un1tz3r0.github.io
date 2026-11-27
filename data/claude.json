@@ -1,15 +1,28 @@
 {
- "generated": "2026-11-26T12:04:25Z",
+ "generated": "2026-11-27T09:28:07Z",
  "projects": {
   "chan_01XRgXcSr2GQypjGJdvvDKr4": {
    "repos": [
     "un1tz3r0/vcvspools"
    ],
    "sessions": 1,
-   "commits": 42,
+   "commits": 45,
    "first": "2026-11-26",
    "last": "2026-11-26",
    "prs": [
+    {
+     "repo": "un1tz3r0/vcvspools",
+     "number": 5,
+     "title": "2.10–2.11: Per-slice sends and CV, resizable 40–120 HP panel",
+     "url": "https://github.com/un1tz3r0/vcvspools/pull/5",
+     "state": "open",
+     "created": "2026-11-26",
+     "commits": 3,
+     "files": 23,
+     "additions": 246,
+     "deletions": 38,
+     "by": "un1tz3r0"
+    },
     {
      "repo": "un1tz3r0/vcvspools",
      "number": 4,
@@ -961,9 +974,9 @@
    "un1tz3r0/video-overlay-animation-studio"
   ],
   "sessions": 25,
-  "commits": 66,
+  "commits": 67,
   "first": "2025-09-04",
-  "last": "2026-11-25",
+  "last": "2026-11-26",
   "prs": [
    {
     "repo": "un1tz3r0/un1tz3r0.github.io",
