@@ -1,5 +1,5 @@
 {
- "generated": "2026-11-27T09:57:37Z",
+ "generated": "2026-11-27T10:57:37Z",
  "machine": "fay",
  "publish": [
   "sessions",
@@ -141,15 +141,15 @@
    }
   },
   "2026-11-27": {
-   "sessions": 1,
+   "sessions": 3,
    "tokens": {
-    "in": 20,
-    "out": 12156,
-    "cache_read": 573097,
-    "cache_write": 74724
+    "in": 146,
+    "out": 166622,
+    "cache_read": 10476505,
+    "cache_write": 347422
    },
    "models": {
-    "claude-opus-5-5": 12176
+    "claude-opus-5-5": 166768
    },
    "repos": {
     "un1tz3r0/funnelcake": {
@@ -164,10 +164,10 @@
     "un1tz3r0/geo": {
      "sessions": 1,
      "tokens": {
-      "in": 20,
-      "out": 12156,
-      "cache_read": 573097,
-      "cache_write": 74724
+      "in": 44,
+      "out": 29048,
+      "cache_read": 1914772,
+      "cache_write": 124209
      }
     }
    }
