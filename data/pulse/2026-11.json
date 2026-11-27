@@ -810,7 +810,7 @@
    }
   },
   "2026-11-27": {
-   "active": 156,
+   "active": 205,
    "hours": [
     50,
     60,
@@ -819,8 +819,8 @@
     0,
     0,
     0,
-    17,
-    0,
+    19,
+    47,
     0,
     0,
     0,
@@ -838,8 +838,8 @@
     0
    ],
    "apps": {
-    "browser": 145,
-    "other": 11
+    "browser": 192,
+    "other": 13
    },
    "projects": {
     "geo": {
@@ -863,8 +863,8 @@
     0,
     0,
     0,
-    16,
-    0,
+    17,
+    46,
     0,
     0,
     0,
@@ -883,10 +883,10 @@
    ],
    "claude": {
     "code": {
-     "conversations": 3,
-     "prompts": 5,
-     "minutes": 64,
-     "tokens": 653725
+     "conversations": 4,
+     "prompts": 6,
+     "minutes": 65,
+     "tokens": 687520
     }
    }
   }
