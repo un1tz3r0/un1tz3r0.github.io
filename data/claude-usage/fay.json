@@ -1,5 +1,5 @@
 {
- "generated": "2026-11-27T14:57:38Z",
+ "generated": "2026-11-27T15:57:39Z",
  "machine": "fay",
  "publish": [
   "sessions",
@@ -143,13 +143,13 @@
   "2026-11-27": {
    "sessions": 3,
    "tokens": {
-    "in": 146,
-    "out": 166622,
-    "cache_read": 10476505,
-    "cache_write": 347422
+    "in": 210,
+    "out": 203011,
+    "cache_read": 13566872,
+    "cache_write": 450504
    },
    "models": {
-    "claude-opus-5-5": 166768
+    "claude-opus-5-5": 203221
    },
    "repos": {
     "un1tz3r0/funnelcake": {
