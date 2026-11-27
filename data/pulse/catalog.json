@@ -1,4 +1,9 @@
 {
+ "geo": {
+  "type": "github",
+  "name": "geo",
+  "url": "https://github.com/un1tz3r0/geo"
+ },
  "speak-rack2-plugin": {
   "type": "github",
   "name": "speak-rack2-plugin",
