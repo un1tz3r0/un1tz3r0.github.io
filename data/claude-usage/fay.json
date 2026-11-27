@@ -1,5 +1,5 @@
 {
- "generated": "2026-11-26T12:04:27Z",
+ "generated": "2026-11-27T11:37:41Z",
  "machine": "fay",
  "publish": [
   "sessions",
@@ -104,6 +104,70 @@
       "out": 127715,
       "cache_read": 21566143,
       "cache_write": 399478
+     }
+    }
+   }
+  },
+  "2026-11-26": {
+   "sessions": 4,
+   "tokens": {
+    "in": 236,
+    "out": 176647,
+    "cache_read": 13771897,
+    "cache_write": 493498
+   },
+   "models": {
+    "claude-opus-5-5": 176883
+   },
+   "repos": {
+    "un1tz3r0/geo": {
+     "sessions": 1,
+     "tokens": {
+      "in": 14,
+      "out": 1770,
+      "cache_read": 274779,
+      "cache_write": 30692
+     }
+    },
+    "un1tz3r0/funnelcake": {
+     "sessions": 1,
+     "tokens": {
+      "in": 156,
+      "out": 119832,
+      "cache_read": 9692071,
+      "cache_write": 173535
+     }
+    }
+   }
+  },
+  "2026-11-27": {
+   "sessions": 3,
+   "tokens": {
+    "in": 146,
+    "out": 166622,
+    "cache_read": 10476505,
+    "cache_write": 347422
+   },
+   "models": {
+    "claude-opus-5-5": 166768
+   },
+   "repos": {
+    "un1tz3r0/funnelcake": {
+     "sessions": 1,
+     "tokens": {
+      "in": 100,
+      "out": 131579,
+      "cache_read": 8535828,
+      "cache_write": 198550
+     }
+    },
+    "un1tz3r0/geo": {
+     "sessions": 1,
+     "tokens": {
+      "in": 44,
+      "out": 29048,
+      "cache_read": 1914772,
+      "cache_write": 124209
      }
     }
    }
