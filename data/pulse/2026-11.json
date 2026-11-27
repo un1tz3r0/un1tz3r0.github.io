@@ -803,8 +803,8 @@
    "claude": {
     "code": {
      "conversations": 5,
-     "prompts": 6,
-     "minutes": 68,
+     "prompts": 7,
+     "minutes": 73,
      "tokens": 670381
     }
    }
