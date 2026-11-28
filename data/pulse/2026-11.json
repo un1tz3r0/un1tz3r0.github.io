@@ -900,12 +900,12 @@
    }
   },
   "2026-11-28": {
-   "active": 172,
+   "active": 220,
    "hours": [
     50,
     60,
     58,
-    4,
+    52,
     0,
     0,
     0,
@@ -928,8 +928,9 @@
     0
    ],
    "apps": {
-    "other": 98,
-    "browser": 74
+    "other": 116,
+    "browser": 74,
+    "graphics": 30
    },
    "projects": {
     "un1tz3r0.github.io": {
@@ -955,6 +956,15 @@
       "code": 8,
       "editing": 2,
       "repo": 1
+     }
+    },
+    "funnelcake": {
+     "minutes": 0,
+     "claude": {
+      "conversations": 1,
+      "prompts": 1,
+      "minutes": 1,
+      "tokens": 44997
      }
     }
    },
@@ -989,10 +999,10 @@
    ],
    "claude": {
     "code": {
-     "conversations": 2,
-     "prompts": 2,
-     "minutes": 1,
-     "tokens": 56697
+     "conversations": 3,
+     "prompts": 3,
+     "minutes": 2,
+     "tokens": 101694
     }
    }
   }
