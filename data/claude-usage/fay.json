@@ -1,5 +1,5 @@
 {
- "generated": "2026-11-28T09:09:29Z",
+ "generated": "2026-11-28T10:03:50Z",
  "machine": "fay",
  "publish": [
   "sessions",
@@ -155,10 +155,10 @@
     "un1tz3r0/funnelcake": {
      "sessions": 1,
      "tokens": {
-      "in": 100,
-      "out": 131579,
-      "cache_read": 8535828,
-      "cache_write": 198550
+      "in": 172,
+      "out": 170970,
+      "cache_read": 12151270,
+      "cache_write": 307020
      }
     },
     "un1tz3r0/geo": {
@@ -168,6 +168,29 @@
       "out": 29048,
       "cache_read": 1914772,
       "cache_write": 124209
+     }
+    }
+   }
+  },
+  "2026-11-28": {
+   "sessions": 1,
+   "tokens": {
+    "in": 2,
+    "out": 432,
+    "cache_read": 25905,
+    "cache_write": 24665
+   },
+   "models": {
+    "claude-opus-5-5": 434
+   },
+   "repos": {
+    "un1tz3r0/un1tz3r0.github.io": {
+     "sessions": 1,
+     "tokens": {
+      "in": 2,
+      "out": 432,
+      "cache_read": 25905,
+      "cache_write": 24665
      }
     }
    }
