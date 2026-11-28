@@ -1,5 +1,5 @@
 {
- "generated": "2026-11-28T10:03:50Z",
+ "generated": "2026-11-28T11:03:50Z",
  "machine": "fay",
  "publish": [
   "sessions",
@@ -173,15 +173,15 @@
    }
   },
   "2026-11-28": {
-   "sessions": 1,
+   "sessions": 2,
    "tokens": {
-    "in": 2,
-    "out": 432,
-    "cache_read": 25905,
-    "cache_write": 24665
+    "in": 14,
+    "out": 3719,
+    "cache_read": 311846,
+    "cache_write": 52964
    },
    "models": {
-    "claude-opus-5-5": 434
+    "claude-opus-5-5": 3733
    },
    "repos": {
     "un1tz3r0/un1tz3r0.github.io": {
