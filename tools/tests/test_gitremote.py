@@ -1,9 +1,10 @@
 import asyncio
+import json
 import subprocess
 
 import pytest
 
-from sitekit import gitremote
+from sitekit import common, gitremote
 
 run = asyncio.run
 
@@ -158,3 +159,73 @@ def test_clone_tries_routes_too(tmp_path, two):
     remote, *_ = two
     run(gitremote.clone(str(remote), tmp_path / 'c', '--sparse'))
     assert (tmp_path / 'c' / '.git').exists()
+
+
+def test_generated_json_from_two_writers_merges_instead_of_conflicting(two):
+    remote, a, b = two
+    day = lambda **days: json.dumps({'machine': 'fay', 'days': days}, indent=1) + '\n'
+    commit(a, 'usage.json', day(d1={'n': 1}))
+    (a / 'data' / 'claude-usage').mkdir(parents=True)
+    git('mv', 'usage.json', 'data/claude-usage/fay.json', cwd=a)
+    git('commit', '-qm', 'move', cwd=a)
+    run(gitremote.push(a))
+    run(gitremote.pull(b))
+    usage = 'data/claude-usage/fay.json'
+    commit(a, usage, day(d1={'n': 1}, d2={'n': 2}))
+    run(gitremote.push(a))
+    commit(b, usage, day(d1={'n': 5}, d3={'n': 3}))
+    run(gitremote.push(b))      # rejected, then rebased with the JSON driver, then pushed
+    assert json.loads((b / usage).read_text())['days'] == {'d1': {'n': 5}, 'd2': {'n': 2}, 'd3': {'n': 3}}
+    assert git('rev-parse', 'master', cwd=remote) == git('rev-parse', 'HEAD', cwd=b)
+
+
+def test_a_rejected_push_is_not_tried_by_other_routes():
+    tried = []
+
+    async def op(url, opts, env):
+        tried.append(url)
+        raise RuntimeError(' ! [rejected]        HEAD -> master (non-fast-forward)')
+    with pytest.raises(gitremote.Rejected):
+        run(gitremote.attempt('git@github.com:me/site.git', op))
+    assert len(tried) == 1
+
+
+def test_an_unknown_github_host_key_is_trusted_and_the_route_retried(monkeypatch):
+    calls, trusted = [], []
+
+    async def trust(log=None):
+        trusted.append(1)
+        return True
+
+    async def op(url, opts, env):
+        calls.append(url)
+        if len(calls) == 1:
+            raise RuntimeError('Host key verification failed.\nfatal: Could not read from remote repository.')
+        return 'ok'
+    monkeypatch.setattr(gitremote, 'trust_github', trust)
+    assert run(gitremote.attempt('git@github.com:me/site.git', op)) == 'ok'
+    assert calls == ['git@github.com:me/site.git'] * 2 and trusted == [1]
+
+
+def test_known_hosts_gets_exactly_githubs_keys(tmp_path, monkeypatch):
+    keys = ['ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl']
+
+    async def published():
+        return keys
+    monkeypatch.setattr(gitremote, 'github_host_keys', published)
+    hosts = tmp_path / 'ssh' / 'known_hosts'
+    hosts.parent.mkdir()
+    hosts.write_text('example.org ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBzWhC3Xu5u9qJ2W3dn0wzvDjD3VZ2XbhZq2dtL2GS2h\n'
+                     'github.com ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAq2A7hRGmdnm9tUDbO9IDSwBK6TbQa+PXYPCPy6rbTrTtw7PHkccKrpp0yVhp5HdEIcKr6pLlVDBfOLX9QUsyCOV0wzfjIJNlGEYsdlLJizHhbn2mUjvSAHQqZETYP81eFzLQNnPHt4EVVUh7VfDESU84KezmD5QlWpXLmvU31/yMf+Se8xhHTvKSCZIFImWwoG6mbUoWf9nzpIoaSjB+weqqUUmpaaasXVal72J+UX2B+2RPW3RcT0eOzQgqlJL3RKrTJvdsjE3JEAvGq3lGHSZXy28G3skua2SmVi/w4yCE6gbODqnTWlg7+wC604ydGXA8VJiS5ap43JXiUFFAaQ==\n')
+    assert run(gitremote.trust_github(path=hosts))
+    lines = hosts.read_text().splitlines()
+    assert lines[0].startswith('example.org') and lines[1:] == [f'github.com {keys[0]}']
+    assert not run(gitremote.trust_github(path=hosts))
+
+
+def test_git_errors_keep_whole_lines_and_drop_hints():
+    err = ' ! [rejected]        HEAD -> master (non-fast-forward)\nerror: failed to push\nhint: Updates were rejected\n'
+    with pytest.raises(RuntimeError) as e:
+        run(common.run('sh', '-c', f'printf %s "{err}" >&2; exit 1'))
+    assert str(e.value) == 'sh: ! [rejected]        HEAD -> master (non-fast-forward)\nerror: failed to push'
+    assert common.label(['git', '-C', '/x', '-c', 'a=b', 'push', '--quiet']) == 'git push'

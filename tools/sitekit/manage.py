@@ -184,6 +184,11 @@ async def install(config: Path, layout: update.Layout, dev: bool = False, url: s
     if history:
         tomledit.edit(config, [('browser', 'history', True)])
     s = pulse.Settings.load(config)
+    try:
+        if not await gitremote.trust_github(say):
+            say(f'github.com host keys in {gitremote.KNOWN_HOSTS} are current')
+    except (RuntimeError, OSError, aiohttp.ClientError) as e:
+        say(f'could not check github.com host keys, so SSH to GitHub may fail: {e}', 'warning')
     if (s.site / '.git').exists():
         try:
             await gitremote.pull(s.site, say)
