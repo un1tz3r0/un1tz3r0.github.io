@@ -1,4 +1,9 @@
 {
+ "funnelcake": {
+  "type": "github",
+  "name": "funnelcake",
+  "url": "https://github.com/un1tz3r0/funnelcake"
+ },
  "geo": {
   "type": "github",
   "name": "geo",

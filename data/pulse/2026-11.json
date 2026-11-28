@@ -842,6 +842,15 @@
     "other": 207
    },
    "projects": {
+    "funnelcake": {
+     "minutes": 0,
+     "claude": {
+      "conversations": 1,
+      "prompts": 3,
+      "minutes": 48,
+      "tokens": 478162
+     }
+    },
     "geo": {
      "minutes": 0,
      "claude": {
@@ -891,10 +900,10 @@
    }
   },
   "2026-11-28": {
-   "active": 10,
+   "active": 60,
    "hours": [
+    50,
     10,
-    0,
     0,
     0,
     0,
@@ -919,9 +928,28 @@
     0
    ],
    "apps": {
-    "other": 10
+    "other": 60
    },
-   "projects": {}
+   "projects": {
+    "un1tz3r0.github.io": {
+     "minutes": 9,
+     "files": 12,
+     "ext": {
+      ".json": 6,
+      ".py": 6
+     },
+     "claude": {
+      "conversations": 1,
+      "prompts": 1
+     }
+    }
+   },
+   "claude": {
+    "code": {
+     "conversations": 1,
+     "prompts": 1
+    }
+   }
   }
  },
  "tz": "-08:00"
