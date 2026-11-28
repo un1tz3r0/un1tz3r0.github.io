@@ -85,8 +85,27 @@ async def run(*cmd: str, cwd=None, check=True, shell=False, env: dict | None = N
     proc = await spawn(*cmd, cwd=cwd, env=env, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     out, err = await proc.communicate()
     if check and proc.returncode:
-        raise RuntimeError(f'{cmd[0]} {" ".join(cmd[1:3])}: {err.decode(errors="replace").strip()[-400:]}')
+        raise RuntimeError(f'{label(cmd)}: {tail(err.decode(errors="replace"))}')
     return out.decode('utf-8', 'replace')
+
+
+def label(cmd) -> str:
+    """`git push` for `git -C repo -c k=v push …`: the program and its first word that isn't an option."""
+    args = iter(cmd[1:])
+    word = next((a for a in args if not (a in ('-C', '-c') and next(args, None)) and not a.startswith('-')), '')
+    return f'{cmd[0]} {word}'.strip()
+
+
+def tail(err: str, limit: int = 600) -> str:
+    """The last whole lines of stderr that fit in limit, without git's `hint:` advice."""
+    lines = [l.rstrip() for l in err.strip().splitlines() if l.strip() and not l.startswith('hint:')]
+    kept, size = [], 0
+    for line in reversed(lines):
+        if kept and size + len(line) > limit:
+            break
+        kept.append(line[-limit:])
+        size += len(line) + 1
+    return '\n'.join(reversed(kept))
 
 
 def api_headers() -> dict:

@@ -549,11 +549,13 @@ async def publish(s: Settings, db: sqlite3.Connection) -> None:
     await conversations.add(days, db, s.claude, {**s.found, **s.projects}, allowed, start, log)
     enrich_claude(s, db)
     git = lambda *a, **k: run('git', '-C', str(s.site), *a, **k)
+    behind = None
     if s.push:
         try:
             await gitremote.pull(s.site, log)
         except RuntimeError as e:
-            log(f'pull failed, publishing on top of the local copy: {e}', kind='warning')
+            behind = e
+            log(f'pull failed, committing on top of the local copy: {e}', kind='warning')
     folder = s.site / 'data' / 'pulse'
     tz = datetime.now().astimezone().strftime('%z')
     for month in sorted({d[:7] for d in days}):
@@ -583,6 +585,9 @@ async def publish(s: Settings, db: sqlite3.Connection) -> None:
         await git('commit', '--quiet', '-m', f'pulse: {datetime.now():%Y-%m-%d %H:%M}', '--', *paths)
     # also push commits made since the last push by others in this checkout: `sitekit status`, `post` and the rest
     pushed = s.push and await gitremote.ahead(s.site) > 0
+    if pushed and behind:
+        raise RuntimeError(f'committed in {s.site} but not pushed, since it could not be brought up to date with '
+                           f'origin: {behind}')
     if pushed:
         await gitremote.push(s.site, log)
     if committed or pushed:
